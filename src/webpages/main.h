@@ -2,7 +2,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
 <figure class="text-center"><h2 id="devicename"></h2></figure>
 <div class="row gx-0 mb-2">
 <div class="col">
-<div class="bg-light">Package: </div>
+<div class="bg-light">Battery: </div>
 </div>
 <div class="col">
 <div class="bg-light"><span id="packV" >N/A</span><span id="packA" >N/A</span><span id="packSOC" >N/A</span></div>
@@ -43,30 +43,13 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
 
 <div class="row gx-0 mb-2">
 <div class="col">
-<div class="bg-light">Charge MOS State: </div>
+<div class="bg-light">Load State: </div>
 </div>
 <div class="col">
 <div class="bg-light form-check form-switch"><!--<span id="chargeFetState1">N/A</span>--><input class="form-check-input" type="checkbox" onchange="togglechargefet(this)" role="switch" id="chargeFetState" /></div>
 </div>
 </div>
 
-<div class="row gx-0 mb-2">
-<div class="col">
-<div class="bg-light">Discharge MOS State: </div>
-</div>
-<div class="col">
-<div class="bg-light form-check form-switch"><input class="form-check-input" type="checkbox" onchange="toggledischargefet(this)" role="switch" id="disChargeFetState" /></div>
-</div>
-</div>
-
-<div class="row gx-0 mb-2">
-<div class="col">
-<div class="bg-light">Balance State: </div>
-</div>
-<div class="col">
-<div class="bg-light form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="cellBalanceActive" disabled/></div>
-</div>
-</div>
 
 <div class="d-grid gap-2">
 <a class="btn btn-primary btn-block" href="/settings" role="button">Settings</a>
@@ -91,8 +74,6 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
                document.getElementById("cellL").innerHTML = data.cellL+'V ';
                document.getElementById("cellDiff").innerHTML = data.cellDiff+'mV ';
                document.getElementById("chargeFetState").checked = data.chFet;
-               document.getElementById("disChargeFetState").checked = data.disChFet;
-               document.getElementById("cellBalanceActive").checked = data.cellBal;
                document.getElementById("devicename").innerHTML = 'Device: '+data.device_name;
             }
         });

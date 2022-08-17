@@ -1,10 +1,7 @@
 #include <Arduino.h>
 
-#include <epever.h>     // This is where the library gets pulled in
-#define EPEVER_SERIAL Serial      // Set the serial port for communication with the EPEver
-#define EPEVER_BAUD 9600 //baud rate for modbus
-#define EPEVER_DE_RE D1 //connect DE and Re to pin D1
-#define EPEVER_SERIAL_DEBUG Serial1 // Uncomment the below #define to enable debugging print statements.
+#include <ModbusMaster.h>
+#include "epregister.h"
 
 #include <EEPROM.h>
 #include <PubSubClient.h>
@@ -22,6 +19,11 @@
 #include "webpages/settings.h"     // settings page
 #include "webpages/settingsedit.h" // mqtt settings page
 
+#define EPEVER_SERIAL Serial        // Set the serial port for communication with the EPEver
+#define EPEVER_BAUD 115200          // baud rate for modbus
+#define EPEVER_DE_RE 5             // connect DE and Re to pin D1
+#define EPEVER_SERIAL_DEBUG Serial1 // Uncomment the below #define to enable debugging print statements.
+
 WiFiClient client;
 Settings _settings;
 PubSubClient mqttclient(client);
@@ -30,10 +32,10 @@ int mqttBufferSize = 2048;
 String topic = "/"; // Default first part of topic. We will add device ID in setup
 
 unsigned long mqtttimer = 0;
-unsigned long bmstimer = 0;
+unsigned long getDataTimer = 0;
 AsyncWebServer server(80);
 DNSServer dns;
-EPEVER ep(EPEVER_SERIAL, EPEVER_BAUD, EPEVER_DE_RE);
+ModbusMaster epnode; // instantiate ModbusMaster object
 // flag for saving data and other things
 bool shouldSaveConfig = false;
 char mqtt_server[40];
@@ -85,19 +87,52 @@ static void handle_update_progress_cb(AsyncWebServerRequest *request, String fil
   }
 }
 
+void preTransmission()
+{
+  digitalWrite(EPEVER_DE_RE, 1);
+}
+
+void postTransmission()
+{
+  digitalWrite(EPEVER_DE_RE, 0);
+}
+
+
+int loadState;
+
+int batterySOC;
+
+  uint8_t i, result;
+
+float test;
+
+
+
 void setup()
 {
+  pinMode(EPEVER_DE_RE, OUTPUT);
+  digitalWrite(EPEVER_DE_RE, 0);
 #ifdef EPEVER_SERIAL_DEBUG
   // This is needed to print stuff to the serial monitor
   EPEVER_SERIAL_DEBUG.begin(9600);
 #endif
 
   _settings.load();
-  delay(1000);
-  ep.Init();            // init the bms driver
-  WiFi.persistent(true); // fix wifi save bug
+  delay(500);
+  WiFi.persistent(true);              // fix wifi save bug
+  AsyncWiFiManager wm(&server, &dns); // create wifimanager instance
+  EPEVER_SERIAL.begin(EPEVER_BAUD);
+  epnode.begin(1, EPEVER_SERIAL);
+  epnode.preTransmission(preTransmission);
+  epnode.postTransmission(postTransmission);
 
-  AsyncWiFiManager wm(&server, &dns);
+
+
+
+
+
+
+
 
 #ifdef EPEVER_SERIAL_DEBUG
   wm.setDebugOutput(false);
@@ -165,7 +200,7 @@ void setup()
 
   topic = _settings._mqttTopic;
   mqttclient.setServer(_settings._mqttServer.c_str(), _settings._mqttPort);
-  //mqttclient.setCallback(callback);
+  // mqttclient.setCallback(callback);
   mqttclient.setBufferSize(mqttBufferSize);
   // check is WiFi connected
   if (!res)
@@ -192,9 +227,9 @@ void setup()
                 AsyncResponseStream *response = request->beginResponseStream("application/json");
                 DynamicJsonDocument liveJson(256);
                 liveJson["device_name"] = _settings._deviceName;
-                //liveJson["packV"] = (String)ep.get.packVoltage;
-                //liveJson["packA"] = (String)ep.get.packCurrent;
-                //liveJson["packSOC"] = (String)ep.get.packSOC;
+                liveJson["packV"] = (String)test;
+                liveJson["packA"] = (String)loadState;
+                liveJson["packSOC"] = (String)batterySOC;
                 //liveJson["packRes"] = (String)ep.get.resCapacitymAh;
                // liveJson["packCycles"] = (String)ep.get.bmsCycles;
                 //liveJson["packTemp"] = (String)ep.get.cellTemperature[0];
@@ -336,8 +371,8 @@ void setup()
   {
     if (!_settings._mqttJson)
     {
-     // mqttclient.subscribe((String(topic) + String("/Pack DischargeFET")).c_str());
-     // mqttclient.subscribe((String(topic) + String("/Pack ChargeFET")).c_str());
+      // mqttclient.subscribe((String(topic) + String("/Pack DischargeFET")).c_str());
+      // mqttclient.subscribe((String(topic) + String("/Pack ChargeFET")).c_str());
     }
     else
     {
@@ -348,8 +383,6 @@ void setup()
 // end void setup
 
 //----------------------------------------------------------------------
-//----------------------------------------------------------------------
-//----------------------------------------------------------------------
 void loop()
 {
   // Make sure wifi is in the right mode
@@ -358,12 +391,13 @@ void loop()
     MDNS.update();
     mqttclient.loop(); // Check if we have something to read from MQTT
 
-    if (millis() > (bmstimer + (3 * 1000)) && !updateProgress)
+    if (millis() > (getDataTimer + (3 * 1000)) && !updateProgress)
     {
-      ep.update(); // update the values
-      bmstimer = millis();
+      getEpData(); //get actual data from epever and set it to the json
+      getDataTimer = millis();
     }
-    if(!updateProgress) sendtoMQTT(); // Update data to MQTT server if we should
+    if (!updateProgress)
+      sendtoMQTT(); // Update data to MQTT server if we should
   }
   if (restartNow)
   {
@@ -376,6 +410,21 @@ void loop()
 }
 // End void loop
 
+void getEpData()
+{
+  epnode.clearResponseBuffer();
+  result = epnode.readInputRegisters(0x3100, 8);
+  if (result == epnode.ku8MBSuccess)
+  {
+    test = epnode.getResponseBuffer(BATT_VOLTS)/100.0f;
+  }  else  {
+    //Serial.print("Miss read batterySOC, ret val:");
+    test = 199;
+  }
+
+  
+  if (epnode.readInputRegisters(BATTERY_SOC, 1) == epnode.ku8MBSuccess) batterySOC = epnode.getResponseBuffer(0);
+}
 bool sendtoMQTT()
 {
 
@@ -388,9 +437,9 @@ bool sendtoMQTT()
   {
     if (mqttclient.connect((String(_settings._deviceName)).c_str(), _settings._mqttUser.c_str(), _settings._mqttPassword.c_str()))
     {
- #ifdef EPEVER_SERIAL_DEBUG
+#ifdef EPEVER_SERIAL_DEBUG
       EPEVER_SERIAL_DEBUG.println(F("Reconnected to MQTT SERVER"));
- #endif
+#endif
       if (!_settings._mqttJson)
       {
         mqttclient.publish((topic + String("/IP")).c_str(), String(WiFi.localIP().toString()).c_str());
@@ -398,89 +447,106 @@ bool sendtoMQTT()
     }
     else
     {
- #ifdef EPEVER_SERIAL_DEBUG
+#ifdef EPEVER_SERIAL_DEBUG
       EPEVER_SERIAL_DEBUG.println(F("CANT CONNECT TO MQTT"));
- #endif
+#endif
       return false; // Exit if we couldnt connect to MQTT brooker
     }
   }
 #ifdef EPEVER_SERIAL_DEBUG
   EPEVER_SERIAL_DEBUG.println(F("Data sent to MQTT Server"));
 #endif
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   if (!_settings._mqttJson)
   {
     char msgBuffer[20];
-/*
-    mqttclient.publish((String(topic) + String("/Pack Voltage")).c_str(), dtostrf(ep.get.packVoltage, 4, 1, msgBuffer));
-    mqttclient.publish((String(topic) + String("/Pack Current")).c_str(), dtostrf(ep.get.packCurrent, 4, 1, msgBuffer));
-    mqttclient.publish((String(topic) + String("/Pack SOC")).c_str(), dtostrf(ep.get.packSOC, 6, 2, msgBuffer));
-    mqttclient.publish((String(topic) + String("/Pack Remaining mAh")).c_str(), String(ep.get.resCapacitymAh).c_str());
-    mqttclient.publish((String(topic) + String("/Pack Cycles")).c_str(), String(ep.get.bmsCycles).c_str());
-    mqttclient.publish((String(topic) + String("/Pack Min Temperature")).c_str(), String(ep.get.tempMin).c_str());
-    mqttclient.publish((String(topic) + String("/Pack Max Temperature")).c_str(), String(ep.get.tempMax).c_str());
-    mqttclient.publish((String(topic) + String("/Pack High Cell")).c_str(), (dtostrf(ep.get.maxCellVNum, 1, 0, msgBuffer) + String(".- ") + dtostrf(ep.get.maxCellmV / 1000, 5, 3, msgBuffer)).c_str());
-    mqttclient.publish((String(topic) + String("/Pack Low Cell")).c_str(), (dtostrf(ep.get.minCellVNum, 1, 0, msgBuffer) + String(".- ") + dtostrf(ep.get.minCellmV / 1000, 5, 3, msgBuffer)).c_str());
-    mqttclient.publish((String(topic) + String("/Pack Cell Difference")).c_str(), String(ep.get.cellDiff).c_str());
-    mqttclient.publish((String(topic) + String("/Pack ChargeFET")).c_str(), ep.get.chargeFetState ? "true" : "false");
-    mqttclient.publish((String(topic) + String("/Pack DischargeFET")).c_str(), ep.get.disChargeFetState ? "true" : "false");
-    mqttclient.publish((String(topic) + String("/Pack Status")).c_str(), String(ep.get.chargeDischargeStatus).c_str());
-    mqttclient.publish((String(topic) + String("/Pack Cells")).c_str(), String(ep.get.numberOfCells).c_str());
-    mqttclient.publish((String(topic) + String("/Pack Heartbeat")).c_str(), String(ep.get.bmsHeartBeat).c_str());
-    mqttclient.publish((String(topic) + String("/Pack Balance Active")).c_str(), String(ep.get.cellBalanceActive ? "true" : "false").c_str());
+    /*
+        mqttclient.publish((String(topic) + String("/Pack Voltage")).c_str(), dtostrf(ep.get.packVoltage, 4, 1, msgBuffer));
+        mqttclient.publish((String(topic) + String("/Pack Current")).c_str(), dtostrf(ep.get.packCurrent, 4, 1, msgBuffer));
+        mqttclient.publish((String(topic) + String("/Pack SOC")).c_str(), dtostrf(ep.get.packSOC, 6, 2, msgBuffer));
+        mqttclient.publish((String(topic) + String("/Pack Remaining mAh")).c_str(), String(ep.get.resCapacitymAh).c_str());
+        mqttclient.publish((String(topic) + String("/Pack Cycles")).c_str(), String(ep.get.bmsCycles).c_str());
+        mqttclient.publish((String(topic) + String("/Pack Min Temperature")).c_str(), String(ep.get.tempMin).c_str());
+        mqttclient.publish((String(topic) + String("/Pack Max Temperature")).c_str(), String(ep.get.tempMax).c_str());
+        mqttclient.publish((String(topic) + String("/Pack High Cell")).c_str(), (dtostrf(ep.get.maxCellVNum, 1, 0, msgBuffer) + String(".- ") + dtostrf(ep.get.maxCellmV / 1000, 5, 3, msgBuffer)).c_str());
+        mqttclient.publish((String(topic) + String("/Pack Low Cell")).c_str(), (dtostrf(ep.get.minCellVNum, 1, 0, msgBuffer) + String(".- ") + dtostrf(ep.get.minCellmV / 1000, 5, 3, msgBuffer)).c_str());
+        mqttclient.publish((String(topic) + String("/Pack Cell Difference")).c_str(), String(ep.get.cellDiff).c_str());
+        mqttclient.publish((String(topic) + String("/Pack ChargeFET")).c_str(), ep.get.chargeFetState ? "true" : "false");
+        mqttclient.publish((String(topic) + String("/Pack DischargeFET")).c_str(), ep.get.disChargeFetState ? "true" : "false");
+        mqttclient.publish((String(topic) + String("/Pack Status")).c_str(), String(ep.get.chargeDischargeStatus).c_str());
+        mqttclient.publish((String(topic) + String("/Pack Cells")).c_str(), String(ep.get.numberOfCells).c_str());
+        mqttclient.publish((String(topic) + String("/Pack Heartbeat")).c_str(), String(ep.get.bmsHeartBeat).c_str());
+        mqttclient.publish((String(topic) + String("/Pack Balance Active")).c_str(), String(ep.get.cellBalanceActive ? "true" : "false").c_str());
 
-    for (size_t i = 0; i < size_t(ep.get.numberOfCells); i++)
-    {
-      mqttclient.publish((String(topic) + String("/Pack Cells Voltage/Cell ") + (String)(i + 1)).c_str(), dtostrf(ep.get.cellVmV[i] / 1000, 5, 3, msgBuffer));
-      mqttclient.publish((String(topic) + String("/Pack Cells Balance/Cell ") + (String)(i + 1)).c_str(), String(ep.get.cellBalanceState[i] ? "true" : "false").c_str());
-    }
-    for (size_t i = 0; i < size_t(ep.get.numOfTempSensors); i++)
-    {
-      mqttclient.publish((String(topic) + String("/Pack Temperature Sensor No ") + (String)(i + 1)).c_str(), String(ep.get.cellTemperature[i]).c_str());
-    }
-    */
+        for (size_t i = 0; i < size_t(ep.get.numberOfCells); i++)
+        {
+          mqttclient.publish((String(topic) + String("/Pack Cells Voltage/Cell ") + (String)(i + 1)).c_str(), dtostrf(ep.get.cellVmV[i] / 1000, 5, 3, msgBuffer));
+          mqttclient.publish((String(topic) + String("/Pack Cells Balance/Cell ") + (String)(i + 1)).c_str(), String(ep.get.cellBalanceState[i] ? "true" : "false").c_str());
+        }
+        for (size_t i = 0; i < size_t(ep.get.numOfTempSensors); i++)
+        {
+          mqttclient.publish((String(topic) + String("/Pack Temperature Sensor No ") + (String)(i + 1)).c_str(), String(ep.get.cellTemperature[i]).c_str());
+        }
+        */
   }
   else
   {
     char mqttBuffer[2048];
     DynamicJsonDocument mqttJson(mqttBufferSize);
-/*
-    JsonObject mqttJsonPack = mqttJson.createNestedObject("Pack");
-    mqttJsonPack["Device IP"] = WiFi.localIP().toString();
-    mqttJsonPack["Voltage"] = ep.get.packVoltage;
-    mqttJsonPack["Current"] = ep.get.packCurrent;
-    mqttJsonPack["SOC"] = ep.get.packSOC;
-    mqttJsonPack["Remaining mAh"] = ep.get.resCapacitymAh;
-    mqttJsonPack["Cycles"] = ep.get.bmsCycles;
-    //mqttJsonPack["MinTemp"] = ep.get.tempMin;
-    //mqttJsonPack["MaxTemp"] = ep.get.tempMax;
-    mqttJsonPack["High CellNr"] = ep.get.maxCellVNum;
-    mqttJsonPack["High CellV"] = ep.get.maxCellmV / 1000;
-    mqttJsonPack["Low CellNr"] = ep.get.minCellVNum;
-    mqttJsonPack["Low CellV"] = ep.get.minCellmV / 1000;
-    mqttJsonPack["Cell Difference"] = ep.get.cellDiff;
-    mqttJsonPack["DischargeFET"] = ep.get.disChargeFetState;
-    mqttJsonPack["ChargeFET"] = ep.get.chargeFetState;
-    mqttJsonPack["Status"] = ep.get.chargeDischargeStatus;
-    mqttJsonPack["Cells"] = ep.get.numberOfCells;
-    mqttJsonPack["Heartbeat"] = ep.get.bmsHeartBeat;
-    mqttJsonPack["Balance Active"] = ep.get.cellBalanceActive;
+    /*
+        JsonObject mqttJsonPack = mqttJson.createNestedObject("Pack");
+        mqttJsonPack["Device IP"] = WiFi.localIP().toString();
+        mqttJsonPack["Voltage"] = ep.get.packVoltage;
+        mqttJsonPack["Current"] = ep.get.packCurrent;
+        mqttJsonPack["SOC"] = ep.get.packSOC;
+        mqttJsonPack["Remaining mAh"] = ep.get.resCapacitymAh;
+        mqttJsonPack["Cycles"] = ep.get.bmsCycles;
+        //mqttJsonPack["MinTemp"] = ep.get.tempMin;
+        //mqttJsonPack["MaxTemp"] = ep.get.tempMax;
+        mqttJsonPack["High CellNr"] = ep.get.maxCellVNum;
+        mqttJsonPack["High CellV"] = ep.get.maxCellmV / 1000;
+        mqttJsonPack["Low CellNr"] = ep.get.minCellVNum;
+        mqttJsonPack["Low CellV"] = ep.get.minCellmV / 1000;
+        mqttJsonPack["Cell Difference"] = ep.get.cellDiff;
+        mqttJsonPack["DischargeFET"] = ep.get.disChargeFetState;
+        mqttJsonPack["ChargeFET"] = ep.get.chargeFetState;
+        mqttJsonPack["Status"] = ep.get.chargeDischargeStatus;
+        mqttJsonPack["Cells"] = ep.get.numberOfCells;
+        mqttJsonPack["Heartbeat"] = ep.get.bmsHeartBeat;
+        mqttJsonPack["Balance Active"] = ep.get.cellBalanceActive;
 
-    JsonObject mqttJsonCellV = mqttJson.createNestedObject("CellV");
-    for (size_t i = 0; i < size_t(ep.get.numberOfCells); i++)
-    {
-      //put this data into an array later!
-      mqttJsonCellV["CellV " + String(i + 1)] = ep.get.cellVmV[i] / 1000;
-      //mqttJsonCellV["Balance " + String(i + 1)] = ep.get.cellBalanceState[i];
-    }
-    JsonObject mqttJsonTemp = mqttJson.createNestedObject("CellTemp");
-    for (size_t i = 0; i < size_t(ep.get.numOfTempSensors); i++)
-    {
-      mqttJsonTemp["Temp" + String(i + 1)] = ep.get.cellTemperature[i];
-    }
+        JsonObject mqttJsonCellV = mqttJson.createNestedObject("CellV");
+        for (size_t i = 0; i < size_t(ep.get.numberOfCells); i++)
+        {
+          //put this data into an array later!
+          mqttJsonCellV["CellV " + String(i + 1)] = ep.get.cellVmV[i] / 1000;
+          //mqttJsonCellV["Balance " + String(i + 1)] = ep.get.cellBalanceState[i];
+        }
+        JsonObject mqttJsonTemp = mqttJson.createNestedObject("CellTemp");
+        for (size_t i = 0; i < size_t(ep.get.numOfTempSensors); i++)
+        {
+          mqttJsonTemp["Temp" + String(i + 1)] = ep.get.cellTemperature[i];
+        }
 
-    size_t n = serializeJson(mqttJson, mqttBuffer);
-    mqttclient.publish((String(topic + "/" + _settings._deviceName)).c_str(), mqttBuffer, n);
-    */
+        size_t n = serializeJson(mqttJson, mqttBuffer);
+        mqttclient.publish((String(topic + "/" + _settings._deviceName)).c_str(), mqttBuffer, n);
+        */
   }
 
   return true;
