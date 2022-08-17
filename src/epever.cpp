@@ -8,9 +8,11 @@
 // Public Functions
 //----------------------------------------------------------------------
 
-EPEVER::EPEVER(HardwareSerial &serial_peripheral)
+EPEVER::EPEVER(HardwareSerial &serial_peripheral, uint8 serial_baudrate, byte serial_reropin)
 {
     this->my_serialIntf = &serial_peripheral;
+    this->my_baudRate = serial_baudrate;
+    this->my_reroPin = serial_reropin;
 }
 
 bool EPEVER::Init()

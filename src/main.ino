@@ -2,6 +2,8 @@
 
 #include <epever.h>     // This is where the library gets pulled in
 #define EPEVER_SERIAL Serial      // Set the serial port for communication with the EPEver
+#define EPEVER_BAUD 9600 //baud rate for modbus
+#define EPEVER_DE_RE D1 //connect DE and Re to pin D1
 #define EPEVER_SERIAL_DEBUG Serial1 // Uncomment the below #define to enable debugging print statements.
 
 #include <EEPROM.h>
@@ -31,7 +33,7 @@ unsigned long mqtttimer = 0;
 unsigned long bmstimer = 0;
 AsyncWebServer server(80);
 DNSServer dns;
-EPEVER ep(EPEVER_SERIAL);
+EPEVER ep(EPEVER_SERIAL, EPEVER_BAUD, EPEVER_DE_RE);
 // flag for saving data and other things
 bool shouldSaveConfig = false;
 char mqtt_server[40];
@@ -163,7 +165,7 @@ void setup()
 
   topic = _settings._mqttTopic;
   mqttclient.setServer(_settings._mqttServer.c_str(), _settings._mqttPort);
-  mqttclient.setCallback(callback);
+  //mqttclient.setCallback(callback);
   mqttclient.setBufferSize(mqttBufferSize);
   // check is WiFi connected
   if (!res)
@@ -190,18 +192,18 @@ void setup()
                 AsyncResponseStream *response = request->beginResponseStream("application/json");
                 DynamicJsonDocument liveJson(256);
                 liveJson["device_name"] = _settings._deviceName;
-                liveJson["packV"] = (String)ep.get.packVoltage;
-                liveJson["packA"] = (String)ep.get.packCurrent;
-                liveJson["packSOC"] = (String)ep.get.packSOC;
-                liveJson["packRes"] = (String)ep.get.resCapacitymAh;
+                //liveJson["packV"] = (String)ep.get.packVoltage;
+                //liveJson["packA"] = (String)ep.get.packCurrent;
+                //liveJson["packSOC"] = (String)ep.get.packSOC;
+                //liveJson["packRes"] = (String)ep.get.resCapacitymAh;
                // liveJson["packCycles"] = (String)ep.get.bmsCycles;
-                liveJson["packTemp"] = (String)ep.get.cellTemperature[0];
-                liveJson["cellH"] = (String)ep.get.maxCellVNum + ". " + (String)(ep.get.maxCellmV / 1000);
-                liveJson["cellL"] = (String)ep.get.minCellVNum + ". " + (String)(ep.get.minCellmV / 1000);
-                liveJson["cellDiff"] = (String)ep.get.cellDiff;
-                liveJson["disChFet"] = ep.get.disChargeFetState? true : false;
-                liveJson["chFet"] = ep.get.chargeFetState? true : false;
-                liveJson["cellBal"] = ep.get.cellBalanceActive? true : false;
+                //liveJson["packTemp"] = (String)ep.get.cellTemperature[0];
+                //liveJson["cellH"] = (String)ep.get.maxCellVNum + ". " + (String)(ep.get.maxCellmV / 1000);
+                //liveJson["cellL"] = (String)ep.get.minCellVNum + ". " + (String)(ep.get.minCellmV / 1000);
+                //liveJson["cellDiff"] = (String)ep.get.cellDiff;
+                //liveJson["disChFet"] = ep.get.disChargeFetState? true : false;
+                //liveJson["chFet"] = ep.get.chargeFetState? true : false;
+                //liveJson["cellBal"] = ep.get.cellBalanceActive? true : false;
                 serializeJson(liveJson, *response);
                 request->send(response); });
 
@@ -288,12 +290,12 @@ void setup()
                     EPEVER_SERIAL_DEBUG.println("charge fet webswitch to: "+(String)p->value());
 #endif
                     if(p->value().toInt() == 1){
-                      ep.setChargeMOS(true);
-                      ep.get.chargeFetState = true;
+                      //ep.setChargeMOS(true);
+                      //ep.get.chargeFetState = true;
                     }
                     if(p->value().toInt() == 0){
-                      ep.setChargeMOS(false);
-                      ep.get.chargeFetState = false;
+                      //ep.setChargeMOS(false);
+                     // ep.get.chargeFetState = false;
                     }
                 }
                 if (p->name() == "dischargefet")
@@ -302,12 +304,12 @@ void setup()
                     EPEVER_SERIAL_DEBUG.println("discharge fet webswitch to: "+(String)p->value());
 #endif
                     if(p->value().toInt() == 1){
-                      ep.setDischargeMOS(true);
-                      ep.get.disChargeFetState = true;
+                      //ep.setDischargeMOS(true);
+                      //ep.get.disChargeFetState = true;
                     }
                     if(p->value().toInt() == 0){
-                      ep.setDischargeMOS(false);
-                      ep.get.disChargeFetState = false;
+                      //ep.setDischargeMOS(false);
+                      //ep.get.disChargeFetState = false;
                     }
                 }
                 request->send(200, "text/plain", "message received"); });
@@ -334,8 +336,8 @@ void setup()
   {
     if (!_settings._mqttJson)
     {
-      mqttclient.subscribe((String(topic) + String("/Pack DischargeFET")).c_str());
-      mqttclient.subscribe((String(topic) + String("/Pack ChargeFET")).c_str());
+     // mqttclient.subscribe((String(topic) + String("/Pack DischargeFET")).c_str());
+     // mqttclient.subscribe((String(topic) + String("/Pack ChargeFET")).c_str());
     }
     else
     {
@@ -358,7 +360,7 @@ void loop()
 
     if (millis() > (bmstimer + (3 * 1000)) && !updateProgress)
     {
-      ep.update(); // update the BMS data every 2 seconds
+      ep.update(); // update the values
       bmstimer = millis();
     }
     if(!updateProgress) sendtoMQTT(); // Update data to MQTT server if we should
@@ -386,9 +388,9 @@ bool sendtoMQTT()
   {
     if (mqttclient.connect((String(_settings._deviceName)).c_str(), _settings._mqttUser.c_str(), _settings._mqttPassword.c_str()))
     {
-#ifdef EPEVER_SERIAL_DEBUG
+ #ifdef EPEVER_SERIAL_DEBUG
       EPEVER_SERIAL_DEBUG.println(F("Reconnected to MQTT SERVER"));
-#endif
+ #endif
       if (!_settings._mqttJson)
       {
         mqttclient.publish((topic + String("/IP")).c_str(), String(WiFi.localIP().toString()).c_str());
@@ -396,9 +398,9 @@ bool sendtoMQTT()
     }
     else
     {
-#ifdef EPEVER_SERIAL_DEBUG
+ #ifdef EPEVER_SERIAL_DEBUG
       EPEVER_SERIAL_DEBUG.println(F("CANT CONNECT TO MQTT"));
-#endif
+ #endif
       return false; // Exit if we couldnt connect to MQTT brooker
     }
   }
@@ -408,6 +410,7 @@ bool sendtoMQTT()
   if (!_settings._mqttJson)
   {
     char msgBuffer[20];
+/*
     mqttclient.publish((String(topic) + String("/Pack Voltage")).c_str(), dtostrf(ep.get.packVoltage, 4, 1, msgBuffer));
     mqttclient.publish((String(topic) + String("/Pack Current")).c_str(), dtostrf(ep.get.packCurrent, 4, 1, msgBuffer));
     mqttclient.publish((String(topic) + String("/Pack SOC")).c_str(), dtostrf(ep.get.packSOC, 6, 2, msgBuffer));
@@ -434,12 +437,13 @@ bool sendtoMQTT()
     {
       mqttclient.publish((String(topic) + String("/Pack Temperature Sensor No ") + (String)(i + 1)).c_str(), String(ep.get.cellTemperature[i]).c_str());
     }
+    */
   }
   else
   {
     char mqttBuffer[2048];
     DynamicJsonDocument mqttJson(mqttBufferSize);
-
+/*
     JsonObject mqttJsonPack = mqttJson.createNestedObject("Pack");
     mqttJsonPack["Device IP"] = WiFi.localIP().toString();
     mqttJsonPack["Voltage"] = ep.get.packVoltage;
@@ -476,11 +480,12 @@ bool sendtoMQTT()
 
     size_t n = serializeJson(mqttJson, mqttBuffer);
     mqttclient.publish((String(topic + "/" + _settings._deviceName)).c_str(), mqttBuffer, n);
+    */
   }
 
   return true;
 }
-
+/*
 void callback(char *top, byte *payload, unsigned int length)
 {
   if (!_settings._mqttJson)
@@ -574,3 +579,4 @@ void callback(char *top, byte *payload, unsigned int length)
     }
   }
 }
+*/

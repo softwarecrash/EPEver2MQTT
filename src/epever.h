@@ -1,5 +1,5 @@
-#ifndef DALY_BMS_UART_H
-#define DALY_BMS_UART_H
+#ifndef EPEVER_H
+#define EPEVER_H
 
 #define XFER_BUFFER_LENGTH 13
 #define MIN_NUMBER_CELLS 1
@@ -151,9 +151,11 @@ public:
     /**
      * @brief Construct a new Daly_BMS_UART object
      *
-     * @param serialIntf UART interface BMS is connected to
+     * @param serialIntf serial interface to the max485
+     * @param baudRate baudrate for the max485
+     * @param reroPin the pin where RE and RO connected
      */
-    EPEVER(HardwareSerial &serialIntf);
+    EPEVER(HardwareSerial &serialIntf, uint8 baudRate, byte reroPin);
 
     /**
      * @brief Initializes this driver
@@ -275,10 +277,14 @@ private:
     void barfRXBuffer();
 
     /**
-     * @brief Serial interface used for communication
+     * @brief Serial interface used for communication, serial interface, baudrate, reropin
      * @details This is set in the constructor
      */
     HardwareSerial *my_serialIntf;
+     uint8_t my_baudRate;
+     byte my_reroPin;
+
+
 
     /**
      * @brief Buffer used to transmit data to the BMS
@@ -292,4 +298,4 @@ private:
     uint8_t my_rxBuffer[XFER_BUFFER_LENGTH];
 };
 
-#endif // DALY_BMS_UART_H
+#endif // EPEVER_H
