@@ -9,6 +9,11 @@ ESP82XX to MQTT based connector for EPEver Solar tracker
 - get Json over web at /livejson?
 - switch Load Channel via webinterface and MQTT or via web at /set?loadstate=0 or 1
 
+![image](https://user-images.githubusercontent.com/44615614/185475929-a2917dfc-5c8c-4f71-8ca4-2964272e8856.png)
+![image](https://user-images.githubusercontent.com/44615614/185475961-508b8f2f-7062-40c5-8f8d-06bc6107e580.png)
+![image](https://user-images.githubusercontent.com/44615614/185476011-fbd855d5-9ca1-4da4-8310-85bdc5acc04e.png)
+
+
 #Todo:
 - get and set the device time from computer time, or better from ntp?
 - cleanup code
