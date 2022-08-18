@@ -21,5 +21,3 @@ const char HTML_SETTINGS[] PROGMEM = R"rawliteral(
 <a class="btn btn-primary" href="/" role="button">Back</a>
 </div>
 )rawliteral";
-
-

@@ -1,3 +1,6 @@
+/*Lot of ideas comes from here:
+ * https://github.com/glitterkitty/EpEverSolarMonitor
+ */
 #include <Arduino.h>
 
 #include <ModbusMaster.h>
@@ -19,10 +22,9 @@
 #include "webpages/settings.h"     // settings page
 #include "webpages/settingsedit.h" // mqtt settings page
 
-#define EPEVER_SERIAL Serial        // Set the serial port for communication with the EPEver
-#define EPEVER_BAUD 115200          // baud rate for modbus
-#define EPEVER_DE_RE 5              // connect DE and Re to pin D1
-#define EPEVER_SERIAL_DEBUG Serial1 // Uncomment the below #define to enable debugging print statements.
+#define EPEVER_SERIAL Serial // Set the serial port for communication with the EPEver
+#define EPEVER_BAUD 115200   // baud rate for modbus
+#define EPEVER_DE_RE 5       // connect DE and Re to pin D1
 
 WiFiClient client;
 Settings _settings;
@@ -41,13 +43,14 @@ bool shouldSaveConfig = false;
 char mqtt_server[40];
 bool restartNow = false;
 bool updateProgress = false;
-char timeBuff[256]; // buffer for timestamp
+char timeBuff[256];  // buffer for timestamp
+char msgBuffer[256]; // msgbuff for dtostrf
 DynamicJsonDocument liveJson(mqttBufferSize);
 JsonObject liveData = liveJson.createNestedObject("LiveData");
+JsonObject statsData = liveJson.createNestedObject("StatsData");
 //----------------------------------------------------------------------
 void saveConfigCallback()
 {
-  Serial.println("Should save config");
   shouldSaveConfig = true;
 }
 
@@ -56,35 +59,21 @@ static void handle_update_progress_cb(AsyncWebServerRequest *request, String fil
   uint32_t free_space = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
   if (!index)
   {
-    EPEVER_SERIAL_DEBUG.println("Update");
     Update.runAsync(true);
-    if (!Update.begin(free_space))
-    {
-      Update.printError(EPEVER_SERIAL_DEBUG);
-    }
-  }
-
-  if (Update.write(data, len) != len)
-  {
-    Update.printError(EPEVER_SERIAL_DEBUG);
   }
 
   if (final)
   {
     if (!Update.end(true))
     {
-      Update.printError(EPEVER_SERIAL_DEBUG);
     }
     else
     {
-
       AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", "Please wait while the device is booting new Firmware");
       response->addHeader("Refresh", "10; url=/");
       response->addHeader("Connection", "close");
       request->send(response);
-
       restartNow = true; // Set flag so main loop can issue restart call
-      EPEVER_SERIAL_DEBUG.println("Update complete");
     }
   }
 }
@@ -102,12 +91,6 @@ void postTransmission()
 void setup()
 {
   pinMode(EPEVER_DE_RE, OUTPUT);
-  // digitalWrite(EPEVER_DE_RE, 0);
-#ifdef EPEVER_SERIAL_DEBUG
-  // This is needed to print stuff to the serial monitor
-  EPEVER_SERIAL_DEBUG.begin(9600);
-#endif
-
   _settings.load();
   delay(500);
   WiFi.persistent(true);              // fix wifi save bug
@@ -116,33 +99,8 @@ void setup()
   epnode.begin(1, EPEVER_SERIAL);
   epnode.preTransmission(preTransmission);
   epnode.postTransmission(postTransmission);
-
-#ifdef EPEVER_SERIAL_DEBUG
-  wm.setDebugOutput(false);
-#endif
   wm.setSaveConfigCallback(saveConfigCallback);
 
-#ifdef EPEVER_SERIAL_DEBUG
-  EPEVER_SERIAL_DEBUG.begin(9600); // Debugging towards UART1
-#endif
-
-#ifdef EPEVER_SERIAL_DEBUG
-  EPEVER_SERIAL_DEBUG.println();
-  EPEVER_SERIAL_DEBUG.printf("Device Name:\t");
-  EPEVER_SERIAL_DEBUG.println(_settings._deviceName);
-  EPEVER_SERIAL_DEBUG.printf("Mqtt Server:\t");
-  EPEVER_SERIAL_DEBUG.println(_settings._mqttServer);
-  EPEVER_SERIAL_DEBUG.printf("Mqtt Port:\t");
-  EPEVER_SERIAL_DEBUG.println(_settings._mqttPort);
-  EPEVER_SERIAL_DEBUG.printf("Mqtt User:\t");
-  EPEVER_SERIAL_DEBUG.println(_settings._mqttUser);
-  EPEVER_SERIAL_DEBUG.printf("Mqtt Passwort:\t");
-  EPEVER_SERIAL_DEBUG.println(_settings._mqttPassword);
-  EPEVER_SERIAL_DEBUG.printf("Mqtt Interval:\t");
-  EPEVER_SERIAL_DEBUG.println(_settings._mqttRefresh);
-  EPEVER_SERIAL_DEBUG.printf("Mqtt Topic:\t");
-  EPEVER_SERIAL_DEBUG.println(_settings._mqttTopic);
-#endif
   AsyncWiFiManagerParameter custom_mqtt_server("mqtt_server", "MQTT server", NULL, 40);
   AsyncWiFiManagerParameter custom_mqtt_user("mqtt_user", "MQTT User", NULL, 40);
   AsyncWiFiManagerParameter custom_mqtt_pass("mqtt_pass", "MQTT Password", NULL, 100);
@@ -183,16 +141,11 @@ void setup()
 
   topic = _settings._mqttTopic;
   mqttclient.setServer(_settings._mqttServer.c_str(), _settings._mqttPort);
-  // mqttclient.setCallback(callback);
+  mqttclient.setCallback(callback);
   mqttclient.setBufferSize(mqttBufferSize);
   // check is WiFi connected
-  if (!res)
-  {
-#ifdef EPEVER_SERIAL_DEBUG
-    EPEVER_SERIAL_DEBUG.println("Failed to connect or hit timeout");
-#endif
-  }
-  else
+
+  if (res)
   {
     // set the device name
     MDNS.begin(_settings._deviceName);
@@ -208,17 +161,7 @@ void setup()
     server.on("/livejson", HTTP_GET, [](AsyncWebServerRequest *request)
               {
                 AsyncResponseStream *response = request->beginResponseStream("application/json");
-                //DynamicJsonDocument liveJson(256);
-                liveJson["device_name"] = _settings._deviceName;
-                //liveJson["BATT_VOLTS"];
-                //liveJson["packA"] = (String)loadState;
-                //liveJson["packRes"] = (String)ep.get.resCapacitymAh;
-               // liveJson["packCycles"] = (String)ep.get.bmsCycles;
-                //liveJson["packTemp"] = (String)ep.get.cellTemperature[0];
-                //liveJson["cellH"] = (String)ep.get.maxCellVNum + ". " + (String)(ep.get.maxCellmV / 1000);
-                //liveJson["cellL"] = (String)ep.get.minCellVNum + ". " + (String)(ep.get.minCellmV / 1000);
-                //liveJson["cellDiff"] = (String)ep.get.cellDiff;
-                //liveJson["loadState"];
+                liveJson["DEVICE_NAME"] = _settings._deviceName;
                 serializeJson(liveJson, *response);
                 request->send(response); });
 
@@ -301,16 +244,11 @@ void setup()
                 AsyncWebParameter *p = request->getParam(0);
                 if (p->name() == "loadstate")
                 {
-#ifdef EPEVER_SERIAL_DEBUG
-                    EPEVER_SERIAL_DEBUG.println("charge fet webswitch to: "+(String)p->value());
-#endif
                     if(p->value().toInt() == 1){
-                      //ep.setChargeMOS(true);
-                      //ep.get.chargeFetState = true;
+                       epnode.writeSingleCoil(0x0002, 1);
                     }
                     if(p->value().toInt() == 0){
-                      //ep.setChargeMOS(false);
-                     // ep.get.chargeFetState = false;
+                      epnode.writeSingleCoil(0x0002, 0);
                     }
                 }
                 request->send(200, "text/plain", "message received"); });
@@ -326,9 +264,6 @@ void setup()
 
     server.begin();
     MDNS.addService("http", "tcp", 80);
-#ifdef EPEVER_SERIAL_DEBUG
-    EPEVER_SERIAL_DEBUG.println("Webserver Running...");
-#endif
   }
 
   if (!mqttclient.connected())
@@ -337,8 +272,7 @@ void setup()
   {
     if (!_settings._mqttJson)
     {
-      // mqttclient.subscribe((String(topic) + String("/Pack DischargeFET")).c_str());
-      // mqttclient.subscribe((String(topic) + String("/Pack ChargeFET")).c_str());
+      mqttclient.subscribe((String(topic) + String("/LOAD_STATE")).c_str());
     }
     else
     {
@@ -378,58 +312,135 @@ void loop()
 
 void getEpData()
 {
-  // read Time from EP
+  // clear buffers
+  memset(rtc.buf, 0, sizeof(rtc.buf));
+  memset(live.buf, 0, sizeof(live.buf));
+  memset(stats.buf, 0, sizeof(stats.buf));
+
+  // Read registers for clock
   epnode.clearResponseBuffer();
-  if (epnode.readHoldingRegisters(RTC_CLOCK, RTC_CLOCK_CNT) == epnode.ku8MBSuccess)
+  result = epnode.readHoldingRegisters(RTC_CLOCK, RTC_CLOCK_CNT);
+  if (result == epnode.ku8MBSuccess)
   {
-    sprintf(timeBuff, "20%02d-%02d-%02d %02d.%02d.%02d",
-            (epnode.getResponseBuffer(2) >> 8),   // year
-            (epnode.getResponseBuffer(2) & 0xff), // month
-            (epnode.getResponseBuffer(1) >> 8),   // day
-            (epnode.getResponseBuffer(1) & 0xff), // Houer
-            (epnode.getResponseBuffer(0) >> 8),   // minute
-            (epnode.getResponseBuffer(0) & 0xff)  // seconds
-    );
-    liveJson["DEVICE_TIME"] = timeBuff;
-    liveJson["DEVICE_TIME_MINUTES"] = (epnode.getResponseBuffer(0) >> 8);
-    liveJson["DEVICE_TIME_SECONDS"] = (epnode.getResponseBuffer(0) & 0xff);
-    liveJson["DEVICE_TIME_HOUR"] = (epnode.getResponseBuffer(1) & 0xff);
-    liveJson["DEVICE_TIME_DAY"] = (epnode.getResponseBuffer(1) >> 8);
-    liveJson["DEVICE_TIME_MONTH"] = (epnode.getResponseBuffer(2) & 0xff);
-    liveJson["DEVICE_TIME_YEAR"] = (epnode.getResponseBuffer(2) >> 8);
-    strcat(timeBuff,"");
-  } else {
-    liveJson["DEVICE_TIME"] = "read error";
+    rtc.buf[0] = epnode.getResponseBuffer(0);
+    rtc.buf[1] = epnode.getResponseBuffer(1);
+    rtc.buf[2] = epnode.getResponseBuffer(2);
   }
 
-
-  // read Live Data
+  // read LIVE-Data
   epnode.clearResponseBuffer();
-  if (epnode.readInputRegisters(LIVE_DATA, LIVE_DATA_CNT) == epnode.ku8MBSuccess)
+  result = epnode.readInputRegisters(LIVE_DATA, LIVE_DATA_CNT);
+  if (result == epnode.ku8MBSuccess)
   {
-    liveData["PANEL_VOLTS"] = epnode.getResponseBuffer(0)/100.f;
-    liveData["PANEL_AMPS"] = epnode.getResponseBuffer(1)/100.f;
-    liveData["PANEL_POWER_L"] = epnode.getResponseBuffer(2)/100.f;
-    liveData["PANEL_POWER_H"] = epnode.getResponseBuffer(3)/100.f;
-    liveData["BATT_VOLTS"] = epnode.getResponseBuffer(4)/100.f;
-    liveData["BATT_AMPS"] = epnode.getResponseBuffer(5)/100.f;
-    liveData["BATT_POWER_L"] = epnode.getResponseBuffer(6)/100.f;
-    liveData["BATT_POWER_H"] = epnode.getResponseBuffer(7)/100.f;
-    liveData["LOAD_VOLTS"] = epnode.getResponseBuffer(12)/100.f;
-    liveData["LOAD_AMPS"] = epnode.getResponseBuffer(13)/100.f;
-    liveData["LOAD_POWER_L"] = epnode.getResponseBuffer(14)/100.f;
-    liveData["LOAD_POWER_H"] = epnode.getResponseBuffer(15)/100.f;
+
+    for (i = 0; i < LIVE_DATA_CNT; i++)
+      live.buf[i] = epnode.getResponseBuffer(i);
   }
 
-  // read battery soc
+  // Statistical Data
   epnode.clearResponseBuffer();
-  if (epnode.readInputRegisters(BATTERY_SOC, 1) == epnode.ku8MBSuccess)
-    liveJson["BATTERY_SOC"] = epnode.getResponseBuffer(0)/1.0f;
+  result = epnode.readInputRegisters(STATISTICS, STATISTICS_CNT);
+  if (result == epnode.ku8MBSuccess)
+  {
+    for (i = 0; i < STATISTICS_CNT; i++)
+      stats.buf[i] = epnode.getResponseBuffer(i);
+  }
 
-  // read load state
+  // Battery SOC
   epnode.clearResponseBuffer();
-  if (epnode.readCoils(LOAD_STATE, 1) == epnode.ku8MBSuccess)
-    liveJson["LOAD_STATE"] = epnode.getResponseBuffer(0) ? true : false;
+  result = epnode.readInputRegisters(BATTERY_SOC, 1);
+  if (result == epnode.ku8MBSuccess)
+  {
+
+    batterySOC = epnode.getResponseBuffer(0);
+  }
+
+  // Battery Net Current = Icharge - Iload
+  epnode.clearResponseBuffer();
+  result = epnode.readInputRegisters(BATTERY_CURRENT_L, 2);
+  if (result == epnode.ku8MBSuccess)
+  {
+    batteryCurrent = epnode.getResponseBuffer(0);
+    batteryCurrent |= epnode.getResponseBuffer(1) << 16;
+  }
+
+  // State of the Load Switch
+  epnode.clearResponseBuffer();
+  result = epnode.readCoils(LOAD_STATE, 1);
+  if (result == epnode.ku8MBSuccess)
+  {
+    loadState = epnode.getResponseBuffer(0) ? true : false;
+  }
+
+  // Read Status Flags
+  epnode.clearResponseBuffer();
+  result = epnode.readInputRegisters(0x3200, 2);
+  if (result == epnode.ku8MBSuccess)
+  {
+
+    uint16_t temp = epnode.getResponseBuffer(0);
+    status_batt.volt = temp & 0b1111;
+    status_batt.temp = (temp >> 4) & 0b1111;
+    status_batt.resistance = (temp >> 8) & 0b1;
+    status_batt.rated_volt = (temp >> 15) & 0b1;
+
+    temp = epnode.getResponseBuffer(1);
+
+    // for(i=0; i<16; i++) Serial.print( (temp >> (15-i) ) & 1 );
+    // Serial.println();
+
+    // charger_input     = ( temp & 0b0000000000000000 ) >> 15 ;
+    charger_mode = (temp & 0b0000000000001100) >> 2;
+    // charger_input     = ( temp & 0b0000000000000000 ) >> 12 ;
+    // charger_operation = ( temp & 0b0000000000000000 ) >> 0 ;
+
+    // Serial.print( "charger_input : "); Serial.println( charger_input );
+    // Serial.print( "charger_mode  : "); Serial.println( charger_mode );
+    // Serial.print( "charger_oper  : "); Serial.println( charger_operation );
+    // Serial.print( "charger_state : "); Serial.println( charger_state );
+  }
+
+  getJsonData(); // put the collected data into json fields
+}
+
+void getJsonData()
+{
+
+  sprintf(timeBuff, "20%02d-%02d-%02d %02d:%02d:%02d",
+          rtc.r.y, rtc.r.M, rtc.r.d, rtc.r.h, rtc.r.m, rtc.r.s);
+  liveJson["DEVICE_TIME"] = timeBuff;
+  liveData["SOLAR_VOLTS"] = live.l.pV / 100.f;
+  liveData["SOLAR_AMPS"] = live.l.pI / 100.f;
+  liveData["SOLAR_WATTS"] = live.l.pP / 100.f;
+  liveData["BATT_VOLTS"] = live.l.bV / 100.f;
+  liveData["BATT_AMPS"] = live.l.bI / 100.f;
+  liveData["BATT_WATTS"] = live.l.bP / 100.f;
+  liveData["LOAD_VOLTS"] = live.l.lV / 100.f;
+  liveData["LOAD_AMPS"] = live.l.lI / 100.f;
+  liveData["LOAD_WATTS"] = live.l.lP / 100.f;
+  liveData["BATTERY_SOC"] = batterySOC / 1.0f;
+  liveJson["LOAD_STATE"] = loadState;
+
+  statsData["SOLAR_MAX"] = stats.s.pVmax / 100.f;
+  statsData["SOLAR_MIN"] = stats.s.pVmin / 100.f;
+  statsData["BATT_MAX"] = stats.s.bVmax / 100.f;
+  statsData["BATT_MIN"] = stats.s.bVmin / 100.f;
+
+  statsData["CONS_ENERGY_DAY"] = stats.s.consEnerDay / 100.f;
+  statsData["CONS_ENGERY_MON"] = stats.s.consEnerMon / 100.f;
+  statsData["CONS_ENGERY_YEAR"] = stats.s.consEnerYear / 100.f;
+  statsData["CONS_ENGERY_TOT"] = stats.s.consEnerTotal / 100.f;
+  statsData["GEN_ENERGY_DAY"] = stats.s.genEnerDay / 100.f;
+  statsData["GEN_ENERGY_MON"] = stats.s.genEnerMon / 100.f;
+  statsData["GEN_ENERGY_YEAR"] = stats.s.genEnerYear / 100.f;
+  statsData["GEN_ENERGY_TOT"] = stats.s.genEnerTotal / 100.f;
+  statsData["CO2_REDUCTION"] = stats.s.c02Reduction / 100.f;
+
+  liveJson["BATT_VOLT_STATUS"] = batt_volt_status[status_batt.volt];
+  liveJson["BATT_TEMP"] = batt_temp_status[status_batt.temp];
+
+  liveJson["CHARGER_INPUT_STATUS"] = charger_input_status[charger_input];
+  liveJson["CHARGER_MODE"] = charger_charging_status[charger_mode];
 }
 
 bool sendtoMQTT()
@@ -443,9 +454,6 @@ bool sendtoMQTT()
   {
     if (mqttclient.connect((String(_settings._deviceName)).c_str(), _settings._mqttUser.c_str(), _settings._mqttPassword.c_str()))
     {
-#ifdef EPEVER_SERIAL_DEBUG
-      EPEVER_SERIAL_DEBUG.println(F("Reconnected to MQTT SERVER"));
-#endif
       if (!_settings._mqttJson)
       {
         mqttclient.publish((topic + String("/IP")).c_str(), String(WiFi.localIP().toString()).c_str());
@@ -453,96 +461,60 @@ bool sendtoMQTT()
     }
     else
     {
-#ifdef EPEVER_SERIAL_DEBUG
-      EPEVER_SERIAL_DEBUG.println(F("CANT CONNECT TO MQTT"));
-#endif
       return false; // Exit if we couldnt connect to MQTT brooker
     }
   }
-#ifdef EPEVER_SERIAL_DEBUG
-  EPEVER_SERIAL_DEBUG.println(F("Data sent to MQTT Server"));
-#endif
 
   if (!_settings._mqttJson)
   {
     char msgBuffer[20];
-    /*
-        mqttclient.publish((String(topic) + String("/Pack Voltage")).c_str(), dtostrf(ep.get.packVoltage, 4, 1, msgBuffer));
-        mqttclient.publish((String(topic) + String("/Pack Current")).c_str(), dtostrf(ep.get.packCurrent, 4, 1, msgBuffer));
-        mqttclient.publish((String(topic) + String("/Pack SOC")).c_str(), dtostrf(ep.get.packSOC, 6, 2, msgBuffer));
-        mqttclient.publish((String(topic) + String("/Pack Remaining mAh")).c_str(), String(ep.get.resCapacitymAh).c_str());
-        mqttclient.publish((String(topic) + String("/Pack Cycles")).c_str(), String(ep.get.bmsCycles).c_str());
-        mqttclient.publish((String(topic) + String("/Pack Min Temperature")).c_str(), String(ep.get.tempMin).c_str());
-        mqttclient.publish((String(topic) + String("/Pack Max Temperature")).c_str(), String(ep.get.tempMax).c_str());
-        mqttclient.publish((String(topic) + String("/Pack High Cell")).c_str(), (dtostrf(ep.get.maxCellVNum, 1, 0, msgBuffer) + String(".- ") + dtostrf(ep.get.maxCellmV / 1000, 5, 3, msgBuffer)).c_str());
-        mqttclient.publish((String(topic) + String("/Pack Low Cell")).c_str(), (dtostrf(ep.get.minCellVNum, 1, 0, msgBuffer) + String(".- ") + dtostrf(ep.get.minCellmV / 1000, 5, 3, msgBuffer)).c_str());
-        mqttclient.publish((String(topic) + String("/Pack Cell Difference")).c_str(), String(ep.get.cellDiff).c_str());
-        mqttclient.publish((String(topic) + String("/Pack ChargeFET")).c_str(), ep.get.chargeFetState ? "true" : "false");
-        mqttclient.publish((String(topic) + String("/Pack DischargeFET")).c_str(), ep.get.disChargeFetState ? "true" : "false");
-        mqttclient.publish((String(topic) + String("/Pack Status")).c_str(), String(ep.get.chargeDischargeStatus).c_str());
-        mqttclient.publish((String(topic) + String("/Pack Cells")).c_str(), String(ep.get.numberOfCells).c_str());
-        mqttclient.publish((String(topic) + String("/Pack Heartbeat")).c_str(), String(ep.get.bmsHeartBeat).c_str());
-        mqttclient.publish((String(topic) + String("/Pack Balance Active")).c_str(), String(ep.get.cellBalanceActive ? "true" : "false").c_str());
+      
+        mqttclient.publish((String(topic) + String("/DEVICE_TIME")).c_str(), liveJson["DEVICE_TIME"]);
+        mqttclient.publish((String(topic) + String("/LOAD_STATE")).c_str(), liveJson["LOAD_STATE"] ? "true" : "false");
+        mqttclient.publish((String(topic) + String("/BATT_VOLT_STATUS")).c_str(), liveJson["BATT_VOLT_STATUS"]);
+        mqttclient.publish((String(topic) + String("/BATT_TEMP")).c_str(), liveJson["BATT_TEMP"]);
+        mqttclient.publish((String(topic) + String("/CHARGER_INPUT_STATUS")).c_str(), liveJson["CHARGER_INPUT_STATUS"]);
+        mqttclient.publish((String(topic) + String("/CHARGER_MODE")).c_str(), liveJson["CHARGER_MODE"]);
 
-        for (size_t i = 0; i < size_t(ep.get.numberOfCells); i++)
-        {
-          mqttclient.publish((String(topic) + String("/Pack Cells Voltage/Cell ") + (String)(i + 1)).c_str(), dtostrf(ep.get.cellVmV[i] / 1000, 5, 3, msgBuffer));
-          mqttclient.publish((String(topic) + String("/Pack Cells Balance/Cell ") + (String)(i + 1)).c_str(), String(ep.get.cellBalanceState[i] ? "true" : "false").c_str());
-        }
-        for (size_t i = 0; i < size_t(ep.get.numOfTempSensors); i++)
-        {
-          mqttclient.publish((String(topic) + String("/Pack Temperature Sensor No ") + (String)(i + 1)).c_str(), String(ep.get.cellTemperature[i]).c_str());
-        }
-        */
+        mqttclient.publish((String(topic) + String("/LiveData/SOLAR_VOLTS")).c_str(), liveData["SOLAR_VOLTS"]);
+        mqttclient.publish((String(topic) + String("/LiveDat/SOLAR_AMPS")).c_str(), liveData["SOLAR_AMPS"]);
+        mqttclient.publish((String(topic) + String("/LiveData/SOLAR_WATTS")).c_str(), liveData["SOLAR_WATTS"]);
+
+        mqttclient.publish((String(topic) + String("/LiveData/BATT_VOLTS")).c_str(), liveData["BATT_VOLTS"]);
+        mqttclient.publish((String(topic) + String("/LiveData/BATT_AMPS")).c_str(), liveData["BATT_AMPS"]);
+        mqttclient.publish((String(topic) + String("/LiveData/BATT_WATTS")).c_str(), liveData["BATT_WATTS"]);
+
+        mqttclient.publish((String(topic) + String("/LiveData/LOAD_VOLTS")).c_str(), liveData["LOAD_VOLTS"]);
+        mqttclient.publish((String(topic) + String("/LiveData/LOAD_AMPS")).c_str(), liveData["LOAD_AMPS"]);
+        mqttclient.publish((String(topic) + String("/LiveData/LOAD_WATTS")).c_str(), liveData["LOAD_WATTS"]);
+
+        mqttclient.publish((String(topic) + String("/LiveData/BATTERY_SOC")).c_str(), liveData["BATTERY_SOC"]);
+
+        mqttclient.publish((String(topic) + String("/StatsData/SOLAR_MAX")).c_str(), statsData["SOLAR_MAX"]);
+        mqttclient.publish((String(topic) + String("/StatsData/SOLAR_MIN")).c_str(), statsData["SOLAR_MIN"]);
+        mqttclient.publish((String(topic) + String("/StatsData/BATT_MAX")).c_str(), statsData["BATT_MAX"]);
+        mqttclient.publish((String(topic) + String("/StatsData/BATT_MIN")).c_str(), statsData["BATT_MIN"]);
+
+        mqttclient.publish((String(topic) + String("/StatsData/CONS_ENERGY_DAY")).c_str(), statsData["CONS_ENERGY_DAY"]);
+        mqttclient.publish((String(topic) + String("/StatsData/CONS_ENGERY_MON")).c_str(), statsData["CONS_ENGERY_MON"]);
+        mqttclient.publish((String(topic) + String("/StatsData/CONS_ENGERY_YEAR")).c_str(), statsData["CONS_ENGERY_YEAR"]);
+        mqttclient.publish((String(topic) + String("/StatsData/CONS_ENGERY_TOT")).c_str(), statsData["CONS_ENGERY_TOT"]);
+        mqttclient.publish((String(topic) + String("/StatsData/GEN_ENERGY_DAY")).c_str(), statsData["GEN_ENERGY_DAY"]);
+        mqttclient.publish((String(topic) + String("/StatsData/GEN_ENERGY_MON")).c_str(), statsData["GEN_ENERGY_MON"]);
+        mqttclient.publish((String(topic) + String("/StatsData/GEN_ENERGY_YEAR")).c_str(), statsData["GEN_ENERGY_YEAR"]);
+        mqttclient.publish((String(topic) + String("/StatsData/GEN_ENERGY_TOT")).c_str(), statsData["GEN_ENERGY_TOT"]);
+        mqttclient.publish((String(topic) + String("/StatsData/CO2_REDUCTION")).c_str(), statsData["CO2_REDUCTION"]);        
   }
   else
   {
     char mqttBuffer[2048];
-    DynamicJsonDocument mqttJson(mqttBufferSize);
-    /*
-        JsonObject mqttJsonPack = mqttJson.createNestedObject("Pack");
-        mqttJsonPack["Device IP"] = WiFi.localIP().toString();
-        mqttJsonPack["Voltage"] = ep.get.packVoltage;
-        mqttJsonPack["Current"] = ep.get.packCurrent;
-        mqttJsonPack["SOC"] = ep.get.packSOC;
-        mqttJsonPack["Remaining mAh"] = ep.get.resCapacitymAh;
-        mqttJsonPack["Cycles"] = ep.get.bmsCycles;
-        //mqttJsonPack["MinTemp"] = ep.get.tempMin;
-        //mqttJsonPack["MaxTemp"] = ep.get.tempMax;
-        mqttJsonPack["High CellNr"] = ep.get.maxCellVNum;
-        mqttJsonPack["High CellV"] = ep.get.maxCellmV / 1000;
-        mqttJsonPack["Low CellNr"] = ep.get.minCellVNum;
-        mqttJsonPack["Low CellV"] = ep.get.minCellmV / 1000;
-        mqttJsonPack["Cell Difference"] = ep.get.cellDiff;
-        mqttJsonPack["DischargeFET"] = ep.get.disChargeFetState;
-        mqttJsonPack["ChargeFET"] = ep.get.chargeFetState;
-        mqttJsonPack["Status"] = ep.get.chargeDischargeStatus;
-        mqttJsonPack["Cells"] = ep.get.numberOfCells;
-        mqttJsonPack["Heartbeat"] = ep.get.bmsHeartBeat;
-        mqttJsonPack["Balance Active"] = ep.get.cellBalanceActive;
-
-        JsonObject mqttJsonCellV = mqttJson.createNestedObject("CellV");
-        for (size_t i = 0; i < size_t(ep.get.numberOfCells); i++)
-        {
-          //put this data into an array later!
-          mqttJsonCellV["CellV " + String(i + 1)] = ep.get.cellVmV[i] / 1000;
-          //mqttJsonCellV["Balance " + String(i + 1)] = ep.get.cellBalanceState[i];
-        }
-        JsonObject mqttJsonTemp = mqttJson.createNestedObject("CellTemp");
-        for (size_t i = 0; i < size_t(ep.get.numOfTempSensors); i++)
-        {
-          mqttJsonTemp["Temp" + String(i + 1)] = ep.get.cellTemperature[i];
-        }
-
-        size_t n = serializeJson(mqttJson, mqttBuffer);
-        mqttclient.publish((String(topic + "/" + _settings._deviceName)).c_str(), mqttBuffer, n);
-        */
+    size_t n = serializeJson(liveJson, mqttBuffer);
+    mqttclient.publish((String(topic + "/" + _settings._deviceName)).c_str(), mqttBuffer, n);
   }
 
   return true;
 }
 
-/*
 void callback(char *top, byte *payload, unsigned int length)
 {
   if (!_settings._mqttJson)
@@ -552,52 +524,16 @@ void callback(char *top, byte *payload, unsigned int length)
     {
       messageTemp += (char)payload[i];
     }
-#ifdef EPEVER_SERIAL_DEBUG
-    EPEVER_SERIAL_DEBUG.println("message recived: " + messageTemp);
-#endif
     // Switch the Discharging port
-    if (strcmp(top, (topic + "/Pack DischargeFET").c_str()) == 0)
+    if (strcmp(top, (topic + "/LOAD_STATE").c_str()) == 0)
     {
-#ifdef EPEVER_SERIAL_DEBUG
-      EPEVER_SERIAL_DEBUG.println("message recived: " + messageTemp);
-#endif
-
       if (messageTemp == "true")
       {
-#ifdef EPEVER_SERIAL_DEBUG
-        EPEVER_SERIAL_DEBUG.println("switching Discharging mos on");
-#endif
-        ep.setDischargeMOS(true);
+        epnode.writeSingleCoil(0x0002, 1);
       }
       if (messageTemp == "false")
       {
-#ifdef EPEVER_SERIAL_DEBUG
-        EPEVER_SERIAL_DEBUG.println("switching Discharging mos off");
-#endif
-        ep.setDischargeMOS(false);
-      }
-    }
-
-    // Switch the Charging Port
-    if (strcmp(top, (topic + "/Pack ChargeFET").c_str()) == 0)
-    {
-#ifdef EPEVER_SERIAL_DEBUG
-      EPEVER_SERIAL_DEBUG.println("message recived: " + messageTemp);
-#endif
-
-      if (messageTemp == "true")
-      {
-#ifdef EPEVER_SERIAL_DEBUG
-        EPEVER_SERIAL_DEBUG.println("switching Charging mos on");
-#endif
-        ep.setChargeMOS(true);
-      }
-      if (messageTemp == "false")
-      {
-#ifdef EPEVER_SERIAL_DEBUG
-        EPEVER_SERIAL_DEBUG.println("switching Charging mos off");
-#endif
-        ep.setChargeMOS(false);
+        epnode.writeSingleCoil(0x0002, 0);
       }
     }
   }
@@ -605,35 +541,13 @@ void callback(char *top, byte *payload, unsigned int length)
   {
     StaticJsonDocument<1024> mqttJsonAnswer;
     deserializeJson(mqttJsonAnswer, (const byte *)payload, length);
-
-    if (mqttJsonAnswer["Pack"]["ChargeFET"] == true)
+    if (mqttJsonAnswer["LOAD_STATE"] == true)
     {
-      ep.setChargeMOS(true);
+      epnode.writeSingleCoil(0x0002, 1);
     }
-    else if (mqttJsonAnswer["Pack"]["ChargeFET"] == false)
+    else if (mqttJsonAnswer["LOAD_STATE"] == false)
     {
-      ep.setChargeMOS(false);
-    }
-    else
-    {
-#ifdef EPEVER_SERIAL_DEBUG
-      EPEVER_SERIAL_DEBUG.println("No Valid Command from JSON for setChargeMOS");
-#endif
-    }
-    if (mqttJsonAnswer["Pack"]["DischargeFET"] == true)
-    {
-      ep.setDischargeMOS(true);
-    }
-    else if (mqttJsonAnswer["Pack"]["DischargeFET"] == false)
-    {
-      ep.setDischargeMOS(false);
-    }
-    else
-    {
-#ifdef EPEVER_SERIAL_DEBUG
-      EPEVER_SERIAL_DEBUG.println("No Valid Command from JSON for setDischargeMOS");
-#endif
+      epnode.writeSingleCoil(0x0002, 0);
     }
   }
 }
-*/

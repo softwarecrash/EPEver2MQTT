@@ -69,3 +69,121 @@
 #define STATUS_FLAGS    0x3200
 #define STATUS_BATTERY    0x00  // Battery status register
 #define STATUS_CHARGER    0x01  // Charging equipment status register
+
+  uint8_t i, result;
+  
+  // clock
+  union {
+    struct {
+    uint8_t  s;
+    uint8_t  m;
+    uint8_t  h;
+    uint8_t  d;
+    uint8_t  M;
+    uint8_t  y;  
+   } r;
+    uint16_t buf[3];
+  } rtc ;
+
+
+  // live data
+  union {
+    struct {
+
+      int16_t  pV;
+      int16_t  pI;
+      int32_t  pP;
+   
+      int16_t  bV;
+      int16_t  bI;
+      int32_t  bP;
+      
+      
+      uint16_t  dummy[4];
+      
+      int16_t  lV;
+      int16_t  lI;
+      int32_t  lP; 
+
+    } l;
+    uint16_t  buf[16];
+  } live;
+
+
+  // statistics
+  union {
+    struct {
+  
+      // 4*1 = 4
+      uint16_t  pVmax;
+      uint16_t  pVmin;
+      uint16_t  bVmax;
+      uint16_t  bVmin;
+  
+      // 4*2 = 8
+      uint32_t  consEnerDay;
+      uint32_t  consEnerMon;
+      uint32_t  consEnerYear;
+      uint32_t  consEnerTotal;
+  
+      // 4*2 = 8
+      uint32_t  genEnerDay;
+      uint32_t  genEnerMon;
+      uint32_t  genEnerYear;
+      uint32_t  genEnerTotal;
+  
+      // 1*2 = 2
+      uint32_t  c02Reduction;
+     
+    } s;
+    uint16_t  buf[22];  
+  } stats;
+
+
+  // these are too far away for the union conversion trick
+  uint16_t batterySOC = 0;
+  int32_t batteryCurrent = 0;
+
+    
+  // battery status
+  struct {
+    uint8_t volt;        // d3-d0  Voltage:     00H Normal, 01H Overvolt, 02H UnderVolt, 03H Low Volt Disconnect, 04H Fault
+    uint8_t temp;        // d7-d4  Temperature: 00H Normal, 01H Over warning settings, 02H Lower than the warning settings
+    uint8_t resistance;  // d8     abnormal 1, normal 0
+    uint8_t rated_volt;  // d15    1-Wrong identification for rated voltage
+  } status_batt ;
+
+  char batt_volt_status[][20] = {
+    "Normal",
+    "Overvolt",
+    "Low Volt Disconnect",
+    "Fault"
+  };
+  
+  char batt_temp_status[][16] = {
+    "Normal",
+    "Over WarnTemp",
+    "Below WarnTemp"
+  };
+
+
+  // charging equipment status (not fully impl. yet)
+  uint8_t charger_operation = 0;
+  uint8_t charger_state = 0;
+  uint8_t charger_input = 0;
+  uint8_t charger_mode  = 0;
+
+  char charger_input_status[][20] = {
+    "Normal",
+    "No power connected",
+    "Higher volt input",
+    "Input volt error"
+  };
+    
+  char charger_charging_status[][12] = {
+    "Off",
+    "Float",
+    "Boost",
+    "Equlization"
+  };
+  bool loadState;
