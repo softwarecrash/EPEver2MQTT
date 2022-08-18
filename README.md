@@ -34,6 +34,8 @@ ESP82XX to MQTT based connector for EPEver Solar tracker
 - thats it :)
 
 wireing:
+![Unbenannt](https://user-images.githubusercontent.com/44615614/185478302-9db8c1b2-35e8-49b4-a228-8019b8f7f845.png)
+
 
 
 Questions? join https://discord.gg/dHeDRGdtKN
