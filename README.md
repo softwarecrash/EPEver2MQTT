@@ -6,7 +6,7 @@ ESP82XX to MQTT based connector for EPEver Solar tracker
 - config in webinterface
 - update via webinterface
 - classic MQTT Datapoints or Json String over MQTT
-- get Json over web at http://xxx.xxx.xxx.xxx/livejson?
+- get Json over web at /livejson?
 - switch Load Channel via webinterface and MQTT or via web at /set?loadstate=0 or 1
 
 #Todo:
