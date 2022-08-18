@@ -69,18 +69,3 @@
 #define STATUS_FLAGS    0x3200
 #define STATUS_BATTERY    0x00  // Battery status register
 #define STATUS_CHARGER    0x01  // Charging equipment status register
-
-
-
-  // clock
-  union {
-    struct {
-    uint8_t  s;
-    uint8_t  m;
-    uint8_t  h;
-    uint8_t  d;
-    uint8_t  M;
-    uint8_t  y;  
-   } r;
-    uint16_t buf[3];
-  } rtc ;
