@@ -128,7 +128,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
                document.getElementById("consT").innerHTML = 'T:'+data.StatsData.CONS_ENGERY_TOT;
 
                document.getElementById("genD").innerHTML = 'D:'+data.StatsData.GEN_ENERGY_DAY+'  ';
-               document.getElementById("genM").innerHTML = 'M'+data.StatsData.GEN_ENERGY_MON+'  ';
+               document.getElementById("genM").innerHTML = 'M:'+data.StatsData.GEN_ENERGY_MON+'  ';
                document.getElementById("genY").innerHTML = 'Y:'+data.StatsData.GEN_ENERGY_YEAR+'  ';
                document.getElementById("genT").innerHTML = 'T:'+data.StatsData.GEN_ENERGY_TOT;
 
