@@ -5,7 +5,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
 <div class="bg-light">Battery: </div>
 </div>
 <div class="col">
-<div class="bg-light"><span id="packV" >N/A</span><span id="packA" >N/A</span><span id="packSOC" >N/A</span></div>
+<div class="bg-light"><span id="battV" >N/A</span><span id="packA" >N/A</span><span id="packSOC" >N/A</span></div>
 </div>
 </div>
 <div class="row gx-0 mb-2">
@@ -46,7 +46,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
 <div class="bg-light">Load State: </div>
 </div>
 <div class="col">
-<div class="bg-light form-check form-switch"><!--<span id="chargeFetState1">N/A</span>--><input class="form-check-input" type="checkbox" onchange="togglechargefet(this)" role="switch" id="chargeFetState" /></div>
+<div class="bg-light form-check form-switch"><!--<span id="loadState">N/A</span>--><input class="form-check-input" type="checkbox" onchange="toggleLoadState(this)" role="switch" id="loadState" /></div>
 </div>
 </div>
 
@@ -64,16 +64,16 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
             dataType: "json",
                cache: false,
                 success: function (data) {
-               document.getElementById("packV").innerHTML = data.packV+'V ';
+               document.getElementById("battV").innerHTML = data.LiveData.BATT_VOLTS +'V ';
                document.getElementById("packA").innerHTML = data.packA+'A  ';
-               document.getElementById("packSOC").innerHTML = data.packSOC+'%%';
+               document.getElementById("packSOC").innerHTML = data.BATTERY_SOC+'%%';
                document.getElementById("packRes").innerHTML = data.packRes+'mAh ';
                document.getElementById("packCycles").innerHTML = data.packCycles+' ';
                document.getElementById("packTemp").innerHTML = data.packTemp+'°C ';
                document.getElementById("cellH").innerHTML = data.cellH+'V ';
                document.getElementById("cellL").innerHTML = data.cellL+'V ';
                document.getElementById("cellDiff").innerHTML = data.cellDiff+'mV ';
-               document.getElementById("chargeFetState").checked = data.chFet;
+               document.getElementById("loadState").checked = data.LOAD_STATE;
                document.getElementById("devicename").innerHTML = 'Device: '+data.device_name;
             }
         });
@@ -81,18 +81,10 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
         setInterval(fetch, 5000);
         fetch();
         });
-
-function toggledischargefet(element) {
+function toggleLoadState(element) {
 var xhr = new XMLHttpRequest();
-if(element.checked){ xhr.open("GET", "/set?dischargefet=1", true); }
-else { xhr.open("GET", "/set?dischargefet=0", true); }
-xhr.send();
-clearInterval();
-}
-function togglechargefet(element) {
-var xhr = new XMLHttpRequest();
-if(element.checked){ xhr.open("GET", "/set?chargefet=1", true); }
-else { xhr.open("GET", "/set?chargefet=0", true); }
+if(element.checked){ xhr.open("GET", "/set?loadstate=1", true); }
+else { xhr.open("GET", "/set?loadstate=0", true); }
 xhr.send();
 clearInterval();
 }

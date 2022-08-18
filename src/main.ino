@@ -12,7 +12,7 @@
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 
-#include "Settings.h"
+#include "Settings.h" //settings functions
 
 #include "webpages/HTMLcase.h"     // The HTML Konstructor
 #include "webpages/main.h"         // landing page with menu
@@ -21,7 +21,7 @@
 
 #define EPEVER_SERIAL Serial        // Set the serial port for communication with the EPEver
 #define EPEVER_BAUD 115200          // baud rate for modbus
-#define EPEVER_DE_RE 5             // connect DE and Re to pin D1
+#define EPEVER_DE_RE 5              // connect DE and Re to pin D1
 #define EPEVER_SERIAL_DEBUG Serial1 // Uncomment the below #define to enable debugging print statements.
 
 WiFiClient client;
@@ -41,7 +41,9 @@ bool shouldSaveConfig = false;
 char mqtt_server[40];
 bool restartNow = false;
 bool updateProgress = false;
-
+char timeBuff[256]; // buffer for timestamp
+DynamicJsonDocument liveJson(mqttBufferSize);
+JsonObject liveData = liveJson.createNestedObject("LiveData");
 //----------------------------------------------------------------------
 void saveConfigCallback()
 {
@@ -97,21 +99,10 @@ void postTransmission()
   digitalWrite(EPEVER_DE_RE, 0);
 }
 
-
-int loadState;
-
-int batterySOC;
-
-  uint8_t i, result;
-
-float test;
-
-
-
 void setup()
 {
   pinMode(EPEVER_DE_RE, OUTPUT);
-  digitalWrite(EPEVER_DE_RE, 0);
+  // digitalWrite(EPEVER_DE_RE, 0);
 #ifdef EPEVER_SERIAL_DEBUG
   // This is needed to print stuff to the serial monitor
   EPEVER_SERIAL_DEBUG.begin(9600);
@@ -125,14 +116,6 @@ void setup()
   epnode.begin(1, EPEVER_SERIAL);
   epnode.preTransmission(preTransmission);
   epnode.postTransmission(postTransmission);
-
-
-
-
-
-
-
-
 
 #ifdef EPEVER_SERIAL_DEBUG
   wm.setDebugOutput(false);
@@ -225,20 +208,17 @@ void setup()
     server.on("/livejson", HTTP_GET, [](AsyncWebServerRequest *request)
               {
                 AsyncResponseStream *response = request->beginResponseStream("application/json");
-                DynamicJsonDocument liveJson(256);
+                //DynamicJsonDocument liveJson(256);
                 liveJson["device_name"] = _settings._deviceName;
-                liveJson["packV"] = (String)test;
-                liveJson["packA"] = (String)loadState;
-                liveJson["packSOC"] = (String)batterySOC;
+                //liveJson["BATT_VOLTS"];
+                //liveJson["packA"] = (String)loadState;
                 //liveJson["packRes"] = (String)ep.get.resCapacitymAh;
                // liveJson["packCycles"] = (String)ep.get.bmsCycles;
                 //liveJson["packTemp"] = (String)ep.get.cellTemperature[0];
                 //liveJson["cellH"] = (String)ep.get.maxCellVNum + ". " + (String)(ep.get.maxCellmV / 1000);
                 //liveJson["cellL"] = (String)ep.get.minCellVNum + ". " + (String)(ep.get.minCellmV / 1000);
                 //liveJson["cellDiff"] = (String)ep.get.cellDiff;
-                //liveJson["disChFet"] = ep.get.disChargeFetState? true : false;
-                //liveJson["chFet"] = ep.get.chargeFetState? true : false;
-                //liveJson["cellBal"] = ep.get.cellBalanceActive? true : false;
+                //liveJson["loadState"];
                 serializeJson(liveJson, *response);
                 request->send(response); });
 
@@ -319,7 +299,7 @@ void setup()
     server.on("/set", HTTP_GET, [](AsyncWebServerRequest *request)
               {
                 AsyncWebParameter *p = request->getParam(0);
-                if (p->name() == "chargefet")
+                if (p->name() == "loadstate")
                 {
 #ifdef EPEVER_SERIAL_DEBUG
                     EPEVER_SERIAL_DEBUG.println("charge fet webswitch to: "+(String)p->value());
@@ -331,20 +311,6 @@ void setup()
                     if(p->value().toInt() == 0){
                       //ep.setChargeMOS(false);
                      // ep.get.chargeFetState = false;
-                    }
-                }
-                if (p->name() == "dischargefet")
-                {
-#ifdef EPEVER_SERIAL_DEBUG
-                    EPEVER_SERIAL_DEBUG.println("discharge fet webswitch to: "+(String)p->value());
-#endif
-                    if(p->value().toInt() == 1){
-                      //ep.setDischargeMOS(true);
-                      //ep.get.disChargeFetState = true;
-                    }
-                    if(p->value().toInt() == 0){
-                      //ep.setDischargeMOS(false);
-                      //ep.get.disChargeFetState = false;
                     }
                 }
                 request->send(200, "text/plain", "message received"); });
@@ -391,9 +357,9 @@ void loop()
     MDNS.update();
     mqttclient.loop(); // Check if we have something to read from MQTT
 
-    if (millis() > (getDataTimer + (3 * 1000)) && !updateProgress)
+    if (millis() > (getDataTimer + (2 * 1000)) && !updateProgress)
     {
-      getEpData(); //get actual data from epever and set it to the json
+      getEpData(); // get actual data from epever and set it to the json
       getDataTimer = millis();
     }
     if (!updateProgress)
@@ -412,22 +378,62 @@ void loop()
 
 void getEpData()
 {
+  // read Time from EP
   epnode.clearResponseBuffer();
-  result = epnode.readInputRegisters(0x3100, 8);
-  if (result == epnode.ku8MBSuccess)
+  if (epnode.readHoldingRegisters(RTC_CLOCK, RTC_CLOCK_CNT) == epnode.ku8MBSuccess)
   {
-    test = epnode.getResponseBuffer(BATT_VOLTS)/100.0f;
-  }  else  {
-    //Serial.print("Miss read batterySOC, ret val:");
-    test = 199;
+    sprintf(timeBuff, "20%02d-%02d-%02d %02d.%02d.%02d",
+            (epnode.getResponseBuffer(2) >> 8),   // year
+            (epnode.getResponseBuffer(2) & 0xff), // month
+            (epnode.getResponseBuffer(1) >> 8),   // day
+            (epnode.getResponseBuffer(1) & 0xff), // Houer
+            (epnode.getResponseBuffer(0) >> 8),   // minute
+            (epnode.getResponseBuffer(0) & 0xff)  // seconds
+    );
+    liveJson["DEVICE_TIME"] = timeBuff;
+    liveJson["DEVICE_TIME_MINUTES"] = (epnode.getResponseBuffer(0) >> 8);
+    liveJson["DEVICE_TIME_SECONDS"] = (epnode.getResponseBuffer(0) & 0xff);
+    liveJson["DEVICE_TIME_HOUR"] = (epnode.getResponseBuffer(1) & 0xff);
+    liveJson["DEVICE_TIME_DAY"] = (epnode.getResponseBuffer(1) >> 8);
+    liveJson["DEVICE_TIME_MONTH"] = (epnode.getResponseBuffer(2) & 0xff);
+    liveJson["DEVICE_TIME_YEAR"] = (epnode.getResponseBuffer(2) >> 8);
+    strcat(timeBuff,"");
+  } else {
+    liveJson["DEVICE_TIME"] = "read error";
   }
 
-  
-  if (epnode.readInputRegisters(BATTERY_SOC, 1) == epnode.ku8MBSuccess) batterySOC = epnode.getResponseBuffer(0);
+
+  // read Live Data
+  epnode.clearResponseBuffer();
+  if (epnode.readInputRegisters(LIVE_DATA, LIVE_DATA_CNT) == epnode.ku8MBSuccess)
+  {
+    liveData["PANEL_VOLTS"] = epnode.getResponseBuffer(0)/100.f;
+    liveData["PANEL_AMPS"] = epnode.getResponseBuffer(1)/100.f;
+    liveData["PANEL_POWER_L"] = epnode.getResponseBuffer(2)/100.f;
+    liveData["PANEL_POWER_H"] = epnode.getResponseBuffer(3)/100.f;
+    liveData["BATT_VOLTS"] = epnode.getResponseBuffer(4)/100.f;
+    liveData["BATT_AMPS"] = epnode.getResponseBuffer(5)/100.f;
+    liveData["BATT_POWER_L"] = epnode.getResponseBuffer(6)/100.f;
+    liveData["BATT_POWER_H"] = epnode.getResponseBuffer(7)/100.f;
+    liveData["LOAD_VOLTS"] = epnode.getResponseBuffer(12)/100.f;
+    liveData["LOAD_AMPS"] = epnode.getResponseBuffer(13)/100.f;
+    liveData["LOAD_POWER_L"] = epnode.getResponseBuffer(14)/100.f;
+    liveData["LOAD_POWER_H"] = epnode.getResponseBuffer(15)/100.f;
+  }
+
+  // read battery soc
+  epnode.clearResponseBuffer();
+  if (epnode.readInputRegisters(BATTERY_SOC, 1) == epnode.ku8MBSuccess)
+    liveJson["BATTERY_SOC"] = epnode.getResponseBuffer(0)/1.0f;
+
+  // read load state
+  epnode.clearResponseBuffer();
+  if (epnode.readCoils(LOAD_STATE, 1) == epnode.ku8MBSuccess)
+    liveJson["LOAD_STATE"] = epnode.getResponseBuffer(0) ? true : false;
 }
+
 bool sendtoMQTT()
 {
-
   if (millis() < (mqtttimer + (_settings._mqttRefresh * 1000)) || _settings._mqttRefresh == 0)
   {
     return false;
@@ -456,22 +462,6 @@ bool sendtoMQTT()
 #ifdef EPEVER_SERIAL_DEBUG
   EPEVER_SERIAL_DEBUG.println(F("Data sent to MQTT Server"));
 #endif
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   if (!_settings._mqttJson)
   {
@@ -551,6 +541,7 @@ bool sendtoMQTT()
 
   return true;
 }
+
 /*
 void callback(char *top, byte *payload, unsigned int length)
 {
