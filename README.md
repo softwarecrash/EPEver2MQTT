@@ -21,4 +21,14 @@ ESP82XX to MQTT based connector for EPEver Solar tracker
 # Known Bugs:
 - Timestamp from device will zero after serveral time
 
+# How to use:
+- flash the bin file to a esp82xx or Wemos D1 Mini with tasmotizer or other way
+- connect the esp like the wireing diagram
+- search the wifi ap EPEver2MQTT-AP and connect
+- surf to 192.168.4.1 and set up your wifi and optional mqtt
+- thats it :)
+
+wireing:
+
+
 Questions? join https://discord.gg/dHeDRGdtKN
