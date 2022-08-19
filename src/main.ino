@@ -241,17 +241,32 @@ void setup()
 
     server.on("/set", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-                AsyncWebParameter *p = request->getParam(0);
-                if (p->name() == "loadstate")
-                {
-                    if(p->value().toInt() == 1){
-                       epnode.writeSingleCoil(0x0002, 1);
-                    }
-                    if(p->value().toInt() == 0){
-                      epnode.writeSingleCoil(0x0002, 0);
-                    }
-                }
-                request->send(200, "text/plain", "message received"); });
+      AsyncWebParameter *p = request->getParam(0);
+      if (p->name() == "loadstate")
+      {
+        if (p->value().toInt() == 1)
+        {
+          epnode.writeSingleCoil(0x0002, 1);
+        }
+        if (p->value().toInt() == 0)
+        {
+          epnode.writeSingleCoil(0x0002, 0);
+        }
+      }
+      if (p->name() == "datetime")
+      {
+        uint8_t rtcSetY  = atoi (request->getParam("datetime")->value().substring(0, 2).c_str ()); //stunde
+        uint8_t rtcSetM  = atoi (request->getParam("datetime")->value().substring(2, 4).c_str ()); //tag
+        uint8_t rtcSetD  = atoi (request->getParam("datetime")->value().substring(4, 6).c_str ()); //tag
+        uint8_t rtcSeth  = atoi (request->getParam("datetime")->value().substring(6, 8).c_str ()); //tag
+        uint8_t rtcSetm  = atoi (request->getParam("datetime")->value().substring(8, 10).c_str ()); //tag
+        uint8_t rtcSets  = atoi (request->getParam("datetime")->value().substring(10, 12).c_str ()); //tag
+        epnode.setTransmitBuffer(0, ((uint16_t)rtcSetm << 8) | rtcSets); //demnach minute | sekunde
+        epnode.setTransmitBuffer(1, ((uint16_t)rtcSetD << 8) | rtcSeth); //geht!!!!!!  tag | stunde
+        epnode.setTransmitBuffer(2, ((uint16_t)rtcSetY << 8) | rtcSetM); //und Jahr | Monat
+        epnode.writeMultipleRegisters(0x9013, 3); //write registers
+        }
+     request->send(200, "text/plain", "message received"); });
 
     server.on(
         "/update", HTTP_POST, [](AsyncWebServerRequest *request)
@@ -405,8 +420,7 @@ void getEpData()
 
 void getJsonData()
 {
-
-  sprintf(timeBuff, "20%02d-%02d-%02d %02d:%02d:%02d",
+  snprintf(timeBuff, sizeof(timeBuff)-1, "20%02d-%02d-%02d %02d:%02d:%02d",
           rtc.r.y, rtc.r.M, rtc.r.d, rtc.r.h, rtc.r.m, rtc.r.s);
   liveJson["DEVICE_TIME"] = timeBuff;
   liveData["SOLAR_VOLTS"] = live.l.pV / 100.f;
@@ -468,42 +482,42 @@ bool sendtoMQTT()
   if (!_settings._mqttJson)
   {
     char msgBuffer[20];
-      
-        mqttclient.publish((String(topic) + String("/DEVICE_TIME")).c_str(), liveJson["DEVICE_TIME"]);
-        mqttclient.publish((String(topic) + String("/LOAD_STATE")).c_str(), liveJson["LOAD_STATE"] ? "true" : "false");
-        mqttclient.publish((String(topic) + String("/BATT_VOLT_STATUS")).c_str(), liveJson["BATT_VOLT_STATUS"]);
-        mqttclient.publish((String(topic) + String("/BATT_TEMP")).c_str(), liveJson["BATT_TEMP"]);
-        mqttclient.publish((String(topic) + String("/CHARGER_INPUT_STATUS")).c_str(), liveJson["CHARGER_INPUT_STATUS"]);
-        mqttclient.publish((String(topic) + String("/CHARGER_MODE")).c_str(), liveJson["CHARGER_MODE"]);
 
-        mqttclient.publish((String(topic) + String("/LiveData/SOLAR_VOLTS")).c_str(), liveData["SOLAR_VOLTS"]);
-        mqttclient.publish((String(topic) + String("/LiveDat/SOLAR_AMPS")).c_str(), liveData["SOLAR_AMPS"]);
-        mqttclient.publish((String(topic) + String("/LiveData/SOLAR_WATTS")).c_str(), liveData["SOLAR_WATTS"]);
+    mqttclient.publish((String(topic) + String("/DEVICE_TIME")).c_str(), liveJson["DEVICE_TIME"]);
+    mqttclient.publish((String(topic) + String("/LOAD_STATE")).c_str(), liveJson["LOAD_STATE"] ? "true" : "false");
+    mqttclient.publish((String(topic) + String("/BATT_VOLT_STATUS")).c_str(), liveJson["BATT_VOLT_STATUS"]);
+    mqttclient.publish((String(topic) + String("/BATT_TEMP")).c_str(), liveJson["BATT_TEMP"]);
+    mqttclient.publish((String(topic) + String("/CHARGER_INPUT_STATUS")).c_str(), liveJson["CHARGER_INPUT_STATUS"]);
+    mqttclient.publish((String(topic) + String("/CHARGER_MODE")).c_str(), liveJson["CHARGER_MODE"]);
 
-        mqttclient.publish((String(topic) + String("/LiveData/BATT_VOLTS")).c_str(), liveData["BATT_VOLTS"]);
-        mqttclient.publish((String(topic) + String("/LiveData/BATT_AMPS")).c_str(), liveData["BATT_AMPS"]);
-        mqttclient.publish((String(topic) + String("/LiveData/BATT_WATTS")).c_str(), liveData["BATT_WATTS"]);
+    mqttclient.publish((String(topic) + String("/LiveData/SOLAR_VOLTS")).c_str(), liveData["SOLAR_VOLTS"]);
+    mqttclient.publish((String(topic) + String("/LiveData/SOLAR_AMPS")).c_str(), liveData["SOLAR_AMPS"]);
+    mqttclient.publish((String(topic) + String("/LiveData/SOLAR_WATTS")).c_str(), liveData["SOLAR_WATTS"]);
 
-        mqttclient.publish((String(topic) + String("/LiveData/LOAD_VOLTS")).c_str(), liveData["LOAD_VOLTS"]);
-        mqttclient.publish((String(topic) + String("/LiveData/LOAD_AMPS")).c_str(), liveData["LOAD_AMPS"]);
-        mqttclient.publish((String(topic) + String("/LiveData/LOAD_WATTS")).c_str(), liveData["LOAD_WATTS"]);
+    mqttclient.publish((String(topic) + String("/LiveData/BATT_VOLTS")).c_str(), liveData["BATT_VOLTS"]);
+    mqttclient.publish((String(topic) + String("/LiveData/BATT_AMPS")).c_str(), liveData["BATT_AMPS"]);
+    mqttclient.publish((String(topic) + String("/LiveData/BATT_WATTS")).c_str(), liveData["BATT_WATTS"]);
 
-        mqttclient.publish((String(topic) + String("/LiveData/BATTERY_SOC")).c_str(), liveData["BATTERY_SOC"]);
+    mqttclient.publish((String(topic) + String("/LiveData/LOAD_VOLTS")).c_str(), liveData["LOAD_VOLTS"]);
+    mqttclient.publish((String(topic) + String("/LiveData/LOAD_AMPS")).c_str(), liveData["LOAD_AMPS"]);
+    mqttclient.publish((String(topic) + String("/LiveData/LOAD_WATTS")).c_str(), liveData["LOAD_WATTS"]);
 
-        mqttclient.publish((String(topic) + String("/StatsData/SOLAR_MAX")).c_str(), statsData["SOLAR_MAX"]);
-        mqttclient.publish((String(topic) + String("/StatsData/SOLAR_MIN")).c_str(), statsData["SOLAR_MIN"]);
-        mqttclient.publish((String(topic) + String("/StatsData/BATT_MAX")).c_str(), statsData["BATT_MAX"]);
-        mqttclient.publish((String(topic) + String("/StatsData/BATT_MIN")).c_str(), statsData["BATT_MIN"]);
+    mqttclient.publish((String(topic) + String("/LiveData/BATTERY_SOC")).c_str(), liveData["BATTERY_SOC"]);
 
-        mqttclient.publish((String(topic) + String("/StatsData/CONS_ENERGY_DAY")).c_str(), statsData["CONS_ENERGY_DAY"]);
-        mqttclient.publish((String(topic) + String("/StatsData/CONS_ENGERY_MON")).c_str(), statsData["CONS_ENGERY_MON"]);
-        mqttclient.publish((String(topic) + String("/StatsData/CONS_ENGERY_YEAR")).c_str(), statsData["CONS_ENGERY_YEAR"]);
-        mqttclient.publish((String(topic) + String("/StatsData/CONS_ENGERY_TOT")).c_str(), statsData["CONS_ENGERY_TOT"]);
-        mqttclient.publish((String(topic) + String("/StatsData/GEN_ENERGY_DAY")).c_str(), statsData["GEN_ENERGY_DAY"]);
-        mqttclient.publish((String(topic) + String("/StatsData/GEN_ENERGY_MON")).c_str(), statsData["GEN_ENERGY_MON"]);
-        mqttclient.publish((String(topic) + String("/StatsData/GEN_ENERGY_YEAR")).c_str(), statsData["GEN_ENERGY_YEAR"]);
-        mqttclient.publish((String(topic) + String("/StatsData/GEN_ENERGY_TOT")).c_str(), statsData["GEN_ENERGY_TOT"]);
-        mqttclient.publish((String(topic) + String("/StatsData/CO2_REDUCTION")).c_str(), statsData["CO2_REDUCTION"]);        
+    mqttclient.publish((String(topic) + String("/StatsData/SOLAR_MAX")).c_str(), statsData["SOLAR_MAX"]);
+    mqttclient.publish((String(topic) + String("/StatsData/SOLAR_MIN")).c_str(), statsData["SOLAR_MIN"]);
+    mqttclient.publish((String(topic) + String("/StatsData/BATT_MAX")).c_str(), statsData["BATT_MAX"]);
+    mqttclient.publish((String(topic) + String("/StatsData/BATT_MIN")).c_str(), statsData["BATT_MIN"]);
+
+    mqttclient.publish((String(topic) + String("/StatsData/CONS_ENERGY_DAY")).c_str(), statsData["CONS_ENERGY_DAY"]);
+    mqttclient.publish((String(topic) + String("/StatsData/CONS_ENGERY_MON")).c_str(), statsData["CONS_ENGERY_MON"]);
+    mqttclient.publish((String(topic) + String("/StatsData/CONS_ENGERY_YEAR")).c_str(), statsData["CONS_ENGERY_YEAR"]);
+    mqttclient.publish((String(topic) + String("/StatsData/CONS_ENGERY_TOT")).c_str(), statsData["CONS_ENGERY_TOT"]);
+    mqttclient.publish((String(topic) + String("/StatsData/GEN_ENERGY_DAY")).c_str(), statsData["GEN_ENERGY_DAY"]);
+    mqttclient.publish((String(topic) + String("/StatsData/GEN_ENERGY_MON")).c_str(), statsData["GEN_ENERGY_MON"]);
+    mqttclient.publish((String(topic) + String("/StatsData/GEN_ENERGY_YEAR")).c_str(), statsData["GEN_ENERGY_YEAR"]);
+    mqttclient.publish((String(topic) + String("/StatsData/GEN_ENERGY_TOT")).c_str(), statsData["GEN_ENERGY_TOT"]);
+    mqttclient.publish((String(topic) + String("/StatsData/CO2_REDUCTION")).c_str(), statsData["CO2_REDUCTION"]);
   }
   else
   {

@@ -16,8 +16,30 @@ const char HTML_SETTINGS[] PROGMEM = R"rawliteral(
 </div>
 </form>
 <a class="btn btn-primary" href="/settingsedit" role="button">Configure</a>
+<a class="btn btn-primary" onclick='SendDateString();' role="button">Set device time from computer</a>
 <a class="btn btn-warning" href="/reboot" role="button">Reboot</a>
 <a class="btn btn-primary" href="/confirmreset" role="button">Reset ESP</a>
 <a class="btn btn-primary" href="/" role="button">Back</a>
 </div>
+
+<script>
+function SendDateString() {
+var today = new Date();
+var dateString;
+dateString =  (today.getFullYear().toString().slice(2,4)) +
+    ((today.getMonth()+1)< 10 ? '0' : '') + (today.getMonth()+1) +
+    (today.getDate()< 10 ? '0' : '') + today.getDate() +
+    (today.getHours()< 10 ? '0' : '') + today.getHours() +
+    (today.getMinutes()< 10 ? '0' : '') + today.getMinutes() +
+    (today.getSeconds()< 10 ? '0' : '') + today.getSeconds();
+var xhr = new XMLHttpRequest();
+  xhr.onreadystatechange = () => {
+    if (xhr.readyState === 4) {
+      window.location.href = '/';
+    }
+  }
+xhr.open("GET", "/set?datetime="+dateString, true); 
+xhr.send();
+}
+</script>
 )rawliteral";

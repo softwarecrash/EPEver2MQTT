@@ -6,7 +6,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
         <div class="bg-light">Device Time: </div>
     </div>
     <div class="col">
-        <div class="bg-light"><span id="devtime" >N/A</span></div>
+        <div class="bg-light"><span id="devtime" >N/A</span></br></div>
     </div>
 </div>
 

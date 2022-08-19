@@ -85,7 +85,6 @@
     uint16_t buf[3];
   } rtc ;
 
-
   // live data
   union {
     struct {
