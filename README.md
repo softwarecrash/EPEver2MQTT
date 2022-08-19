@@ -2,7 +2,7 @@
 ESP82XX to MQTT based connector for EPEver Solar tracker
 
 # Feauteres:
-- set up over ap
+- set up over captive portal
 - config in webinterface
 - update via webinterface
 - classic MQTT Datapoints or Json String over MQTT
