@@ -23,6 +23,7 @@ ESP82XX to MQTT based connector for EPEver Solar tracker
 
 # Tested with:
 - EPEVER Tracer2210AN
+- from protocol it should work with ls-b vs-b tracer-b tracer-a itracer etracer Series
 - have you sucessfull run it on another devices? please tell me your device
 
 # How to use:
