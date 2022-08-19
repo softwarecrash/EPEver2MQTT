@@ -43,7 +43,7 @@ bool shouldSaveConfig = false;
 char mqtt_server[40];
 bool restartNow = false;
 bool updateProgress = false;
-char timeBuff[256];  // buffer for timestamp
+char timeBuff[21];  // buffer for timestamp
 char msgBuffer[256]; // msgbuff for dtostrf
 DynamicJsonDocument liveJson(mqttBufferSize);
 JsonObject liveData = liveJson.createNestedObject("LiveData");
@@ -420,7 +420,7 @@ void getEpData()
 
 void getJsonData()
 {
-  snprintf(timeBuff, sizeof(timeBuff)-1, "20%02d-%02d-%02d %02d:%02d:%02d",
+  snprintf(timeBuff, (sizeof(timeBuff)-1),"20%02d-%02d-%02d %02d:%02d:%02d",
           rtc.r.y, rtc.r.M, rtc.r.d, rtc.r.h, rtc.r.m, rtc.r.s);
   liveJson["DEVICE_TIME"] = timeBuff;
   liveData["SOLAR_VOLTS"] = live.l.pV / 100.f;
