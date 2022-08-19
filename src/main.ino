@@ -43,7 +43,7 @@ bool shouldSaveConfig = false;
 char mqtt_server[40];
 bool restartNow = false;
 bool updateProgress = false;
-char timeBuff[21];  // buffer for timestamp
+//char timeBuff[26];  // buffer for timestamp
 char msgBuffer[256]; // msgbuff for dtostrf
 DynamicJsonDocument liveJson(mqttBufferSize);
 JsonObject liveData = liveJson.createNestedObject("LiveData");
@@ -56,7 +56,7 @@ void saveConfigCallback()
 
 static void handle_update_progress_cb(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final)
 {
-  uint32_t free_space = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
+  //uint32_t free_space = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
   if (!index)
   {
     Update.runAsync(true);
@@ -420,9 +420,19 @@ void getEpData()
 
 void getJsonData()
 {
-  snprintf(timeBuff, (sizeof(timeBuff)-1),"20%02d-%02d-%02d %02d:%02d:%02d",
-          rtc.r.y, rtc.r.M, rtc.r.d, rtc.r.h, rtc.r.m, rtc.r.s);
+  /*
+  snprintf(timeBuff, sizeof(timeBuff),"20%02d-%02d-%02d %02d:%02d:%02d", rtc.r.y, rtc.r.M, rtc.r.d, rtc.r.h, rtc.r.m, rtc.r.s);
+
   liveJson["DEVICE_TIME"] = timeBuff;
+  */
+//not so elegant but working, sprintf have issues on esp
+ liveJson["DEVICE_TIME"] =  "20"+String(rtc.r.y)+
+                            "-"+(rtc.r.M<10? "0":"")+String(rtc.r.M)+
+                            "-"+(rtc.r.d<10? "0":"")+String(rtc.r.d)+
+                            " "+(rtc.r.h<10? "0":"")+String(rtc.r.h)+
+                            ":"+(rtc.r.m<10? "0":"")+String(rtc.r.m)+
+                            ":"+(rtc.r.s<10? "0":"")+String(rtc.r.s);
+
   liveData["SOLAR_VOLTS"] = live.l.pV / 100.f;
   liveData["SOLAR_AMPS"] = live.l.pI / 100.f;
   liveData["SOLAR_WATTS"] = live.l.pP / 100.f;
