@@ -10,7 +10,7 @@ ESP82XX to MQTT based connector for EPEver Solar tracker
 - switch Load Channel via webinterface and MQTT or via web at /set?loadstate=0 or 1
 
 ![image](https://user-images.githubusercontent.com/44615614/185479016-ff9f6fcc-287f-4e5f-bc8d-bce20f5c64eb.png)
-![image](https://user-images.githubusercontent.com/44615614/185475961-508b8f2f-7062-40c5-8f8d-06bc6107e580.png)
+![image](https://user-images.githubusercontent.com/44615614/185666264-8f09dd9f-b78c-4a8f-810f-838ccb8f6ccc.png)
 ![image](https://user-images.githubusercontent.com/44615614/185476011-fbd855d5-9ca1-4da4-8310-85bdc5acc04e.png)
 
 
