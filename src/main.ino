@@ -425,7 +425,7 @@ void getJsonData()
 
   liveJson["DEVICE_TIME"] = timeBuff;
   */
-//not so elegant but working, sprintf have issues on esp
+//not so elegant but working, printf famaly have issues on esp
  liveJson["DEVICE_TIME"] =  "20"+String(rtc.r.y)+
                             "-"+(rtc.r.M<10? "0":"")+String(rtc.r.M)+
                             "-"+(rtc.r.d<10? "0":"")+String(rtc.r.d)+
