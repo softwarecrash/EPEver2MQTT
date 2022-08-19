@@ -2,29 +2,27 @@
 ESP82XX to MQTT based connector for EPEver Solar tracker
 
 # Feauteres:
-- set up over ap
+- set up over captive portal
 - config in webinterface
 - update via webinterface
 - classic MQTT Datapoints or Json String over MQTT
 - get Json over web at /livejson?
 - switch Load Channel via webinterface and MQTT or via web at /set?loadstate=0 or 1
+- set Device time from computer time
 
-![image](https://user-images.githubusercontent.com/44615614/185479016-ff9f6fcc-287f-4e5f-bc8d-bce20f5c64eb.png)
-![image](https://user-images.githubusercontent.com/44615614/185666264-8f09dd9f-b78c-4a8f-810f-838ccb8f6ccc.png)
-![image](https://user-images.githubusercontent.com/44615614/185476011-fbd855d5-9ca1-4da4-8310-85bdc5acc04e.png)
+![image](https://user-images.githubusercontent.com/44615614/185672807-ba14f2c1-f630-49c4-b30b-bab82101a0c7.png)
+![image](https://user-images.githubusercontent.com/44615614/185672842-082d8b25-2e81-4977-91ce-fe7a9f168e4f.png)
+![image](https://user-images.githubusercontent.com/44615614/185673044-8760afd0-cded-4e27-a565-e48c421af863.png)
+
 
 
 #Todo:
-- get and set the device time from computer time, or better from ntp?
 - cleanup code
 - test more devices
 
 # Tested with:
 - EPEVER Tracer2210AN
 - have you sucessfull run it on another devices? please tell me your device
-
-# Known Bugs:
-- Timestamp from device will zero after serveral time
 
 # How to use:
 - flash the bin file to a esp82xx or Wemos D1 Mini with tasmotizer or other way
