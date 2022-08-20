@@ -1,5 +1,8 @@
 /*Lot of ideas comes from here:
  * https://github.com/glitterkitty/EpEverSolarMonitor
+ *
+ *  try to move to this lib? only for time bug fix
+ * https://github.com/emelianov/modbus-esp8266
  */
 #include <Arduino.h>
 
@@ -330,6 +333,7 @@ void getEpData()
   memset(rtc.buf, 0, sizeof(rtc.buf));
   memset(live.buf, 0, sizeof(live.buf));
   memset(stats.buf, 0, sizeof(stats.buf));
+  memset(timeBuff, 0, sizeof(timeBuff));
 
   // Read registers for clock
   epnode.clearResponseBuffer();
@@ -365,7 +369,6 @@ void getEpData()
   result = epnode.readInputRegisters(BATTERY_SOC, 1);
   if (result == epnode.ku8MBSuccess)
   {
-
     batterySOC = epnode.getResponseBuffer(0);
   }
 
@@ -391,7 +394,6 @@ void getEpData()
   result = epnode.readInputRegisters(0x3200, 2);
   if (result == epnode.ku8MBSuccess)
   {
-
     uint16_t temp = epnode.getResponseBuffer(0);
     status_batt.volt = temp & 0b1111;
     status_batt.temp = (temp >> 4) & 0b1111;
@@ -407,11 +409,6 @@ void getEpData()
     charger_mode = (temp & 0b0000000000001100) >> 2;
     // charger_input     = ( temp & 0b0000000000000000 ) >> 12 ;
     // charger_operation = ( temp & 0b0000000000000000 ) >> 0 ;
-
-    // Serial.print( "charger_input : "); Serial.println( charger_input );
-    // Serial.print( "charger_mode  : "); Serial.println( charger_mode );
-    // Serial.print( "charger_oper  : "); Serial.println( charger_operation );
-    // Serial.print( "charger_state : "); Serial.println( charger_state );
   }
 
   getJsonData(); // put the collected data into json fields
