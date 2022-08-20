@@ -14,7 +14,8 @@ ESP82XX to MQTT based connector for EPEver Solar tracker
 ![image](https://user-images.githubusercontent.com/44615614/185672842-082d8b25-2e81-4977-91ce-fe7a9f168e4f.png)
 ![image](https://user-images.githubusercontent.com/44615614/185673044-8760afd0-cded-4e27-a565-e48c421af863.png)
 
-
+# Known Bugs:
+- Time from device set to null after serveral time (not critical)
 
 #Todo:
 - cleanup code
@@ -22,6 +23,7 @@ ESP82XX to MQTT based connector for EPEver Solar tracker
 
 # Tested with:
 - EPEVER Tracer2210AN
+- from protocol it should work with ls-b vs-b tracer-b tracer-a itracer etracer Series
 - have you sucessfull run it on another devices? please tell me your device
 
 # How to use:
