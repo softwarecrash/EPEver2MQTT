@@ -46,6 +46,7 @@ bool shouldSaveConfig = false;
 char mqtt_server[40];
 bool restartNow = false;
 bool updateProgress = false;
+bool requestRunning = false;
 char timeBuff[26];  // buffer for timestamp
 DynamicJsonDocument liveJson(mqttBufferSize);
 JsonObject liveData = liveJson.createNestedObject("LiveData");
@@ -153,6 +154,8 @@ void setup()
     MDNS.begin(_settings._deviceName);
     WiFi.hostname(_settings._deviceName);
 
+    liveJson["DEVICE_NAME"] = _settings._deviceName;
+
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
               {
                 AsyncResponseStream *response = request->beginResponseStream("text/html");
@@ -163,7 +166,7 @@ void setup()
     server.on("/livejson", HTTP_GET, [](AsyncWebServerRequest *request)
               {
                 AsyncResponseStream *response = request->beginResponseStream("application/json");
-                liveJson["DEVICE_NAME"] = _settings._deviceName;
+                if(!requestRunning) getEpData();
                 serializeJson(liveJson, *response);
                 request->send(response); });
 
@@ -308,14 +311,22 @@ void loop()
     MDNS.update();
     mqttclient.loop(); // Check if we have something to read from MQTT
 
-    if (millis() > (getDataTimer + (2 * 1000)) && !updateProgress)
-    {
-      getEpData(); // get actual data from epever and set it to the json
-      getDataTimer = millis();
-    }
-    if (!updateProgress)
-      sendtoMQTT(); // Update data to MQTT server if we should
+   // if (millis() > (getDataTimer + (2 * 1000)) && !updateProgress)
+   // {
+      //getEpData(); // get actual data from epever and set it to the json
+    //  getDataTimer = millis();
+   // }
+
+  if (millis() > (mqtttimer + (_settings._mqttRefresh * 1000)) || _settings._mqttRefresh != 0 && !updateProgress)
+  {
+    sendtoMQTT();
   }
+  mqtttimer = millis();
+
+    //if (!updateProgress)
+    //  sendtoMQTT(); // Update data to MQTT server if we should
+  }
+  
   if (restartNow)
   {
     delay(1000);
@@ -329,6 +340,7 @@ void loop()
 
 void getEpData()
 {
+  requestRunning = true;
   // clear buffers
   memset(rtc.buf, 0, sizeof(rtc.buf));
   memset(live.buf, 0, sizeof(live.buf));
@@ -412,6 +424,7 @@ void getEpData()
   }
 
   getJsonData(); // put the collected data into json fields
+  requestRunning = false;
 }
 
 void getJsonData()
@@ -465,11 +478,7 @@ void getJsonData()
 
 bool sendtoMQTT()
 {
-  if (millis() < (mqtttimer + (_settings._mqttRefresh * 1000)) || _settings._mqttRefresh == 0)
-  {
-    return false;
-  }
-  mqtttimer = millis();
+  getEpData();
   if (!mqttclient.connected())
   {
     if (mqttclient.connect((String(_settings._deviceName)).c_str(), _settings._mqttUser.c_str(), _settings._mqttPassword.c_str()))
