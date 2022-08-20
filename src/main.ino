@@ -32,7 +32,7 @@
 WiFiClient client;
 Settings _settings;
 PubSubClient mqttclient(client);
-int mqttBufferSize = 2048;
+int mqttBufferSize = 1024;
 
 String topic = "/"; // Default first part of topic. We will add device ID in setup
 
@@ -416,18 +416,16 @@ void getEpData()
 
 void getJsonData()
 {
-  //bugfix for heap 
+  //bugfix for heap segmentation, comming from the snprintf timestring
   if(liveJson.memoryUsage() >= (mqttBufferSize-32)){
    liveJson.garbageCollect();
   }
   
-  snprintf_P(timeBuff, sizeof(timeBuff),"20%02d-%02d-%02d %02d:%02d:%02d", byte(rtc.r.y), byte(rtc.r.M), byte(rtc.r.d), byte(rtc.r.h), byte(rtc.r.m), byte(rtc.r.s));
+  snprintf(timeBuff, sizeof(timeBuff),"20%02d-%02d-%02d %02d:%02d:%02d", byte(rtc.r.y), byte(rtc.r.M), byte(rtc.r.d), byte(rtc.r.h), byte(rtc.r.m), byte(rtc.r.s));
   liveJson["DEVICE_TIME"] = timeBuff;
              
-
   liveJson["DEVICE_FREE_HEAP"] = ESP.getFreeHeap();
-  liveJson["DEVICE_jsonmemory"] = liveJson.memoryUsage();
-
+  liveJson["DEVICE_JSON_MEMORY"] = liveJson.memoryUsage();
 
   liveData["SOLAR_VOLTS"] = live.l.pV / 100.f;
   liveData["SOLAR_AMPS"] = live.l.pI / 100.f;
