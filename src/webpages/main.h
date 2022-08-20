@@ -107,7 +107,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
                 success: function (data) {
                document.getElementById("devicename").innerHTML = 'Device: '+data.DEVICE_NAME;
 
-               document.getElementById("devtime").innerHTML = data.DEVICE_TIME;
+               document.getElementById("devtime").innerHTML = unixTimetoDateTime(data.DEVICE_TIME);
 
                document.getElementById("solarV").innerHTML = data.LiveData.SOLAR_VOLTS +'V ';
                document.getElementById("solarA").innerHTML = data.LiveData.SOLAR_AMPS+'A  ';
@@ -141,7 +141,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
             }
         });
         }
-        setInterval(fetch, 2000);
+        setInterval(fetch, 1000);
         fetch();
         });
 function toggleLoadState(element) {
@@ -150,6 +150,16 @@ if(element.checked){ xhr.open("GET", "/set?loadstate=1", true); }
 else { xhr.open("GET", "/set?loadstate=0", true); }
 xhr.send();
 clearInterval();
+}
+function unixTimetoDateTime(unixTime){
+var deviceDate = new Date(unixTime * 1000);
+var formatedTime =  (deviceDate.getFullYear()) + "-" +
+    ((deviceDate.getMonth()+1)< 10 ? '0' : '') + (deviceDate.getMonth()+1) + "-" +
+    (deviceDate.getDate()< 10 ? '0' : '') + deviceDate.getDate() + " " +
+    ((deviceDate.getHours()+1)< 10 ? '0' : '') + (deviceDate.getHours()+1) + ":" +
+    (deviceDate.getMinutes()< 10 ? '0' : '') + deviceDate.getMinutes() + ":" +
+    (deviceDate.getSeconds()< 10 ? '0' : '') + deviceDate.getSeconds();
+return formatedTime;
 }
 </script>
 )rawliteral";

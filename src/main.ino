@@ -17,6 +17,7 @@
 #include <ESPAsyncWiFiManager.h>
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+#include <UnixTime.h>
 
 #include "Settings.h" //settings functions
 
@@ -41,13 +42,12 @@ unsigned long getDataTimer = 0;
 AsyncWebServer server(80);
 DNSServer dns;
 ModbusMaster epnode; // instantiate ModbusMaster object
+UnixTime uTime(3);  // указать GMT (3 для Москвы)
 // flag for saving data and other things
 bool shouldSaveConfig = false;
 char mqtt_server[40];
 bool restartNow = false;
 bool updateProgress = false;
-bool requestRunning = false;
-char timeBuff[26];  // buffer for timestamp
 DynamicJsonDocument liveJson(mqttBufferSize);
 JsonObject liveData = liveJson.createNestedObject("LiveData");
 JsonObject statsData = liveJson.createNestedObject("StatsData");
@@ -59,19 +59,30 @@ void saveConfigCallback()
 
 static void handle_update_progress_cb(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final)
 {
-  //uint32_t free_space = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
+  uint32_t free_space = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
   if (!index)
   {
     Update.runAsync(true);
+    if (!Update.begin(free_space))
+    {
+      Update.printError(EPEVER_SERIAL);
+    }
+  }
+
+  if (Update.write(data, len) != len)
+  {
+    Update.printError(EPEVER_SERIAL);
   }
 
   if (final)
   {
     if (!Update.end(true))
     {
+      Update.printError(EPEVER_SERIAL);
     }
     else
     {
+
       AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", "Please wait while the device is booting new Firmware");
       response->addHeader("Refresh", "10; url=/");
       response->addHeader("Connection", "close");
@@ -166,7 +177,6 @@ void setup()
     server.on("/livejson", HTTP_GET, [](AsyncWebServerRequest *request)
               {
                 AsyncResponseStream *response = request->beginResponseStream("application/json");
-                if(!requestRunning) getEpData();
                 serializeJson(liveJson, *response);
                 request->send(response); });
 
@@ -311,20 +321,15 @@ void loop()
     MDNS.update();
     mqttclient.loop(); // Check if we have something to read from MQTT
 
-   // if (millis() > (getDataTimer + (2 * 1000)) && !updateProgress)
-   // {
-      //getEpData(); // get actual data from epever and set it to the json
-    //  getDataTimer = millis();
-   // }
+    if (millis() - getDataTimer> 300) 
+    {
+      getEpData();
+      getJsonData();
+      getDataTimer = millis();
+    }
 
-  if (millis() > (mqtttimer + (_settings._mqttRefresh * 1000)) || _settings._mqttRefresh != 0 && !updateProgress)
-  {
-    sendtoMQTT();
-  }
-  mqtttimer = millis();
-
-    //if (!updateProgress)
-    //  sendtoMQTT(); // Update data to MQTT server if we should
+    if (!updateProgress)
+      sendtoMQTT(); // Update data to MQTT server if we should
   }
   
   if (restartNow)
@@ -340,12 +345,10 @@ void loop()
 
 void getEpData()
 {
-  requestRunning = true;
   // clear buffers
   memset(rtc.buf, 0, sizeof(rtc.buf));
   memset(live.buf, 0, sizeof(live.buf));
   memset(stats.buf, 0, sizeof(stats.buf));
-  memset(timeBuff, 0, sizeof(timeBuff));
 
   // Read registers for clock
   epnode.clearResponseBuffer();
@@ -355,6 +358,7 @@ void getEpData()
     rtc.buf[0] = epnode.getResponseBuffer(0);
     rtc.buf[1] = epnode.getResponseBuffer(1);
     rtc.buf[2] = epnode.getResponseBuffer(2);
+    uTime.setDateTime((2000+rtc.r.y), rtc.r.M, rtc.r.d, rtc.r.h, rtc.r.m, rtc.r.s);
   }
 
   // read LIVE-Data
@@ -422,20 +426,16 @@ void getEpData()
     // charger_input     = ( temp & 0b0000000000000000 ) >> 12 ;
     // charger_operation = ( temp & 0b0000000000000000 ) >> 0 ;
   }
-
-  getJsonData(); // put the collected data into json fields
-  requestRunning = false;
 }
 
 void getJsonData()
 {
-  //bugfix for heap segmentation, comming from the snprintf timestring
+  //prevent buffer leak
   if(liveJson.memoryUsage() >= (mqttBufferSize-32)){
    liveJson.garbageCollect();
   }
   
-  snprintf(timeBuff, sizeof(timeBuff),"20%02d-%02d-%02d %02d:%02d:%02d", byte(rtc.r.y), byte(rtc.r.M), byte(rtc.r.d), byte(rtc.r.h), byte(rtc.r.m), byte(rtc.r.s));
-  liveJson["DEVICE_TIME"] = timeBuff;
+  liveJson["DEVICE_TIME"] = uTime.getUnix();
              
   liveJson["DEVICE_FREE_HEAP"] = ESP.getFreeHeap();
   liveJson["DEVICE_JSON_MEMORY"] = liveJson.memoryUsage();
@@ -472,13 +472,15 @@ void getJsonData()
 
   liveJson["CHARGER_INPUT_STATUS"] = charger_input_status[charger_input];
   liveJson["CHARGER_MODE"] = charger_charging_status[charger_mode];
-
-  
 }
 
 bool sendtoMQTT()
 {
-  getEpData();
+    if (millis() < (mqtttimer + (_settings._mqttRefresh * 1000)) || _settings._mqttRefresh == 0)
+  {
+    return false;
+  }
+  mqtttimer = millis();
   if (!mqttclient.connected())
   {
     if (mqttclient.connect((String(_settings._deviceName)).c_str(), _settings._mqttUser.c_str(), _settings._mqttPassword.c_str()))
