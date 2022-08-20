@@ -29,7 +29,7 @@
 WiFiClient client;
 Settings _settings;
 PubSubClient mqttclient(client);
-int mqttBufferSize = 2048;
+int mqttBufferSize = 1024;
 
 String topic = "/"; // Default first part of topic. We will add device ID in setup
 
@@ -43,8 +43,7 @@ bool shouldSaveConfig = false;
 char mqtt_server[40];
 bool restartNow = false;
 bool updateProgress = false;
-//char timeBuff[26];  // buffer for timestamp
-char msgBuffer[256]; // msgbuff for dtostrf
+char timeBuff[20];  // buffer for timestamp
 DynamicJsonDocument liveJson(mqttBufferSize);
 JsonObject liveData = liveJson.createNestedObject("LiveData");
 JsonObject statsData = liveJson.createNestedObject("StatsData");
@@ -420,18 +419,13 @@ void getEpData()
 
 void getJsonData()
 {
-  /*
+  
   snprintf(timeBuff, sizeof(timeBuff),"20%02d-%02d-%02d %02d:%02d:%02d", rtc.r.y, rtc.r.M, rtc.r.d, rtc.r.h, rtc.r.m, rtc.r.s);
-
   liveJson["DEVICE_TIME"] = timeBuff;
-  */
-//not so elegant but working, printf famaly have issues on esp
- liveJson["DEVICE_TIME"] =  "20"+String(rtc.r.y)+
-                            "-"+(rtc.r.M<10? "0":"")+String(rtc.r.M)+
-                            "-"+(rtc.r.d<10? "0":"")+String(rtc.r.d)+
-                            " "+(rtc.r.h<10? "0":"")+String(rtc.r.h)+
-                            ":"+(rtc.r.m<10? "0":"")+String(rtc.r.m)+
-                            ":"+(rtc.r.s<10? "0":"")+String(rtc.r.s);
+             
+
+  liveJson["DEVICE_FREE_HEAP"] = ESP.getFreeHeap();
+
 
   liveData["SOLAR_VOLTS"] = live.l.pV / 100.f;
   liveData["SOLAR_AMPS"] = live.l.pI / 100.f;
@@ -491,8 +485,6 @@ bool sendtoMQTT()
 
   if (!_settings._mqttJson)
   {
-    char msgBuffer[20];
-
     mqttclient.publish((String(topic) + String("/DEVICE_TIME")).c_str(), liveJson["DEVICE_TIME"]);
     mqttclient.publish((String(topic) + String("/LOAD_STATE")).c_str(), liveJson["LOAD_STATE"] ? "true" : "false");
     mqttclient.publish((String(topic) + String("/BATT_VOLT_STATUS")).c_str(), liveJson["BATT_VOLT_STATUS"]);
@@ -531,7 +523,7 @@ bool sendtoMQTT()
   }
   else
   {
-    char mqttBuffer[2048];
+    char mqttBuffer[1024];
     size_t n = serializeJson(liveJson, mqttBuffer);
     mqttclient.publish((String(topic + "/" + _settings._deviceName)).c_str(), mqttBuffer, n);
   }
