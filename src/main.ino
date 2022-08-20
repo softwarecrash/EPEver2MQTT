@@ -32,7 +32,7 @@
 WiFiClient client;
 Settings _settings;
 PubSubClient mqttclient(client);
-int mqttBufferSize = 1024;
+int mqttBufferSize = 2048;
 
 String topic = "/"; // Default first part of topic. We will add device ID in setup
 
@@ -46,7 +46,7 @@ bool shouldSaveConfig = false;
 char mqtt_server[40];
 bool restartNow = false;
 bool updateProgress = false;
-char timeBuff[20];  // buffer for timestamp
+char timeBuff[26];  // buffer for timestamp
 DynamicJsonDocument liveJson(mqttBufferSize);
 JsonObject liveData = liveJson.createNestedObject("LiveData");
 JsonObject statsData = liveJson.createNestedObject("StatsData");
@@ -416,12 +416,17 @@ void getEpData()
 
 void getJsonData()
 {
+  //bugfix for heap 
+  if(liveJson.memoryUsage() >= (mqttBufferSize-32)){
+   liveJson.garbageCollect();
+  }
   
-  snprintf(timeBuff, sizeof(timeBuff),"20%02d-%02d-%02d %02d:%02d:%02d", rtc.r.y, rtc.r.M, rtc.r.d, rtc.r.h, rtc.r.m, rtc.r.s);
+  snprintf_P(timeBuff, sizeof(timeBuff),"20%02d-%02d-%02d %02d:%02d:%02d", byte(rtc.r.y), byte(rtc.r.M), byte(rtc.r.d), byte(rtc.r.h), byte(rtc.r.m), byte(rtc.r.s));
   liveJson["DEVICE_TIME"] = timeBuff;
              
 
   liveJson["DEVICE_FREE_HEAP"] = ESP.getFreeHeap();
+  liveJson["DEVICE_jsonmemory"] = liveJson.memoryUsage();
 
 
   liveData["SOLAR_VOLTS"] = live.l.pV / 100.f;
@@ -456,6 +461,8 @@ void getJsonData()
 
   liveJson["CHARGER_INPUT_STATUS"] = charger_input_status[charger_input];
   liveJson["CHARGER_MODE"] = charger_charging_status[charger_mode];
+
+  
 }
 
 bool sendtoMQTT()

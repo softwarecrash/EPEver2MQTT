@@ -103,7 +103,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
             data: {},
             type: "get",
             dataType: "json",
-               cache: false,
+               cache: true,
                 success: function (data) {
                document.getElementById("devicename").innerHTML = 'Device: '+data.DEVICE_NAME;
 
