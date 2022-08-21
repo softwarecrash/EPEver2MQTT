@@ -259,6 +259,7 @@ void setup()
       AsyncWebParameter *p = request->getParam(0);
       if (p->name() == "loadstate")
       {
+        updateProgress = true;
         if (p->value().toInt() == 1)
         {
           epnode.writeSingleCoil(0x0002, 1);
@@ -267,6 +268,7 @@ void setup()
         {
           epnode.writeSingleCoil(0x0002, 0);
         }
+        updateProgress = false;
       }
       if (p->name() == "datetime")
       {
@@ -321,7 +323,7 @@ void loop()
     MDNS.update();
     mqttclient.loop(); // Check if we have something to read from MQTT
 
-    if (millis() - getDataTimer> 300) 
+    if (millis() - getDataTimer> 1000 && !updateProgress) 
     {
       getEpData();
       getJsonData();

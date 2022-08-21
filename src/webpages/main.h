@@ -149,8 +149,8 @@ var xhr = new XMLHttpRequest();
 if(element.checked){ xhr.open("GET", "/set?loadstate=1", true); }
 else { xhr.open("GET", "/set?loadstate=0", true); }
 xhr.send();
-clearInterval();
 }
+
 function unixTimetoDateTime(unixTime){
 var deviceDate = new Date(unixTime * 1000);
 var formatedTime =  (deviceDate.getFullYear()) + "-" +
