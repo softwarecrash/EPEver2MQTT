@@ -171,7 +171,7 @@ var deviceDate = new Date(unixTime * 1000);
 var formatedTime =  (deviceDate.getFullYear()) + "-" +
     ((deviceDate.getMonth()+1)< 10 ? '0' : '') + (deviceDate.getMonth()+1) + "-" +
     (deviceDate.getDate()< 10 ? '0' : '') + deviceDate.getDate() + " " +
-    ((deviceDate.getHours()+1)< 10 ? '0' : '') + (deviceDate.getHours()+1) + ":" +
+    ((deviceDate.getHours())< 10 ? '0' : '') + (deviceDate.getHours()) + ":" +
     (deviceDate.getMinutes()< 10 ? '0' : '') + deviceDate.getMinutes() + ":" +
     (deviceDate.getSeconds()< 10 ? '0' : '') + deviceDate.getSeconds();
 return formatedTime;

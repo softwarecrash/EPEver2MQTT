@@ -423,7 +423,7 @@ void getEpData()
     rtc.buf[0] = epnode.getResponseBuffer(0);
     rtc.buf[1] = epnode.getResponseBuffer(1);
     rtc.buf[2] = epnode.getResponseBuffer(2);
-    uTime.setDateTime((2000 + rtc.r.y), rtc.r.M, rtc.r.d, rtc.r.h, rtc.r.m, rtc.r.s);
+    uTime.setDateTime((2000 + rtc.r.y), rtc.r.M, rtc.r.d, (rtc.r.h+1), rtc.r.m, rtc.r.s);
   }
 
   // read LIVE-Data
