@@ -21,7 +21,7 @@
 
 #include "Settings.h" //settings functions
 
-#include "webpages/HTMLcase.h"     // The HTML Konstructor
+#include "webpages/htmlCase.h"     // The HTML Konstructor
 #include "webpages/main.h"         // landing page with menu
 #include "webpages/settings.h"     // settings page
 #include "webpages/settingsedit.h" // mqtt settings page
@@ -30,24 +30,31 @@
 #define EPEVER_BAUD 115200   // baud rate for modbus
 #define EPEVER_DE_RE 5       // connect DE and Re to pin D1
 
-WiFiClient client;
-Settings _settings;
-PubSubClient mqttclient(client);
 int mqttBufferSize = 1024;
 
 String topic = "/"; // Default first part of topic. We will add device ID in setup
 
-unsigned long mqtttimer = 0;
-unsigned long getDataTimer = 0;
-AsyncWebServer server(80);
-DNSServer dns;
-ModbusMaster epnode; // instantiate ModbusMaster object
-UnixTime uTime(3);  // указать GMT (3 для Москвы)
 // flag for saving data and other things
 bool shouldSaveConfig = false;
 char mqtt_server[40];
 bool restartNow = false;
 bool updateProgress = false;
+
+unsigned long mqtttimer = 0;
+unsigned long getDataTimer = 0;
+char jsonSerial[1024]; // buffer for serializon
+
+WiFiClient client;
+Settings _settings;
+PubSubClient mqttclient(client);
+
+AsyncWebServer server(80);
+AsyncWebSocket ws("/ws");
+
+DNSServer dns;
+ModbusMaster epnode; // instantiate ModbusMaster object
+UnixTime uTime(3);   // указать GMT (3 для Москвы)
+
 DynamicJsonDocument liveJson(mqttBufferSize);
 JsonObject liveData = liveJson.createNestedObject("LiveData");
 JsonObject statsData = liveJson.createNestedObject("StatsData");
@@ -100,6 +107,55 @@ void preTransmission()
 void postTransmission()
 {
   digitalWrite(EPEVER_DE_RE, 0);
+}
+
+void notifyClients()
+{
+  serializeJson(liveJson, jsonSerial);
+  ws.textAll(jsonSerial);
+}
+
+void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
+{
+  AwsFrameInfo *info = (AwsFrameInfo *)arg;
+  if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT)
+  {
+    data[len] = 0;
+    updateProgress = true;
+    if (strcmp((char*)data, "loadSwitch_on") == 0)
+    {
+      epnode.writeSingleCoil(0x0002, 1);
+    }
+    if (strcmp((char*)data, "loadSwitch_off") == 0)
+    {
+      epnode.writeSingleCoil(0x0002, 0);
+    }
+    updateProgress = false;
+    if (strcmp((char*)data, "dataRequired") == 0)
+    {
+      notifyClients();
+    }
+  }
+}
+
+void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type,
+             void *arg, uint8_t *data, size_t len)
+{
+  switch (type)
+  {
+  case WS_EVT_CONNECT:
+    // Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
+    break;
+  case WS_EVT_DISCONNECT:
+    //  Serial.printf("WebSocket client #%u disconnected\n", client->id());
+    break;
+  case WS_EVT_DATA:
+    handleWebSocketMessage(arg, data, len);
+    break;
+  case WS_EVT_PONG:
+  case WS_EVT_ERROR:
+    break;
+  }
 }
 
 void setup()
@@ -174,6 +230,7 @@ void setup()
                 response->printf_P(HTML_MAIN);
                 response->printf_P(HTML_FOOT);
                 request->send(response); });
+
     server.on("/livejson", HTTP_GET, [](AsyncWebServerRequest *request)
               {
                 AsyncResponseStream *response = request->beginResponseStream("application/json");
@@ -272,14 +329,14 @@ void setup()
       }
       if (p->name() == "datetime")
       {
-        uint8_t rtcSetY  = atoi (request->getParam("datetime")->value().substring(0, 2).c_str ()); //stunde
-        uint8_t rtcSetM  = atoi (request->getParam("datetime")->value().substring(2, 4).c_str ()); //tag
-        uint8_t rtcSetD  = atoi (request->getParam("datetime")->value().substring(4, 6).c_str ()); //tag
-        uint8_t rtcSeth  = atoi (request->getParam("datetime")->value().substring(6, 8).c_str ()); //tag
-        uint8_t rtcSetm  = atoi (request->getParam("datetime")->value().substring(8, 10).c_str ()); //tag
-        uint8_t rtcSets  = atoi (request->getParam("datetime")->value().substring(10, 12).c_str ()); //tag
-        epnode.setTransmitBuffer(0, ((uint16_t)rtcSetm << 8) | rtcSets); //demnach minute | sekunde
-        epnode.setTransmitBuffer(1, ((uint16_t)rtcSetD << 8) | rtcSeth); //geht!!!!!!  tag | stunde
+        uint8_t rtcSetY  = atoi (request->getParam("datetime")->value().substring(0, 2).c_str ());
+        uint8_t rtcSetM  = atoi (request->getParam("datetime")->value().substring(2, 4).c_str ());
+        uint8_t rtcSetD  = atoi (request->getParam("datetime")->value().substring(4, 6).c_str ());
+        uint8_t rtcSeth  = atoi (request->getParam("datetime")->value().substring(6, 8).c_str ());
+        uint8_t rtcSetm  = atoi (request->getParam("datetime")->value().substring(8, 10).c_str ());
+        uint8_t rtcSets  = atoi (request->getParam("datetime")->value().substring(10, 12).c_str ());
+        epnode.setTransmitBuffer(0, ((uint16_t)rtcSetm << 8) | rtcSets); // minute | sekunde
+        epnode.setTransmitBuffer(1, ((uint16_t)rtcSetD << 8) | rtcSeth); // tag | stunde
         epnode.setTransmitBuffer(2, ((uint16_t)rtcSetY << 8) | rtcSetM); //und Jahr | Monat
         epnode.writeMultipleRegisters(0x9013, 3); //write registers
         }
@@ -294,6 +351,8 @@ void setup()
           request->redirect("/"); },
         handle_update_progress_cb);
 
+    ws.onEvent(onEvent);
+    server.addHandler(&ws);
     server.begin();
     MDNS.addService("http", "tcp", 80);
   }
@@ -319,21 +378,25 @@ void loop()
 {
   // Make sure wifi is in the right mode
   if (WiFi.status() == WL_CONNECTED)
-  { // No use going to next step unless WIFI is up and running.
+  {                      // No use going to next step unless WIFI is up and running.
+    ws.cleanupClients(); // clean unused client connections
     MDNS.update();
     mqttclient.loop(); // Check if we have something to read from MQTT
 
-    if (millis() - getDataTimer> 1000 && !updateProgress) 
+    if (millis() - getDataTimer > 1000 && !updateProgress)
     {
       getEpData();
       getJsonData();
+
+      notifyClients();
+
       getDataTimer = millis();
     }
 
     if (!updateProgress)
       sendtoMQTT(); // Update data to MQTT server if we should
   }
-  
+
   if (restartNow)
   {
     delay(1000);
@@ -360,7 +423,7 @@ void getEpData()
     rtc.buf[0] = epnode.getResponseBuffer(0);
     rtc.buf[1] = epnode.getResponseBuffer(1);
     rtc.buf[2] = epnode.getResponseBuffer(2);
-    uTime.setDateTime((2000+rtc.r.y), rtc.r.M, rtc.r.d, rtc.r.h, rtc.r.m, rtc.r.s);
+    uTime.setDateTime((2000 + rtc.r.y), rtc.r.M, rtc.r.d, rtc.r.h, rtc.r.m, rtc.r.s);
   }
 
   // read LIVE-Data
@@ -432,13 +495,14 @@ void getEpData()
 
 void getJsonData()
 {
-  //prevent buffer leak
-  if(liveJson.memoryUsage() >= (mqttBufferSize-32)){
-   liveJson.garbageCollect();
+  // prevent buffer leak
+  if (liveJson.memoryUsage() >= (mqttBufferSize - 32))
+  {
+    liveJson.garbageCollect();
   }
-  
+
   liveJson["DEVICE_TIME"] = uTime.getUnix();
-             
+
   liveJson["DEVICE_FREE_HEAP"] = ESP.getFreeHeap();
   liveJson["DEVICE_JSON_MEMORY"] = liveJson.memoryUsage();
 
@@ -478,7 +542,7 @@ void getJsonData()
 
 bool sendtoMQTT()
 {
-    if (millis() < (mqtttimer + (_settings._mqttRefresh * 1000)) || _settings._mqttRefresh == 0)
+  if (millis() < (mqtttimer + (_settings._mqttRefresh * 1000)) || _settings._mqttRefresh == 0)
   {
     return false;
   }
@@ -538,9 +602,9 @@ bool sendtoMQTT()
   }
   else
   {
-    char mqttBuffer[1024];
-    size_t n = serializeJson(liveJson, mqttBuffer);
-    mqttclient.publish((String(topic + "/" + _settings._deviceName)).c_str(), mqttBuffer, n);
+    // char jsonSerial[1024];
+    size_t n = serializeJson(liveJson, jsonSerial);
+    mqttclient.publish((String(topic + "/" + _settings._deviceName)).c_str(), jsonSerial, n);
   }
 
   return true;
@@ -548,6 +612,7 @@ bool sendtoMQTT()
 
 void callback(char *top, byte *payload, unsigned int length)
 {
+  updateProgress = true; // stop servicing data
   if (!_settings._mqttJson)
   {
     String messageTemp;
@@ -581,4 +646,5 @@ void callback(char *top, byte *payload, unsigned int length)
       epnode.writeSingleCoil(0x0002, 0);
     }
   }
+  updateProgress = false; // start data servicing again
 }

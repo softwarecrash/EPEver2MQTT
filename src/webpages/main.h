@@ -6,7 +6,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
         <div class="bg-light">Device Time: </div>
     </div>
     <div class="col">
-        <div class="bg-light"><span id="devtime" >N/A</span></br></div>
+        <div class="bg-light"><span id="devtime" ></span></br></div>
     </div>
 </div>
 
@@ -15,7 +15,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
         <div class="bg-light">Solar: </div>
     </div>
     <div class="col">
-        <div class="bg-light"><span id="solarV" >N/A</span><span id="solarA" >N/A</span><span id="solarW" >N/A</span></div>
+        <div class="bg-light"><span id="solarV" ></span><span id="solarA" ></span><span id="solarW" ></span></div>
     </div>
 </div>
 
@@ -24,7 +24,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
         <div class="bg-light">Battery: </div>
     </div>
     <div class="col">
-        <div class="bg-light"><span id="battV" >N/A</span><span id="battA" >N/A</span><span id="battW" >N/A</span><span id="battSOC" >N/A</span></div>
+        <div class="bg-light"><span id="battV" ></span><span id="battA" ></span><span id="battW" ></span><span id="battSOC" ></span></div>
     </div>
 </div>
 
@@ -33,7 +33,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
         <div class="bg-light">Load: </div>
     </div>
     <div class="col">
-        <div class="bg-light"><span id="loadV" >N/A</span><span id="loadA" >N/A</span><span id="loadW" >N/A</span></div>
+        <div class="bg-light"><span id="loadV" ></span><span id="loadA" ></span><span id="loadW" ></span></div>
     </div>
 </div>
 
@@ -42,7 +42,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
         <div class="bg-light">Consumed Kwh: </div>
     </div>
     <div class="col">
-        <div class="bg-light"><span id="consD" >N/A</span><span id="consM" >N/A</span><span id="consY" >N/A</span><span id="consT" >N/A</span></div>
+        <div class="bg-light"><span id="consD" ></span><span id="consM" ></span><span id="consY" ></span><span id="consT" ></span></div>
     </div>
 </div>
 
@@ -51,7 +51,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
         <div class="bg-light">generated Kwh: </div>
     </div>
     <div class="col">
-        <div class="bg-light"><span id="genD" >N/A</span><span id="genM" >N/A</span><span id="genY" >N/A</span><span id="genT" >N/A</span></div>
+        <div class="bg-light"><span id="genD" ></span><span id="genM" ></span><span id="genY" ></span><span id="genT" ></span></div>
     </div>
 </div>
 
@@ -60,7 +60,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
         <div class="bg-light">CO2 Reduction: </div>
     </div>
     <div class="col">
-        <div class="bg-light"><span id="cored" >N/A</span></div>
+        <div class="bg-light"><span id="cored" ></span></div>
     </div>
 </div>
 
@@ -69,7 +69,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
         <div class="bg-light">Input State: </div>
     </div>
     <div class="col">
-        <div class="bg-light"><span id="inputstate" >N/A</span></div>
+        <div class="bg-light"><span id="inputstate" ></span></div>
     </div>
 </div>
 
@@ -78,7 +78,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
         <div class="bg-light">Charge Mode: </div>
     </div>
     <div class="col">
-        <div class="bg-light"><span id="chrgmode" >N/A</span></div>
+        <div class="bg-light"><span id="chrgmode" ></span></div>
     </div>
 </div>
 
@@ -87,24 +87,34 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
         <div class="bg-light">Load State: </div>
     </div>
     <div class="col">
-        <div class="bg-light form-check form-switch"><!--<span id="loadState">N/A</span>--><input class="form-check-input" type="checkbox" onchange="toggleLoadState(this)" role="switch" id="loadState" /></div>
+        <div class="bg-light form-check form-switch"><!--<span id="loadState"></span>--><input class="form-check-input" type="checkbox" role="switch" id="loadState" /></div>
     </div>
 </div>
-
-
 <div class="d-grid gap-2">
 <a class="btn btn-primary btn-block" href="/settings" role="button">Settings</a>
 </div>
+
 <script>
-        $(document).ready(function(load) {
-         function fetch() {
-        $.ajax({
-            url: "livejson",
-            data: {},
-            type: "get",
-            dataType: "json",
-               cache: true,
-                success: function (data) {
+  var gateway = `ws://${window.location.hostname}/ws`;
+  var websocket;
+  window.addEventListener('load', onLoad);
+  function initWebSocket() {
+    console.log('Trying to open a WebSocket connection...');
+    websocket = new WebSocket(gateway);
+    websocket.onopen    = onOpen;
+    websocket.onclose   = onClose;
+    websocket.onmessage = onMessage;
+  }
+  function onOpen(event) {
+    console.log('Connection opened');
+    websocket.send('dataRequired');
+  }
+  function onClose(event) {
+    console.log('Connection closed');
+    setTimeout(initWebSocket, 2000);
+  }
+  function onMessage(event) {
+  var data = JSON.parse(event.data);
                document.getElementById("devicename").innerHTML = 'Device: '+data.DEVICE_NAME;
 
                document.getElementById("devtime").innerHTML = unixTimetoDateTime(data.DEVICE_TIME);
@@ -138,18 +148,23 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
                document.getElementById("chrgmode").innerHTML = data.CHARGER_MODE;
 
                document.getElementById("loadState").checked = data.LOAD_STATE;
-            }
-        });
-        }
-        setInterval(fetch, 1000);
-        fetch();
-        });
-function toggleLoadState(element) {
-var xhr = new XMLHttpRequest();
-if(element.checked){ xhr.open("GET", "/set?loadstate=1", true); }
-else { xhr.open("GET", "/set?loadstate=0", true); }
-xhr.send();
-}
+  }
+
+  function onLoad(event) {
+    initWebSocket();
+    initButton();
+  }
+
+  function initButton() {
+    document.getElementById('loadState').addEventListener('click', LoadSwitch);
+  }
+
+  function LoadSwitch(){
+   let loadSwitch;
+   if(document.getElementById('loadState').checked){ loadSwitch = 'loadSwitch_on' }
+    else { loadSwitch = loadSwitch = 'loadSwitch_off' }
+    websocket.send(loadSwitch);
+  }
 
 function unixTimetoDateTime(unixTime){
 var deviceDate = new Date(unixTime * 1000);
