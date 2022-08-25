@@ -387,12 +387,13 @@ void loop()
     {
       getEpData();
       getJsonData();
-
       notifyClients();
-
       getDataTimer = millis();
     }
-
+    if (updateProgress)
+    {
+      getDataTimer = millis();
+    }
     if (!updateProgress)
       sendtoMQTT(); // Update data to MQTT server if we should
   }
