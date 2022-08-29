@@ -402,7 +402,7 @@ void loop()
       sendtoMQTT(); // Update data to MQTT server if we should
     }
 
-    if (wsClient == nullptr)
+    if (wsClient == nullptr) //if no ws client connected slow down the cpu cycle
     {
       delay(2);
     }
@@ -505,6 +505,7 @@ void getEpData()
     // charger_input     = ( temp & 0b0000000000000000 ) >> 12 ;
     // charger_operation = ( temp & 0b0000000000000000 ) >> 0 ;
   }
+  //multi wr tests
 if(deviceCount == 1){
 epnode.begin(1, EPEVER_SERIAL);
 liveJson["DEVICE_NAME"] = _settings._deviceName+"_1";
