@@ -29,7 +29,7 @@
 #define EPEVER_SERIAL Serial // Set the serial port for communication with the EPEver
 #define EPEVER_BAUD 115200   // baud rate for modbus
 #define EPEVER_DE_RE 5       // connect DE and Re to pin D1
-
+int deviceCount = 2;
 int mqttBufferSize = 1024;
 
 String topic = "/"; // Default first part of topic. We will add device ID in setup
@@ -421,6 +421,9 @@ void loop()
 
 void getEpData()
 {
+  //int wrc= 2;
+  //epnode.begin(wrc, EPEVER_SERIAL);
+  
   // clear buffers
   memset(rtc.buf, 0, sizeof(rtc.buf));
   memset(live.buf, 0, sizeof(live.buf));
@@ -501,6 +504,14 @@ void getEpData()
     charger_mode = (temp & 0b0000000000001100) >> 2;
     // charger_input     = ( temp & 0b0000000000000000 ) >> 12 ;
     // charger_operation = ( temp & 0b0000000000000000 ) >> 0 ;
+  }
+  if(deviceCount == 1){
+epnode.begin(1, EPEVER_SERIAL);
+liveJson["DEVICE_NAME"] = _settings._deviceName+"_1";
+  }
+  if(deviceCount == 2){
+epnode.begin(2, EPEVER_SERIAL);
+liveJson["DEVICE_NAME"] = _settings._deviceName+"_2";
   }
 }
 
