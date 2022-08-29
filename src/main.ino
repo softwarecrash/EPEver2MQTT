@@ -113,7 +113,7 @@ void postTransmission()
 void notifyClients()
 {
   serializeJson(liveJson, jsonSerial);
-  ws.textAll(jsonSerial);
+  wsClient->text(jsonSerial);
 }
 
 void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
