@@ -508,10 +508,12 @@ void getEpData()
   if(deviceCount == 1){
 epnode.begin(1, EPEVER_SERIAL);
 liveJson["DEVICE_NAME"] = _settings._deviceName+"_1";
+deviceCount = 2;
   }
   if(deviceCount == 2){
 epnode.begin(2, EPEVER_SERIAL);
 liveJson["DEVICE_NAME"] = _settings._deviceName+"_2";
+deviceCount = 1;
   }
 }
 
