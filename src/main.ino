@@ -50,6 +50,7 @@ PubSubClient mqttclient(client);
 
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
+AsyncWebSocketClient *wsClient;
 
 DNSServer dns;
 ModbusMaster epnode; // instantiate ModbusMaster object
@@ -122,19 +123,15 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
   {
     data[len] = 0;
     updateProgress = true;
-    if (strcmp((char*)data, "loadSwitch_on") == 0)
+    if (strcmp((char *)data, "loadSwitch_on") == 0)
     {
       epnode.writeSingleCoil(0x0002, 1);
     }
-    if (strcmp((char*)data, "loadSwitch_off") == 0)
+    if (strcmp((char *)data, "loadSwitch_off") == 0)
     {
       epnode.writeSingleCoil(0x0002, 0);
     }
     updateProgress = false;
-    if (strcmp((char*)data, "dataRequired") == 0)
-    {
-      notifyClients();
-    }
   }
 }
 
@@ -144,6 +141,10 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
   switch (type)
   {
   case WS_EVT_CONNECT:
+    wsClient = client;
+    getEpData();
+    getJsonData();
+    notifyClients();
     // Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
     break;
   case WS_EVT_DISCONNECT:
@@ -160,6 +161,7 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
 
 void setup()
 {
+  wifi_set_sleep_type(LIGHT_SLEEP_T); // for testing
   pinMode(EPEVER_DE_RE, OUTPUT);
   _settings.load();
   delay(500);
@@ -376,6 +378,7 @@ void setup()
 //----------------------------------------------------------------------
 void loop()
 {
+  delay(2); // current reducing
   // Make sure wifi is in the right mode
   if (WiFi.status() == WL_CONNECTED)
   {                      // No use going to next step unless WIFI is up and running.
@@ -383,7 +386,7 @@ void loop()
     MDNS.update();
     mqttclient.loop(); // Check if we have something to read from MQTT
 
-    if (millis() - getDataTimer > 1000 && !updateProgress)
+    if (millis() - getDataTimer > 1000 && !updateProgress && wsClient != nullptr && wsClient->canSend())
     {
       getEpData();
       getJsonData();
@@ -395,7 +398,14 @@ void loop()
       getDataTimer = millis();
     }
     if (!updateProgress)
+    {
       sendtoMQTT(); // Update data to MQTT server if we should
+    }
+
+    if (wsClient == nullptr)
+    {
+      delay(2);
+    }
   }
 
   if (restartNow)
@@ -424,7 +434,7 @@ void getEpData()
     rtc.buf[0] = epnode.getResponseBuffer(0);
     rtc.buf[1] = epnode.getResponseBuffer(1);
     rtc.buf[2] = epnode.getResponseBuffer(2);
-    uTime.setDateTime((2000 + rtc.r.y), rtc.r.M, rtc.r.d, (rtc.r.h+1), rtc.r.m, rtc.r.s);
+    uTime.setDateTime((2000 + rtc.r.y), rtc.r.M, rtc.r.d, (rtc.r.h + 1), rtc.r.m, rtc.r.s);
   }
 
   // read LIVE-Data
@@ -497,7 +507,7 @@ void getEpData()
 void getJsonData()
 {
   // prevent buffer leak
-  if (liveJson.memoryUsage() >= (mqttBufferSize - 32))
+  if (int(liveJson.memoryUsage()) >= (mqttBufferSize - 8))
   {
     liveJson.garbageCollect();
   }

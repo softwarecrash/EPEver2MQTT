@@ -107,7 +107,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
   }
   function onOpen(event) {
     console.log('Connection opened');
-    websocket.send('dataRequired');
+   // websocket.send('dataRequired');
   }
   function onClose(event) {
     console.log('Connection closed');
