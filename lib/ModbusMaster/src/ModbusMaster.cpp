@@ -91,6 +91,7 @@ uint8_t ModbusMaster::requestFrom(uint16_t address, uint16_t quantity)
   }
   // set rx buffer iterator vars
   _u8ResponseBufferIndex = 0;
+  #pragma GCC diagnostic ignored "-Wuninitialized"
   _u8ResponseBufferLength = read;
 
   return read;

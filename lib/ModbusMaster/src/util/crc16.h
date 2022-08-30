@@ -68,7 +68,7 @@ obtain a copy.
     @param uint8_t a (0x00..0xFF)
     @return calculated CRC (0x0000..0xFFFF)
 */
-
+  #pragma GCC diagnostic ignored "-Wunused-function"
 static uint16_t crc16_update(uint16_t crc, uint8_t a)
 {
   int i;
