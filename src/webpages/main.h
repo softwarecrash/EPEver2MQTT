@@ -115,7 +115,8 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
   }
   function onMessage(event) {
   var data = JSON.parse(event.data);
-               document.getElementById("devicename").innerHTML = 'Device: '+data.DEVICE_NAME;
+
+               document.getElementById("devicename").innerHTML = data.DEVICE_NAME== null ? 'No Connection' : 'Device: '+data.DEVICE_NAME;
 
                document.getElementById("devtime").innerHTML = unixTimetoDateTime(data.DEVICE_TIME);
 

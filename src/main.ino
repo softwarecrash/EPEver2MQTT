@@ -1,8 +1,6 @@
 /*Lot of ideas comes from here:
  * https://github.com/glitterkitty/EpEverSolarMonitor
  *
- *  try to move to this lib? only for time bug fix
- * https://github.com/emelianov/modbus-esp8266
  */
 #include <Arduino.h>
 
@@ -30,7 +28,7 @@
 #define EPEVER_BAUD 115200   // baud rate for modbus
 #define EPEVER_DE_RE 5       // connect DE and Re to pin D1
 
-int mqttBufferSize = 1024;
+int mqttBufferSize = 2048;
 
 String topic = "/"; // Default first part of topic. We will add device ID in setup
 
@@ -42,7 +40,7 @@ bool updateProgress = false;
 
 unsigned long mqtttimer = 0;
 unsigned long getDataTimer = 0;
-char jsonSerial[1024]; // buffer for serializon
+char jsonSerial[2048]; // buffer for serializon
 
 WiFiClient client;
 Settings _settings;
@@ -56,7 +54,7 @@ DNSServer dns;
 
 int testcounter = 1;
 const int nodeNum = 2;
-ModbusMaster epnode[nodeNum]; // instantiate ModbusMaster object
+ModbusMaster epnode; // instantiate ModbusMaster object
 
 UnixTime uTime(3); // указать GMT (3 для Москвы)
 
@@ -146,8 +144,8 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
   {
   case WS_EVT_CONNECT:
     wsClient = client;
-    getEpData(0);
-    getJsonData(0);
+    if(getEpData(1))
+    getJsonData(1);
     notifyClients();
     // Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
     break;
@@ -173,14 +171,10 @@ void setup()
   AsyncWiFiManager wm(&server, &dns); // create wifimanager instance
   EPEVER_SERIAL.begin(EPEVER_BAUD);
 
-  // we starting by 0 so add one to the device id
-  for (size_t i = 0; i < nodeNum; i++)
-  {
-    epnode[i].begin((i + 1), EPEVER_SERIAL);
-    epnode[i].preTransmission(preTransmission);
-    epnode[i].postTransmission(postTransmission);
-    testcounter++;
-  }
+    epnode.begin(1, EPEVER_SERIAL);
+    epnode.preTransmission(preTransmission);
+    epnode.postTransmission(postTransmission);
+
 
   wm.setSaveConfigCallback(saveConfigCallback);
 
@@ -350,10 +344,10 @@ void setup()
         uint8_t rtcSets  = atoi (request->getParam("datetime")->value().substring(10, 12).c_str ());
         //uint8_t rtcInvNum  = atoi (request->getParam("datetime")->value().substring(12, 13).c_str ()); //num for inverter
         uint8_t rtcInvNum = 0;
-        epnode[rtcInvNum].setTransmitBuffer(0, ((uint16_t)rtcSetm << 8) | rtcSets); // minute | sekunde
-        epnode[rtcInvNum].setTransmitBuffer(1, ((uint16_t)rtcSetD << 8) | rtcSeth); // tag | stunde
-        epnode[rtcInvNum].setTransmitBuffer(2, ((uint16_t)rtcSetY << 8) | rtcSetM); //und Jahr | Monat
-        epnode[rtcInvNum].writeMultipleRegisters(0x9013, 3); //write registers
+        epnode.setTransmitBuffer(0, ((uint16_t)rtcSetm << 8) | rtcSets); // minute | sekunde
+        epnode.setTransmitBuffer(1, ((uint16_t)rtcSetD << 8) | rtcSeth); // tag | stunde
+        epnode.setTransmitBuffer(2, ((uint16_t)rtcSetY << 8) | rtcSetM); //und Jahr | Monat
+        epnode.writeMultipleRegisters(0x9013, 3); //write registers
         }
      request->send(200, "text/plain", "message received"); });
 
@@ -398,11 +392,11 @@ void loop()
     MDNS.update();
     mqttclient.loop(); // Check if we have something to read from MQTT
 
-    if (millis() - getDataTimer > 1000 && !updateProgress && wsClient != nullptr && wsClient->canSend())
+    if (millis() > (getDataTimer + 1000) && !updateProgress && wsClient != nullptr && wsClient->canSend())
     {
-      for (size_t i = 0; i < nodeNum; i++)
+      for (size_t i = 1; i < (nodeNum+1); i++)
       {
-        getEpData(i);
+        if(getEpData(i))
         getJsonData(i);
         notifyClients();
       }
@@ -414,11 +408,13 @@ void loop()
     }
     if (millis() > (mqtttimer + (_settings._mqttRefresh * 1000)) && !updateProgress)
     {
-      for (size_t i = 0; i < nodeNum; i++)
+      for (size_t i = 1; i < (nodeNum+1); i++)
       {
-        getEpData(i);
+        if(getEpData(i))
+        {
         getJsonData(i);
         sendtoMQTT(i); // Update data to MQTT server if we should
+        }
       }
       mqtttimer = millis();
     }
@@ -443,78 +439,101 @@ void loop()
 bool getEpData(int invNum)
 {
 
+ epnode.setSlaveId(invNum);
+ //epnode.ku16MBResponseTimeout timeout 2 sekunden?!?!?
+ //if(!epnode.available()){
+ // return false;
+ //}
   // clear buffers
   memset(rtc.buf, 0, sizeof(rtc.buf));
   memset(live.buf, 0, sizeof(live.buf));
   memset(stats.buf, 0, sizeof(stats.buf));
 
   // Read registers for clock
-  epnode[invNum].clearResponseBuffer();
-  result = epnode[invNum].readHoldingRegisters(RTC_CLOCK, RTC_CLOCK_CNT);
-  if (result == epnode[invNum].ku8MBSuccess)
+  epnode.clearResponseBuffer();
+  result = epnode.readHoldingRegisters(RTC_CLOCK, RTC_CLOCK_CNT);
+  if (result == epnode.ku8MBSuccess)
   {
-    rtc.buf[0] = epnode[invNum].getResponseBuffer(0);
-    rtc.buf[1] = epnode[invNum].getResponseBuffer(1);
-    rtc.buf[2] = epnode[invNum].getResponseBuffer(2);
+    rtc.buf[0] = epnode.getResponseBuffer(0);
+    rtc.buf[1] = epnode.getResponseBuffer(1);
+    rtc.buf[2] = epnode.getResponseBuffer(2);
     uTime.setDateTime((2000 + rtc.r.y), rtc.r.M, rtc.r.d, (rtc.r.h + 1), rtc.r.m, rtc.r.s);
+  } else 
+  {
+    return false;
   }
 
   // read LIVE-Data
-  epnode[invNum].clearResponseBuffer();
-  result = epnode[invNum].readInputRegisters(LIVE_DATA, LIVE_DATA_CNT);
-  if (result == epnode[invNum].ku8MBSuccess)
+  epnode.clearResponseBuffer();
+  result = epnode.readInputRegisters(LIVE_DATA, LIVE_DATA_CNT);
+  if (result == epnode.ku8MBSuccess)
   {
 
     for (i = 0; i < LIVE_DATA_CNT; i++)
-      live.buf[i] = epnode[invNum].getResponseBuffer(i);
+      live.buf[i] = epnode.getResponseBuffer(i);
+  } else 
+  {
+    return false;
   }
 
   // Statistical Data
-  epnode[invNum].clearResponseBuffer();
-  result = epnode[invNum].readInputRegisters(STATISTICS, STATISTICS_CNT);
-  if (result == epnode[invNum].ku8MBSuccess)
+  epnode.clearResponseBuffer();
+  result = epnode.readInputRegisters(STATISTICS, STATISTICS_CNT);
+  if (result == epnode.ku8MBSuccess)
   {
     for (i = 0; i < STATISTICS_CNT; i++)
-      stats.buf[i] = epnode[invNum].getResponseBuffer(i);
+      stats.buf[i] = epnode.getResponseBuffer(i);
+  } else 
+  {
+    return false;
   }
 
   // Battery SOC
-  epnode[invNum].clearResponseBuffer();
-  result = epnode[invNum].readInputRegisters(BATTERY_SOC, 1);
-  if (result == epnode[invNum].ku8MBSuccess)
+  epnode.clearResponseBuffer();
+  result = epnode.readInputRegisters(BATTERY_SOC, 1);
+  if (result == epnode.ku8MBSuccess)
   {
-    batterySOC = epnode[invNum].getResponseBuffer(0);
+    batterySOC = epnode.getResponseBuffer(0);
+  } else 
+  {
+    return false;
   }
 
   // Battery Net Current = Icharge - Iload
-  epnode[invNum].clearResponseBuffer();
-  result = epnode[invNum].readInputRegisters(BATTERY_CURRENT_L, 2);
-  if (result == epnode[invNum].ku8MBSuccess)
+  epnode.clearResponseBuffer();
+  result = epnode.readInputRegisters(BATTERY_CURRENT_L, 2);
+  if (result == epnode.ku8MBSuccess)
   {
-    batteryCurrent = epnode[invNum].getResponseBuffer(0);
-    batteryCurrent |= epnode[invNum].getResponseBuffer(1) << 16;
+    batteryCurrent = epnode.getResponseBuffer(0);
+    batteryCurrent |= epnode.getResponseBuffer(1) << 16;
+  } else 
+  {
+    return false;
   }
 
   // State of the Load Switch
-  epnode[invNum].clearResponseBuffer();
-  result = epnode[invNum].readCoils(LOAD_STATE, 1);
-  if (result == epnode[invNum].ku8MBSuccess)
+  epnode.clearResponseBuffer();
+  result = epnode.readCoils(LOAD_STATE, 1);
+  if (result == epnode.ku8MBSuccess)
   {
-    loadState = epnode[invNum].getResponseBuffer(0) ? true : false;
+    loadState = epnode.getResponseBuffer(0) ? true : false;
+  } else 
+  {
+    return false;
   }
 
   // Read Status Flags
-  epnode[invNum].clearResponseBuffer();
-  result = epnode[invNum].readInputRegisters(0x3200, 2);
-  if (result == epnode[invNum].ku8MBSuccess)
+  epnode.clearResponseBuffer();
+  result = epnode.readInputRegisters(0x3200, 2);
+  if (result == epnode.ku8MBSuccess)
   {
-    uint16_t temp = epnode[invNum].getResponseBuffer(0);
+    uint16_t temp = epnode.getResponseBuffer(0);
     status_batt.volt = temp & 0b1111;
     status_batt.temp = (temp >> 4) & 0b1111;
     status_batt.resistance = (temp >> 8) & 0b1;
     status_batt.rated_volt = (temp >> 15) & 0b1;
 
-    temp = epnode[invNum].getResponseBuffer(1);
+    temp = epnode.getResponseBuffer(1);
 
     // for(i=0; i<16; i++) Serial.print( (temp >> (15-i) ) & 1 );
     // Serial.println();
@@ -523,15 +542,15 @@ bool getEpData(int invNum)
     charger_mode = (temp & 0b0000000000001100) >> 2;
     // charger_input     = ( temp & 0b0000000000000000 ) >> 12 ;
     // charger_operation = ( temp & 0b0000000000000000 ) >> 0 ;
+  } else 
+  {
+    return false;
   }
   return true;
 }
 
 bool getJsonData(int invNum)
 {
-  liveJson.clear();
-  liveData.clear();
-  statsData.clear();
   // prevent buffer leak
   if (int(liveJson.memoryUsage()) >= (mqttBufferSize - 8))
   {
@@ -691,7 +710,7 @@ void callback(char *top, byte *payload, unsigned int length)
   }
   else
   {
-    StaticJsonDocument<1024> mqttJsonAnswer;
+    StaticJsonDocument<2048> mqttJsonAnswer;
     deserializeJson(mqttJsonAnswer, (const byte *)payload, length);
     if (mqttJsonAnswer["LOAD_STATE"] == true)
     {
