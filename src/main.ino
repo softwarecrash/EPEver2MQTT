@@ -28,7 +28,7 @@
 #define EPEVER_BAUD 115200   // baud rate for modbus
 #define EPEVER_DE_RE 5       // connect DE and Re to pin D1
 
-int mqttBufferSize = 2048;
+int mqttBufferSize = 1024;
 
 String topic = "/"; // Default first part of topic. We will add device ID in setup
 
@@ -40,7 +40,7 @@ bool updateProgress = false;
 
 unsigned long mqtttimer = 0;
 unsigned long getDataTimer = 0;
-char jsonSerial[2048]; // buffer for serializon
+char jsonSerial[1024]; // buffer for serializon
 
 WiFiClient client;
 Settings _settings;
@@ -614,7 +614,7 @@ String mqttDeviceName;
 
   if (nodeNum > 1)
   {
-    mqttDeviceName = _settings._deviceName + "_" + (invNum+1);
+    mqttDeviceName = _settings._deviceName + "_" + (invNum);
   }
   else
   {
@@ -710,7 +710,7 @@ void callback(char *top, byte *payload, unsigned int length)
   }
   else
   {
-    StaticJsonDocument<2048> mqttJsonAnswer;
+    StaticJsonDocument<1024> mqttJsonAnswer;
     deserializeJson(mqttJsonAnswer, (const byte *)payload, length);
     if (mqttJsonAnswer["LOAD_STATE"] == true)
     {
