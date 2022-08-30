@@ -28,19 +28,19 @@
 #define EPEVER_BAUD 115200   // baud rate for modbus
 #define EPEVER_DE_RE 5       // connect DE and Re to pin D1
 
-int mqttBufferSize = 1024;
+
 
 String topic = "/"; // Default first part of topic. We will add device ID in setup
 
 // flag for saving data and other things
 bool shouldSaveConfig = false;
-char mqtt_server[40];
 bool restartNow = false;
 bool updateProgress = false;
-
 unsigned long mqtttimer = 0;
 unsigned long getDataTimer = 0;
+int mqttBufferSize = 1024;
 char jsonSerial[1024]; // buffer for serializon
+char mqtt_server[40];
 
 WiFiClient client;
 Settings _settings;
