@@ -341,12 +341,15 @@ void setup()
         uint8_t rtcSeth  = atoi (request->getParam("datetime")->value().substring(6, 8).c_str ());
         uint8_t rtcSetm  = atoi (request->getParam("datetime")->value().substring(8, 10).c_str ());
         uint8_t rtcSets  = atoi (request->getParam("datetime")->value().substring(10, 12).c_str ());
-        //uint8_t rtcInvNum  = atoi (request->getParam("datetime")->value().substring(12, 13).c_str ()); //num for inverter
-        uint8_t rtcInvNum = 0;
+
+      for (size_t i = 1; i < (nodeNum+1); i++)
+      {
+        epnode.setSlaveId(i);
         epnode.setTransmitBuffer(0, ((uint16_t)rtcSetm << 8) | rtcSets); // minute | sekunde
         epnode.setTransmitBuffer(1, ((uint16_t)rtcSetD << 8) | rtcSeth); // tag | stunde
         epnode.setTransmitBuffer(2, ((uint16_t)rtcSetY << 8) | rtcSetM); //und Jahr | Monat
         epnode.writeMultipleRegisters(0x9013, 3); //write registers
+      }
         }
      request->send(200, "text/plain", "message received"); });
 
