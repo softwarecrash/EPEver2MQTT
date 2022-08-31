@@ -345,9 +345,9 @@ void setup()
       for (size_t i = 1; i < (nodeNum+1); i++)
       {
         epnode.setSlaveId(i);
-        epnode.setTransmitBuffer(0, ((uint16_t)rtcSetm << 8) | rtcSets); // minute | sekunde
-        epnode.setTransmitBuffer(1, ((uint16_t)rtcSetD << 8) | rtcSeth); // tag | stunde
-        epnode.setTransmitBuffer(2, ((uint16_t)rtcSetY << 8) | rtcSetM); //und Jahr | Monat
+        epnode.setTransmitBuffer(0, ((uint16_t)rtcSetm << 8) | rtcSets); // minute | secund
+        epnode.setTransmitBuffer(1, ((uint16_t)rtcSetD << 8) | rtcSeth); // day | hour
+        epnode.setTransmitBuffer(2, ((uint16_t)rtcSetY << 8) | rtcSetM); // year | month
         epnode.writeMultipleRegisters(0x9013, 3); //write registers
       }
         }
