@@ -645,7 +645,7 @@ String mqttDeviceName;
     mqttclient.publish((topic + "/" + mqttDeviceName + "/BATT_TEMP").c_str(), liveJson["BATT_TEMP"]);
     mqttclient.publish((topic + "/" + mqttDeviceName + "/CHARGER_INPUT_STATUS").c_str(), liveJson["CHARGER_INPUT_STATUS"]);
     mqttclient.publish((topic + "/" + mqttDeviceName + "/CHARGER_MODE").c_str(), liveJson["CHARGER_MODE"]);
-    mqttclient.loop();
+    //mqttclient.loop();
     mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/SOLAR_VOLTS").c_str(), liveData["SOLAR_VOLTS"]);
     mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/SOLAR_AMPS").c_str(), liveData["SOLAR_AMPS"]);
     mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/SOLAR_WATTS").c_str(), liveData["SOLAR_WATTS"]);
@@ -659,7 +659,7 @@ String mqttDeviceName;
     mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/LOAD_WATTS").c_str(), liveData["LOAD_WATTS"]);
 
     mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/BATTERY_SOC").c_str(), liveData["BATTERY_SOC"]);
-    mqttclient.loop();
+    //mqttclient.loop();
     mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/SOLAR_MAX").c_str(), statsData["SOLAR_MAX"]);
     mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/SOLAR_MIN").c_str(), statsData["SOLAR_MIN"]);
     mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/BATT_MAX").c_str(), statsData["BATT_MAX"]);
