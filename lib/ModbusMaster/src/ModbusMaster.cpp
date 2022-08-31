@@ -29,6 +29,11 @@ Arduino library for communicating with Modbus slaves over RS232/485 (via RTU pro
 /* _____PROJECT INCLUDES_____________________________________________________ */
 #include "ModbusMaster.h"
 
+// functions to calculate Modbus Application Data Unit CRC
+#include "util/crc16.h"
+
+// functions to manipulate words
+#include "util/word.h"
 
 /* _____GLOBAL VARIABLES_____________________________________________________ */
 
@@ -83,7 +88,7 @@ void ModbusMaster::beginTransmission(uint16_t u16Address)
 // eliminate this function in favor of using existing MB request functions
 uint8_t ModbusMaster::requestFrom(uint16_t address, uint16_t quantity)
 {
-  uint8_t read;
+  uint8_t read = 0;
   // clamp to buffer length
   if (quantity > ku8MaxBufferSize)
   {
@@ -91,7 +96,6 @@ uint8_t ModbusMaster::requestFrom(uint16_t address, uint16_t quantity)
   }
   // set rx buffer iterator vars
   _u8ResponseBufferIndex = 0;
-  #pragma GCC diagnostic ignored "-Wuninitialized"
   _u8ResponseBufferLength = read;
 
   return read;
