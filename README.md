@@ -1,5 +1,3 @@
-# WORK IN PROGRESS! LOAD SWITCHES NOT WORK
-
 # EPEver2MQTT
 ESP82XX to MQTT based connector for EPEver Solar tracker, support multiple trackers
 
