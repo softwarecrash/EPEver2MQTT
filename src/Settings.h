@@ -79,7 +79,7 @@ public:
       readString(_mqttTopic, 0x20, 0x40);
       if(readShort(0x60) == 10) _mqttJson = true; //remove when rework
       if(readShort(0x60) == 00) _mqttJson = false; //remove when rework
-      _deviceQuantity = readShort(0xB0);
+      _deviceQuantity = readShort(0xF0);
       readString(_deviceName, 0x20, 0x80);
       readString(_mqttServer, 0x20, 0xA0);
       readString(_mqttPassword, 0x20, 0xC0);
@@ -103,7 +103,7 @@ public:
     writeString(_mqttTopic, 0x20, 0x40);
     if(_mqttJson == true) writeShort((10), 0x60); //remove when rework
     if(_mqttJson == false) writeShort((00), 0x60); //remove when rework
-    writeShort(_deviceQuantity, 0xB0);
+    writeShort(_deviceQuantity, 0xF0);
     writeString(_deviceName, 0x20, 0x80);
     writeString(_mqttServer, 0x20, 0xA0);
     writeString(_mqttPassword, 0x20, 0xC0);
