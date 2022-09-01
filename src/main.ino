@@ -756,16 +756,30 @@ void callback(char *top, byte *payload, unsigned int length) // Need rework
     {
       messageTemp += (char)payload[i];
     }
-    // Switch the Discharging port
-    if (strcmp(top, (topic + "/LOAD_STATE").c_str()) == 0)
+
+    if ((size_t)_settings._deviceQuantity > 1)
     {
-      if (messageTemp == "true")
+      for (size_t k = 1; k < ((size_t)_settings._deviceQuantity + 1); k++)
       {
-        // epnode[nodeNum].writeSingleCoil(0x0002, 1);
+        if (strcmp(top, (topic + "/" + _settings._deviceName + "_" + k + "/LOAD_STATE").c_str()) == 0)
+        {
+          epnode.setSlaveId(k);
+          if (messageTemp == "true")
+            epnode.writeSingleCoil(0x0002, 1);
+          if (messageTemp == "false")
+            epnode.writeSingleCoil(0x0002, 0);
+        }
       }
-      if (messageTemp == "false")
+    }
+    else
+    {
+      if (strcmp(top, (topic + "/" + _settings._deviceName + "/LOAD_STATE").c_str()) == 0)
       {
-        //  epnode[nodeNum].writeSingleCoil(0x0002, 0);
+        epnode.setSlaveId(1);
+        if (messageTemp == "true")
+          epnode.writeSingleCoil(0x0002, 1);
+        if (messageTemp == "false")
+          epnode.writeSingleCoil(0x0002, 0);
       }
     }
   }
@@ -773,13 +787,28 @@ void callback(char *top, byte *payload, unsigned int length) // Need rework
   {
     StaticJsonDocument<1024> mqttJsonAnswer;
     deserializeJson(mqttJsonAnswer, (const byte *)payload, length);
-    if (mqttJsonAnswer["LOAD_STATE"] == true)
+
+    if ((size_t)_settings._deviceQuantity > 1)
     {
-      //  epnode[nodeNum].writeSingleCoil(0x0002, 1);
+      for (size_t k = 1; k < ((size_t)_settings._deviceQuantity + 1); k++)
+      {
+        if (mqttJsonAnswer["DEVICE_NAME_" + k] == (_settings._deviceName + "_" + k))
+        {
+          epnode.setSlaveId(k);
+          if (mqttJsonAnswer["LOAD_STATE"] == true)
+            epnode.writeSingleCoil(0x0002, 1);
+          if (mqttJsonAnswer["LOAD_STATE"] == false)
+            epnode.writeSingleCoil(0x0002, 0);
+        }
+      }
     }
-    else if (mqttJsonAnswer["LOAD_STATE"] == false)
+    else
     {
-      // epnode[nodeNum].writeSingleCoil(0x0002, 0);
+      epnode.setSlaveId(1);
+      if (mqttJsonAnswer["LOAD_STATE"] == true)
+        epnode.writeSingleCoil(0x0002, 1);
+      if (mqttJsonAnswer["LOAD_STATE"] == false)
+        epnode.writeSingleCoil(0x0002, 0);
     }
   }
   updateProgress = false; // start data servicing again
