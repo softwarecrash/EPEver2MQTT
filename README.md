@@ -1,5 +1,5 @@
 # EPEver2MQTT
-ESP82XX to MQTT based connector for EPEver Solar tracker
+ESP82XX to MQTT based connector for EPEver Solar tracker, support multiple trackers
 
 # Feauteres:
 - set up over captive portal
