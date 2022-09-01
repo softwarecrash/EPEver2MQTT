@@ -37,6 +37,7 @@ bool updateProgress = false;
 unsigned long mqtttimer = 0;
 unsigned long getDataTimer = 0;
 int mqttBufferSize = 1024;
+byte wsReqInvNum = 1;
 char jsonSerial[1024]; // buffer for serializon
 char mqtt_server[40];
 
@@ -122,13 +123,14 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
   {
     data[len] = 0;
     updateProgress = true;
-    if (strcmp((char *)data, "loadSwitch_on") == 0)
+    if(String((char *)data).substring(0, 9) == "wsSelInv_") //get the inverter number to display on the web
     {
-      // epnode[nodeNum].writeSingleCoil(0x0002, 1);
+    wsReqInvNum = String((char *)data).substring(9, 10).toInt();
     }
-    if (strcmp((char *)data, "loadSwitch_off") == 0)
+    if(String((char *)data).substring(0, 11) == "loadSwitch_") //get switch data from web loadSwitch_1_1
     {
-      //  epnode[nodeNum].writeSingleCoil(0x0002, 0);
+      epnode.setSlaveId(String((char *)data).substring(11, 12).toInt());
+      epnode.writeSingleCoil(0x0002, String((char *)data).substring(13, 14).toInt());
     }
     updateProgress = false;
   }
@@ -415,8 +417,9 @@ void loop()
         // if(getEpData(i))
         //{
         getEpData(i);
-        
+
         getJsonData(i);
+        if(wsReqInvNum == i)
         notifyClients();
         //}
       }
@@ -593,9 +596,7 @@ bool getJsonData(int invNum)
   {
     liveJson["DEVICE_NAME"] = _settings._deviceName;
   }
-
-  liveJson["testcounter"] = millis();
-
+  liveJson["DEVICE_QUANTITY"] = _settings._deviceQuantity;
   liveJson["DEVICE_TIME"] = uTime.getUnix();
 
   liveJson["DEVICE_FREE_HEAP"] = ESP.getFreeHeap();
