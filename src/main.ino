@@ -410,7 +410,7 @@ void loop()
 
     if (millis() > (getDataTimer + 1000) && !updateProgress && wsClient != nullptr && wsClient->canSend())
     {
-      for (size_t i = 1; i < ((size_t)_settings._deviceQuantity + 1); i++)
+      for (size_t i = 1; i <= ((size_t)_settings._deviceQuantity); i++)
       {
         // if(getEpData(i))
         getEpData(i);
@@ -427,7 +427,7 @@ void loop()
     }
     if (millis() > (mqtttimer + (_settings._mqttRefresh * 1000)) && !updateProgress)
     {
-      for (size_t i = 1; i < ((size_t)_settings._deviceQuantity + 1); i++)
+      for (size_t i = 1; i <= ((size_t)_settings._deviceQuantity); i++)
       {
         // if(getEpData(i))
         // {
@@ -466,6 +466,8 @@ bool getEpData(int invNum)
   memset(rtc.buf, 0, sizeof(rtc.buf));
   memset(live.buf, 0, sizeof(live.buf));
   memset(stats.buf, 0, sizeof(stats.buf));
+  batteryCurrent = 0;
+  batterySOC = 0;
 
   // Read registers for clock
   epnode.clearResponseBuffer();
