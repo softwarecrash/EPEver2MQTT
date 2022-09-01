@@ -413,11 +413,12 @@ void loop()
       for (size_t i = 1; i <= ((size_t)_settings._deviceQuantity); i++)
       {
         // if(getEpData(i))
+        //{
         getEpData(i);
-
+        
         getJsonData(i);
-
         notifyClients();
+        //}
       }
       getDataTimer = millis();
     }
