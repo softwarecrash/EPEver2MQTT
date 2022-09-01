@@ -181,6 +181,7 @@ void setup()
   AsyncWiFiManagerParameter custom_mqtt_port("mqtt_port", "MQTT Port", NULL, 6);
   AsyncWiFiManagerParameter custom_mqtt_refresh("mqtt_refresh", "MQTT Send Interval", NULL, 4);
   AsyncWiFiManagerParameter custom_device_name("device_name", "Device Name", NULL, 40);
+  AsyncWiFiManagerParameter custom_device_quantity("device_name", "Device Quantity", NULL, 2);
 
   wm.addParameter(&custom_mqtt_server);
   wm.addParameter(&custom_mqtt_user);
@@ -189,6 +190,7 @@ void setup()
   wm.addParameter(&custom_mqtt_port);
   wm.addParameter(&custom_mqtt_refresh);
   wm.addParameter(&custom_device_name);
+  wm.addParameter(&custom_device_quantity);
 
   bool res = wm.autoConnect("EPEver2MQTT-AP");
 
@@ -205,6 +207,7 @@ void setup()
     _settings._deviceName = custom_device_name.getValue();
     _settings._mqttTopic = custom_mqtt_topic.getValue();
     _settings._mqttRefresh = atoi(custom_mqtt_refresh.getValue());
+    _settings._deviceQuantity = atoi(custom_device_quantity.getValue());
 
     _settings.save();
     delay(500);
