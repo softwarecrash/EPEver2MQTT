@@ -207,7 +207,7 @@ void setup()
     _settings._deviceName = custom_device_name.getValue();
     _settings._mqttTopic = custom_mqtt_topic.getValue();
     _settings._mqttRefresh = atoi(custom_mqtt_refresh.getValue());
-    _settings._deviceQuantity = atoi(custom_device_quantity.getValue());
+    _settings._deviceQuantity = atoi(custom_device_quantity.getValue()) <= 0 ? 1 : atoi(custom_device_quantity.getValue());
 
     _settings.save();
     delay(500);
@@ -311,7 +311,7 @@ void setup()
                 _settings._mqttTopic = request->arg("post_mqttTopic");
                 _settings._mqttRefresh = request->arg("post_mqttRefresh").toInt();
                 _settings._deviceName = request->arg("post_deviceName");
-                _settings._deviceQuantity = request->arg("post_deviceQuanttity").toInt();
+                _settings._deviceQuantity = request->arg("post_deviceQuanttity").toInt() <= 0 ? 1 : request->arg("post_deviceQuanttity").toInt();
                 if(request->arg("post_mqttjson") == "true") _settings._mqttJson = true;
                 if(request->arg("post_mqttjson") != "true") _settings._mqttJson = false;
                 Serial.print(_settings._mqttServer);
