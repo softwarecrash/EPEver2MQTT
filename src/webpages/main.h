@@ -169,6 +169,11 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
 
         document.getElementById("loadState").checked = data.LOAD_STATE;
         invQuantity = data.DEVICE_QUANTITY;
+            if(invQuantity <= 1){
+            document.getElementById('prevInv').style.visibility = 'hidden';
+            document.getElementById('nextInv').style.visibility = 'hidden';
+        }
+
     }
 
     function onLoad(event) {
