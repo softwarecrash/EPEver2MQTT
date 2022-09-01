@@ -19,7 +19,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
     <div class="col">
         <div class="bg-light">Device Time: </div>
     </div>
-    <div class="col">
+    <div class="col-7">
         <div class="bg-light"><span id="devtime"></span></br></div>
     </div>
 </div>
@@ -28,7 +28,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
     <div class="col">
         <div class="bg-light">Solar: </div>
     </div>
-    <div class="col">
+    <div class="col-7">
         <div class="bg-light"><span id="solarV"></span><span id="solarA"></span><span id="solarW"></span></div>
     </div>
 </div>
@@ -37,7 +37,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
     <div class="col">
         <div class="bg-light">Battery: </div>
     </div>
-    <div class="col">
+    <div class="col-7">
         <div class="bg-light"><span id="battV"></span><span id="battA"></span><span id="battW"></span><span
                 id="battSOC"></span></div>
     </div>
@@ -47,7 +47,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
     <div class="col">
         <div class="bg-light">Load: </div>
     </div>
-    <div class="col">
+    <div class="col-7">
         <div class="bg-light"><span id="loadV"></span><span id="loadA"></span><span id="loadW"></span></div>
     </div>
 </div>
@@ -56,7 +56,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
     <div class="col">
         <div class="bg-light">Consumed Kwh: </div>
     </div>
-    <div class="col">
+    <div class="col-7">
         <div class="bg-light"><span id="consD"></span><span id="consM"></span><span id="consY"></span><span
                 id="consT"></span></div>
     </div>
@@ -66,7 +66,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
     <div class="col">
         <div class="bg-light">generated Kwh: </div>
     </div>
-    <div class="col">
+    <div class="col-7">
         <div class="bg-light"><span id="genD"></span><span id="genM"></span><span id="genY"></span><span
                 id="genT"></span></div>
     </div>
@@ -76,7 +76,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
     <div class="col">
         <div class="bg-light">CO2 Reduction: </div>
     </div>
-    <div class="col">
+    <div class="col-7">
         <div class="bg-light"><span id="cored"></span></div>
     </div>
 </div>
@@ -85,7 +85,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
     <div class="col">
         <div class="bg-light">Input State: </div>
     </div>
-    <div class="col">
+    <div class="col-7">
         <div class="bg-light"><span id="inputstate"></span></div>
     </div>
 </div>
@@ -94,7 +94,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
     <div class="col">
         <div class="bg-light">Charge Mode: </div>
     </div>
-    <div class="col">
+    <div class="col-7">
         <div class="bg-light"><span id="chrgmode"></span></div>
     </div>
 </div>
@@ -103,7 +103,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
     <div class="col">
         <div class="bg-light">Load State: </div>
     </div>
-    <div class="col">
+    <div class="col-7">
         <div class="bg-light form-check form-switch"><input class="form-check-input" type="checkbox" role="switch"
                 id="loadState" /></div>
     </div>
