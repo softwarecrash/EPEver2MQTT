@@ -468,6 +468,7 @@ bool getEpData(int invNum)
   memset(stats.buf, 0, sizeof(stats.buf));
   batteryCurrent = 0;
   batterySOC = 0;
+  uTime.setDateTime(0,0,0,0,0,0);
 
   // Read registers for clock
   epnode.clearResponseBuffer();
