@@ -378,7 +378,7 @@ void setup()
         if (!_settings._mqttJson) // classic mqtt DP
           mqttclient.subscribe((topic + "/" + _settings._deviceName + "_" + i + "/LOAD_STATE").c_str());
         else // subscribe json
-          mqttclient.subscribe((topic + "/" + _settings._deviceName + "_" + i + +"DATA").c_str());
+          mqttclient.subscribe((topic + "/" + _settings._deviceName + "_" + i + "/DATA").c_str());
       }
     }
     else // if only one inverter avaible subscribe to one topic
@@ -386,7 +386,7 @@ void setup()
       if (!_settings._mqttJson) // classic mqtt DP
         mqttclient.subscribe((topic + "/" + _settings._deviceName + "/LOAD_STATE").c_str());
       else // subscribe json
-        mqttclient.subscribe((topic + "/" + _settings._deviceName + "DATA").c_str());
+        mqttclient.subscribe((topic + "/" + _settings._deviceName + "/DATA").c_str());
     }
   }
 }
