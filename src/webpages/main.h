@@ -163,7 +163,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
   function LoadSwitch(){
    let loadSwitch;
    if(document.getElementById('loadState').checked){ loadSwitch = 'loadSwitch_on' }
-    else { loadSwitch = loadSwitch = 'loadSwitch_off' }
+    else {loadSwitch = 'loadSwitch_off' }
     websocket.send(loadSwitch);
   }
 

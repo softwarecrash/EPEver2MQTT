@@ -322,6 +322,7 @@ void setup()
     server.on("/set", HTTP_GET, [](AsyncWebServerRequest *request)
               {
       AsyncWebParameter *p = request->getParam(0);
+      /*
       if (p->name() == "loadstate")
       {
         updateProgress = true;
@@ -335,6 +336,7 @@ void setup()
         }
         updateProgress = false;
       }
+      */
       if (p->name() == "datetime")
       {
         uint8_t rtcSetY  = atoi (request->getParam("datetime")->value().substring(0, 2).c_str ());
