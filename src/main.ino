@@ -744,7 +744,7 @@ bool sendtoMQTT(int invNum)
   return true;
 }
 
-void callback(char *top, byte *payload, unsigned int length)
+void callback(char *top, byte *payload, unsigned int length) // Need rework
 {
   updateProgress = true; // stop servicing data
   if (!_settings._mqttJson)
