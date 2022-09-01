@@ -28,8 +28,6 @@
 #define EPEVER_BAUD 115200   // baud rate for modbus
 #define EPEVER_DE_RE 5       // connect DE and Re to pin D1
 
-
-
 String topic = "/"; // Default first part of topic. We will add device ID in setup
 
 // flag for saving data and other things
@@ -52,7 +50,7 @@ AsyncWebSocketClient *wsClient;
 
 DNSServer dns;
 
-const int nodeNum = 2;
+// const int nodeNum = 2;
 ModbusMaster epnode; // instantiate ModbusMaster object
 
 UnixTime uTime(3); // указать GMT (3 для Москвы)
@@ -143,8 +141,8 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
   {
   case WS_EVT_CONNECT:
     wsClient = client;
-    if(getEpData(1))
-    getJsonData(1);
+    if (getEpData(1))
+      getJsonData(1);
     notifyClients();
     // Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
     break;
@@ -170,10 +168,9 @@ void setup()
   AsyncWiFiManager wm(&server, &dns); // create wifimanager instance
   EPEVER_SERIAL.begin(EPEVER_BAUD);
 
-    epnode.begin(1, EPEVER_SERIAL);
-    epnode.preTransmission(preTransmission);
-    epnode.postTransmission(postTransmission);
-
+  epnode.begin(1, EPEVER_SERIAL);
+  epnode.preTransmission(preTransmission);
+  epnode.postTransmission(postTransmission);
 
   wm.setSaveConfigCallback(saveConfigCallback);
 
@@ -246,7 +243,7 @@ void setup()
     server.on("/reboot", HTTP_GET, [](AsyncWebServerRequest *request)
               {
                 AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", "Please wait while the device reboots...");
-                response->addHeader("Refresh", "15; url=/");
+                response->addHeader("Refresh", "5; url=/");
                 response->addHeader("Connection", "close");
                 request->send(response);
                 restartNow = true; });
@@ -290,6 +287,7 @@ void setup()
                 AsyncResponseStream *response = request->beginResponseStream("application/json");
                 DynamicJsonDocument SettingsJson(256);
                 SettingsJson["device_name"] = _settings._deviceName;
+                SettingsJson["device_quantity"] = _settings._deviceQuantity;
                 SettingsJson["mqtt_server"] = _settings._mqttServer;
                 SettingsJson["mqtt_port"] = _settings._mqttPort;
                 SettingsJson["mqtt_topic"] = _settings._mqttTopic;
@@ -302,7 +300,7 @@ void setup()
 
     server.on("/settingssave", HTTP_POST, [](AsyncWebServerRequest *request)
               {
-                request->redirect("/settings");
+                request->redirect("/reboot");
                 _settings._mqttServer = request->arg("post_mqttServer");
                 _settings._mqttPort = request->arg("post_mqttPort").toInt();
                 _settings._mqttUser = request->arg("post_mqttUser");
@@ -310,6 +308,7 @@ void setup()
                 _settings._mqttTopic = request->arg("post_mqttTopic");
                 _settings._mqttRefresh = request->arg("post_mqttRefresh").toInt();
                 _settings._deviceName = request->arg("post_deviceName");
+                _settings._deviceQuantity = request->arg("post_deviceQuanttity").toInt();
                 if(request->arg("post_mqttjson") == "true") _settings._mqttJson = true;
                 if(request->arg("post_mqttjson") != "true") _settings._mqttJson = false;
                 Serial.print(_settings._mqttServer);
@@ -342,7 +341,7 @@ void setup()
         uint8_t rtcSetm  = atoi (request->getParam("datetime")->value().substring(8, 10).c_str ());
         uint8_t rtcSets  = atoi (request->getParam("datetime")->value().substring(10, 12).c_str ());
 
-      for (size_t i = 1; i < (nodeNum+1); i++)
+      for (size_t i = 1; i < ((size_t)_settings._deviceQuantity+1); i++)
       {
         epnode.setSlaveId(i);
         epnode.setTransmitBuffer(0, ((uint16_t)rtcSetm << 8) | rtcSets); // minute | secund
@@ -372,16 +371,26 @@ void setup()
     mqttclient.connect((String(_settings._deviceName)).c_str(), _settings._mqttUser.c_str(), _settings._mqttPassword.c_str());
   if (mqttclient.connect(_settings._deviceName.c_str()))
   {
-    if (!_settings._mqttJson)
+    if ((size_t)_settings._deviceQuantity > 1) // if more than one inverter avaible, subscribe to all topics
     {
-     // mqttclient.subscribe((String(topic) + String("/LOAD_STATE")).c_str());
+      for (size_t i = 1; i < ((size_t)_settings._deviceQuantity + 1); i++)
+      {
+        if (!_settings._mqttJson) // classic mqtt DP
+          mqttclient.subscribe((topic + "/" + _settings._deviceName + "_" + i + "/LOAD_STATE").c_str());
+        else // subscribe json
+          mqttclient.subscribe((topic + "/" + _settings._deviceName + "_" + i + +"DATA").c_str());
+      }
     }
-    else
+    else // if only one inverter avaible subscribe to one topic
     {
-     // mqttclient.subscribe((String(topic + "/" + _settings._deviceName)).c_str());
+      if (!_settings._mqttJson) // classic mqtt DP
+        mqttclient.subscribe((topic + "/" + _settings._deviceName + "/LOAD_STATE").c_str());
+      else // subscribe json
+        mqttclient.subscribe((topic + "/" + _settings._deviceName + "DATA").c_str());
     }
   }
 }
+
 // end void setup
 
 //----------------------------------------------------------------------
@@ -396,13 +405,13 @@ void loop()
 
     if (millis() > (getDataTimer + 1000) && !updateProgress && wsClient != nullptr && wsClient->canSend())
     {
-      for (size_t i = 1; i < (nodeNum+1); i++)
+      for (size_t i = 1; i < ((size_t)_settings._deviceQuantity + 1); i++)
       {
-       // if(getEpData(i))
+        // if(getEpData(i))
         getEpData(i);
 
         getJsonData(i);
-        
+
         notifyClients();
       }
       getDataTimer = millis();
@@ -413,10 +422,10 @@ void loop()
     }
     if (millis() > (mqtttimer + (_settings._mqttRefresh * 1000)) && !updateProgress)
     {
-      for (size_t i = 1; i < (nodeNum+1); i++)
+      for (size_t i = 1; i < ((size_t)_settings._deviceQuantity + 1); i++)
       {
-       // if(getEpData(i))
-       // {
+        // if(getEpData(i))
+        // {
         getEpData(i);
 
         getJsonData(i);
@@ -446,7 +455,7 @@ void loop()
 bool getEpData(int invNum)
 {
 
- epnode.setSlaveId(invNum);
+  epnode.setSlaveId(invNum);
 
   // clear buffers
   memset(rtc.buf, 0, sizeof(rtc.buf));
@@ -462,7 +471,8 @@ bool getEpData(int invNum)
     rtc.buf[1] = epnode.getResponseBuffer(1);
     rtc.buf[2] = epnode.getResponseBuffer(2);
     uTime.setDateTime((2000 + rtc.r.y), rtc.r.M, rtc.r.d, (rtc.r.h + 1), rtc.r.m, rtc.r.s);
-  } else 
+  }
+  else
   {
     return false;
   }
@@ -475,7 +485,8 @@ bool getEpData(int invNum)
 
     for (i = 0; i < LIVE_DATA_CNT; i++)
       live.buf[i] = epnode.getResponseBuffer(i);
-  } else 
+  }
+  else
   {
     return false;
   }
@@ -487,7 +498,8 @@ bool getEpData(int invNum)
   {
     for (i = 0; i < STATISTICS_CNT; i++)
       stats.buf[i] = epnode.getResponseBuffer(i);
-  } else 
+  }
+  else
   {
     return false;
   }
@@ -498,7 +510,8 @@ bool getEpData(int invNum)
   if (result == epnode.ku8MBSuccess)
   {
     batterySOC = epnode.getResponseBuffer(0);
-  } else 
+  }
+  else
   {
     return false;
   }
@@ -510,7 +523,8 @@ bool getEpData(int invNum)
   {
     batteryCurrent = epnode.getResponseBuffer(0);
     batteryCurrent |= epnode.getResponseBuffer(1) << 16;
-  } else 
+  }
+  else
   {
     return false;
   }
@@ -521,7 +535,8 @@ bool getEpData(int invNum)
   if (result == epnode.ku8MBSuccess)
   {
     loadState = epnode.getResponseBuffer(0) ? true : false;
-  } else 
+  }
+  else
   {
     return false;
   }
@@ -546,7 +561,8 @@ bool getEpData(int invNum)
     charger_mode = (temp & 0b0000000000001100) >> 2;
     // charger_input     = ( temp & 0b0000000000000000 ) >> 12 ;
     // charger_operation = ( temp & 0b0000000000000000 ) >> 0 ;
-  } else 
+  }
+  else
   {
     return false;
   }
@@ -556,11 +572,11 @@ bool getEpData(int invNum)
 bool getJsonData(int invNum)
 {
   // prevent buffer leak
-  if (int(liveJson.memoryUsage()) >= (mqttBufferSize - 8))
+  if ((int)liveJson.memoryUsage() >= (mqttBufferSize - 8))
   {
     liveJson.garbageCollect();
   }
-  if (nodeNum > 1)
+  if ((size_t)_settings._deviceQuantity > 1)
   {
     liveJson["DEVICE_NAME"] = _settings._deviceName + "_" + (invNum);
   }
@@ -614,9 +630,9 @@ bool getJsonData(int invNum)
 
 bool sendtoMQTT(int invNum)
 {
-String mqttDeviceName;
+  String mqttDeviceName;
 
-  if (nodeNum > 1)
+  if ((size_t)_settings._deviceQuantity > 1)
   {
     mqttDeviceName = _settings._deviceName + "_" + invNum;
   }
@@ -624,7 +640,6 @@ String mqttDeviceName;
   {
     mqttDeviceName = _settings._deviceName;
   }
-
 
   if (!mqttclient.connected())
   {
@@ -719,9 +734,8 @@ String mqttDeviceName;
   }
   else
   {
-    // char jsonSerial[1024];
     size_t n = serializeJson(liveJson, jsonSerial);
-    mqttclient.publish((String(topic + "/" + mqttDeviceName +"/DATA")).c_str(), jsonSerial, n);
+    mqttclient.publish((String(topic + "/" + mqttDeviceName + "/DATA")).c_str(), jsonSerial, n);
   }
 
   return true;

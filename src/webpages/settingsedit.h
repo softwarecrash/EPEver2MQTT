@@ -5,6 +5,10 @@ const char HTML_SETTINGS_EDIT[] PROGMEM = R"rawliteral(
 <span class="input-group-text w-50" id="devicenamedesc">Device Name</span>
 <input type="text" class="form-control" aria-describedby="devicenamedesc" id="devicename" name="post_deviceName" value="">
 </div>
+<div class="input-group mb-3">
+<span class="input-group-text w-50" id="devicequantitydesc">Device Quantity</span>
+<input type="text" class="form-control" aria-describedby="devicequantitydesc" id="devicequantity" name="post_deviceQuanttity" value="">
+</div>
 <div class="input-group mb-2">
 <span class="input-group-text w-50" id="mqttserverdesc">MQTT Server</span>
 <input type="text" class="form-control" aria-describedby="mqttserverdesc" id="mqttserver" name="post_mqttServer" value="">
@@ -51,6 +55,7 @@ const char HTML_SETTINGS_EDIT[] PROGMEM = R"rawliteral(
                cache: false,
                 success: function (data) {
                document.getElementById("devicename").value = data.device_name;
+               document.getElementById("devicequantity").value = data.device_quantity;
                document.getElementById("mqttserver").value = data.mqtt_server;
                document.getElementById("mqttport").value = data.mqtt_port;
                document.getElementById("mqtttopic").value = data.mqtt_topic;

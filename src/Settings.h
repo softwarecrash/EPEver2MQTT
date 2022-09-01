@@ -3,16 +3,12 @@
 #include <Arduino.h>
 #include <EEPROM.h>
 
-//#define SERIALDEBUG //enable Serial Output for debug
-#define MQTTDEBUG //enable debug / RAW Messages from iverter to MQTT
-
 class Settings
 {
 public:
   bool _valid = false;
   //MQTT Settings
   bool _mqttJson = false;
-  //String _deviceType = "PIP"; //PIP | PCM | MPI
   String _deviceName = "";    //name of the device
   String _mqttServer = "";    //host or ip from the mqtt server
   String _mqttUser = "";      //mqtt username to login
@@ -20,6 +16,7 @@ public:
   String _mqttTopic = "";     //MQTT Topic
   short _mqttPort = 0;        //mqtt server port
   short _mqttRefresh = 0;     //mqtt Send Interval in Seconds
+  short _deviceQuantity = 1;  //quantity of inverters
 
   short readShort(int offset)
   {
@@ -57,31 +54,13 @@ public:
     maxLen--;
     if ((int)s.length() < maxLen - 1)
       maxLen = s.length();
-    #ifdef SERIALDEBUG
-    Serial1.print("Writing ");
-    Serial1.print(maxLen);
-    Serial1.print(" ");
-    Serial1.print(offset);
-    Serial1.print(" ");
-    Serial1.println(s);
-    #endif
 
     for (i = 0; i < maxLen; ++i)
     {
       EEPROM.write(offset + i, s[i]);
-      #ifdef SERIALDEBUG
-      Serial1.print(" ");
-      Serial1.print(offset + i);
-      Serial1.print("=");
-      Serial1.print(s[i]);
-      Serial1.print(",");
-      #endif
     }
     //null terminate the string
     EEPROM.write(offset + i, 0);
-    #ifdef SERIALDEBUG
-    Serial1.print(offset + i);
-    #endif
   }
 
   void load()
@@ -100,7 +79,7 @@ public:
       readString(_mqttTopic, 0x20, 0x40);
       if(readShort(0x60) == 10) _mqttJson = true; //remove when rework
       if(readShort(0x60) == 00) _mqttJson = false; //remove when rework
-      //_mqttJson = readShort(0x60/*, 0x60*/)?true:false;//testing
+      _deviceQuantity = readShort(0xB0);
       readString(_deviceName, 0x20, 0x80);
       readString(_mqttServer, 0x20, 0xA0);
       readString(_mqttPassword, 0x20, 0xC0);
@@ -124,7 +103,7 @@ public:
     writeString(_mqttTopic, 0x20, 0x40);
     if(_mqttJson == true) writeShort((10), 0x60); //remove when rework
     if(_mqttJson == false) writeShort((00), 0x60); //remove when rework
-    //writeShort((_mqttJson?1:0), 0x60/*, 0x60*/);//testing
+    writeShort(_deviceQuantity, 0xB0);
     writeString(_deviceName, 0x20, 0x80);
     writeString(_mqttServer, 0x20, 0xA0);
     writeString(_mqttPassword, 0x20, 0xC0);
@@ -139,6 +118,7 @@ public:
   }
 
   void reset(){
+  _deviceQuantity = 1;
   _deviceName = "";
   _mqttServer = "";
   _mqttUser = "";
