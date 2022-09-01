@@ -16,7 +16,7 @@ public:
   String _mqttTopic = "";     //MQTT Topic
   short _mqttPort = 0;        //mqtt server port
   short _mqttRefresh = 0;     //mqtt Send Interval in Seconds
-  short _deviceQuantity = 1;  //quantity of inverters
+  byte _deviceQuantity = 1;  //quantity of inverters
 
   short readShort(int offset)
   {
