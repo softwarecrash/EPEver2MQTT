@@ -162,7 +162,8 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
 
 void setup()
 {
-  wifi_set_sleep_type(LIGHT_SLEEP_T); // for testing
+  //wifi_set_sleep_type(LIGHT_SLEEP_T); // for testing
+  
   pinMode(EPEVER_DE_RE, OUTPUT);
   _settings.load();
   delay(1000);
@@ -415,14 +416,11 @@ void loop()
     {
       for (size_t i = 1; i <= ((size_t)_settings._deviceQuantity); i++)
       {
-        // if(getEpData(i))
-        //{
-        getEpData(i);
-
-        getJsonData(i);
-        if(wsReqInvNum == i)
-        notifyClients();
-        //}
+        if(wsReqInvNum == i && getEpData(i))// only send the data to web was selected
+        {
+          getJsonData(i);
+          notifyClients();
+        }
       }
       getDataTimer = millis();
     }
@@ -434,20 +432,20 @@ void loop()
     {
       for (size_t i = 1; i <= ((size_t)_settings._deviceQuantity); i++)
       {
-        // if(getEpData(i))
-        // {
-        getEpData(i);
+         if(getEpData(i))
+         {
+        //getEpData(i);
 
         getJsonData(i);
         sendtoMQTT(i); // Update data to MQTT server if we should
-        //}
+        }
       }
       mqtttimer = millis();
     }
 
     if (wsClient == nullptr) // if no ws client connected slow down the cpu cycle
     {
-      delay(2);
+    //  delay(2);
     }
   }
 
@@ -641,7 +639,7 @@ bool getJsonData(int invNum)
 
 bool sendtoMQTT(int invNum)
 {
-  _settings.load(); // how comes the wrong names in mqtt sometimes?
+ // _settings.load(); // how comes the wrong names in mqtt sometimes?
   String mqttDeviceName;
 
   if ((size_t)_settings._deviceQuantity > 1)
