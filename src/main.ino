@@ -639,7 +639,6 @@ bool getJsonData(int invNum)
 
 bool sendtoMQTT(int invNum)
 {
- // _settings.load(); // how comes the wrong names in mqtt sometimes?
   String mqttDeviceName;
 
   if ((size_t)_settings._deviceQuantity > 1)
