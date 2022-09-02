@@ -165,7 +165,7 @@ void setup()
   wifi_set_sleep_type(LIGHT_SLEEP_T); // for testing
   pinMode(EPEVER_DE_RE, OUTPUT);
   _settings.load();
-  delay(500);
+  delay(1000);
   WiFi.persistent(true);              // fix wifi save bug
   AsyncWiFiManager wm(&server, &dns); // create wifimanager instance
   EPEVER_SERIAL.begin(EPEVER_BAUD);
@@ -176,13 +176,13 @@ void setup()
 
   wm.setSaveConfigCallback(saveConfigCallback);
 
-  AsyncWiFiManagerParameter custom_mqtt_server("mqtt_server", "MQTT server", NULL, 40);
-  AsyncWiFiManagerParameter custom_mqtt_user("mqtt_user", "MQTT User", NULL, 40);
-  AsyncWiFiManagerParameter custom_mqtt_pass("mqtt_pass", "MQTT Password", NULL, 100);
-  AsyncWiFiManagerParameter custom_mqtt_topic("mqtt_topic", "MQTT Topic", NULL, 30);
+  AsyncWiFiManagerParameter custom_mqtt_server("mqtt_server", "MQTT server", NULL, 32);
+  AsyncWiFiManagerParameter custom_mqtt_user("mqtt_user", "MQTT User", NULL, 32);
+  AsyncWiFiManagerParameter custom_mqtt_pass("mqtt_pass", "MQTT Password", NULL, 32);
+  AsyncWiFiManagerParameter custom_mqtt_topic("mqtt_topic", "MQTT Topic", NULL, 32);
   AsyncWiFiManagerParameter custom_mqtt_port("mqtt_port", "MQTT Port", NULL, 6);
   AsyncWiFiManagerParameter custom_mqtt_refresh("mqtt_refresh", "MQTT Send Interval", NULL, 4);
-  AsyncWiFiManagerParameter custom_device_name("device_name", "Device Name", NULL, 40);
+  AsyncWiFiManagerParameter custom_device_name("device_name", "Device Name", NULL, 32);
   AsyncWiFiManagerParameter custom_device_quantity("device_name", "Device Quantity", NULL, 2);
 
   wm.addParameter(&custom_mqtt_server);
@@ -213,7 +213,7 @@ void setup()
 
     _settings.save();
     delay(500);
-    _settings.load();
+    //_settings.load();
     ESP.restart();
   }
 
@@ -318,8 +318,9 @@ void setup()
                 if(request->arg("post_mqttjson") != "true") _settings._mqttJson = false;
                 Serial.print(_settings._mqttServer);
                 _settings.save();
-                delay(500);
-                _settings.load(); });
+                //delay(500);
+                //_settings.load();
+                });
 
     server.on("/set", HTTP_GET, [](AsyncWebServerRequest *request)
               {
@@ -640,6 +641,7 @@ bool getJsonData(int invNum)
 
 bool sendtoMQTT(int invNum)
 {
+  _settings.load(); // how comes the wrong names in mqtt sometimes?
   String mqttDeviceName;
 
   if ((size_t)_settings._deviceQuantity > 1)
