@@ -16,7 +16,7 @@ const char HTML_HEAD[] PROGMEM = R"rawliteral(
 )rawliteral";
 
 const char HTML_FOOT[] PROGMEM = R"rawliteral(
-<figure class="text-center">EPEver to MQTT V0.2.1 By <a href="https://github.com/softwarecrash/" target="_blank">Softwarecrash</a></figure>
+<figure class="text-center">EPEver to MQTT V0.2.2 By <a href="https://github.com/softwarecrash/" target="_blank">Softwarecrash</a></figure>
 </div>
 </body>
 </html>
