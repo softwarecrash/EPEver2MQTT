@@ -22,6 +22,7 @@ ESP82XX to MQTT based connector for EPEver Solar tracker, support multiple track
 - EPEVER Tracer 2210AN (Confirmed)
 - EPEVER Tracer 3210AN (Confirmed)
 - EPEVER XTRA 4415 (confirmed)
+- EPEVER XTRA 3415N (confirmed)
 - from protocol it should work with LS-B VS-B Tracer-B Tracer-A ITracer ETracer Series
 - have you sucessfull run it on another devices? please tell me your device
 
