@@ -31,6 +31,9 @@
 #define BATTERY_CURRENT_L   0x331B  // Battery current L
 #define BATTERY_CURRENT_H   0x331C  // Battery current H
 
+#define BATTERY_TEMPERATURE 0x3110 //baterie temp sensor
+#define DEVICE_TEMPERATURE 0x3111 //device temp sensor
+
 
 
 #define STATISTICS      0x3300 // start of statistical data
@@ -142,6 +145,8 @@
   // these are too far away for the union conversion trick
   uint16_t batterySOC = 0;
   int32_t batteryCurrent = 0;
+  int16_t batteryTemperature = 0;
+  int16_t deviceTemperature = 0;
 
     
   // battery status

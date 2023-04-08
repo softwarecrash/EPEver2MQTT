@@ -326,21 +326,18 @@ void setup()
     server.on("/set", HTTP_GET, [](AsyncWebServerRequest *request)
               {
       AsyncWebParameter *p = request->getParam(0);
-      /*
-      if (p->name() == "loadstate")
+      
+      if (p->name() == "cleanerrorstate")
       {
         updateProgress = true;
-        if (p->value().toInt() == 1)
+        if (p->value().toInt() != 0)
         {
-         // epnode[nodeNum].writeSingleCoil(0x0002, 1);
-        }
-        if (p->value().toInt() == 0)
-        {
-         // epnode[nodeNum].writeSingleCoil(0x0002, 0);
+          epnode.setSlaveId(p->value().toInt());
+          epnode.writeSingleCoil(0x16, true);
         }
         updateProgress = false;
       }
-      */
+      
       if (p->name() == "datetime")
       {
         uint8_t rtcSetY  = atoi (request->getParam("datetime")->value().substring(0, 2).c_str ());
@@ -577,6 +574,30 @@ bool getEpData(int invNum)
   {
     return false;
   }
+
+    // Device Temperature
+  epnode.clearResponseBuffer();
+  result = epnode.readInputRegisters(DEVICE_TEMPERATURE, 1);
+  if (result == epnode.ku8MBSuccess)
+  {
+    deviceTemperature = epnode.getResponseBuffer(0);
+  }
+  else
+  {
+  //  return false;
+  }
+
+    // Battery temperature
+  epnode.clearResponseBuffer();
+  result = epnode.readInputRegisters(BATTERY_TEMPERATURE, 1);
+  if (result == epnode.ku8MBSuccess)
+  {
+    batteryTemperature = epnode.getResponseBuffer(0);
+  }
+  else
+  {
+   // return false;
+  }
   return true;
 }
 
@@ -597,6 +618,7 @@ bool getJsonData(int invNum)
   }
   liveJson["DEVICE_QUANTITY"] = _settings._deviceQuantity;
   liveJson["DEVICE_TIME"] = uTime.getUnix();
+  liveJson["DEVICE_TEMPERATURE"] = deviceTemperature / 100.f;
 
   liveJson["DEVICE_FREE_HEAP"] = ESP.getFreeHeap();
   liveJson["DEVICE_JSON_MEMORY"] = liveJson.memoryUsage();
@@ -612,6 +634,7 @@ bool getJsonData(int invNum)
   liveData["LOAD_AMPS"] = live.l.lI / 100.f;
   liveData["LOAD_WATTS"] = live.l.lP / 100.f;
   liveData["BATTERY_SOC"] = batterySOC / 1.0f;
+  liveJson["BATTERY_TEMPERATURE"] = batteryTemperature / 100.f;
   liveJson["LOAD_STATE"] = loadState;
 
   statsData["SOLAR_MAX"] = stats.s.pVmax / 100.f;
@@ -668,6 +691,7 @@ bool sendtoMQTT(int invNum)
   if (!_settings._mqttJson)
   {
     mqttclient.publish((topic + "/" + mqttDeviceName + "/DEVICE_TIME").c_str(), String(uTime.getUnix()).c_str());
+    mqttclient.publish((topic + "/" + mqttDeviceName + "/DEVICE_TEMPERATURE").c_str(), String(deviceTemperature / 100.f).c_str());
     mqttclient.publish((topic + "/" + mqttDeviceName + "/LOAD_STATE").c_str(), String(loadState ? "true" : "false").c_str());
     mqttclient.publish((topic + "/" + mqttDeviceName + "/BATT_VOLT_STATUS").c_str(), String(batt_volt_status[status_batt.volt]).c_str());
     mqttclient.publish((topic + "/" + mqttDeviceName + "/BATT_TEMP").c_str(), String(batt_temp_status[status_batt.temp]).c_str());
@@ -687,6 +711,7 @@ bool sendtoMQTT(int invNum)
     mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/LOAD_WATTS").c_str(), String(live.l.lP / 100.f).c_str());
 
     mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/BATTERY_SOC").c_str(), String(batterySOC / 1.0f).c_str());
+    mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/BATTERY_TEMPERATURE").c_str(), String(batteryTemperature / 100.f).c_str());
 
     mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/SOLAR_MAX").c_str(), String(stats.s.pVmax / 100.f).c_str());
     mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/SOLAR_MIN").c_str(), String(stats.s.pVmin / 100.f).c_str());
