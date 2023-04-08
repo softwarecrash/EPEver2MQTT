@@ -333,7 +333,9 @@ void setup()
         if (p->value().toInt() != 0)
         {
           epnode.setSlaveId(p->value().toInt());
-          epnode.writeSingleCoil(0x16, true);
+          epnode.writeSingleCoil(0x16, true); //0101 ??
+          //not finishd yet, move to main page and only display a unlock button when a error is avaible
+          //https://forum.iobroker.net/assets/uploads/files/1667825519362-up-hi-communication-protocol-v8.5.pdf
         }
         updateProgress = false;
       }
