@@ -17,7 +17,7 @@ const char HTML_HEAD[] PROGMEM = R"rawliteral(
 
 const char HTML_FOOT[] PROGMEM = R"rawliteral(
 <figure class="text-center">
-EPEver to MQTT V0.2.2 By <a href="https://github.com/softwarecrash/" target="_blank">Softwarecrash</a>
+EPEver to MQTT V0.2.3 By <a href="https://github.com/softwarecrash/" target="_blank">Softwarecrash</a>
 <a rel="license" href="http://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank"><img alt="Creative Commons License" style="border-width:0" src="https://i.creativecommons.org/l/by-nc-sa/4.0/80x15.png" /></a>
 </figure>
 </div>

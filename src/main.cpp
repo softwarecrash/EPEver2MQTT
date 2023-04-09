@@ -3,7 +3,7 @@
  *
  */
 #include <Arduino.h>
-
+#include "main.h"
 #include <ModbusMaster.h>
 #include "epregister.h"
 
@@ -51,7 +51,6 @@ AsyncWebSocketClient *wsClient;
 
 DNSServer dns;
 
-// const int nodeNum = 2;
 ModbusMaster epnode; // instantiate ModbusMaster object
 
 UnixTime uTime(3); // указать GMT (3 для Москвы)
@@ -182,8 +181,8 @@ void setup()
   AsyncWiFiManagerParameter custom_mqtt_pass("mqtt_pass", "MQTT Password", NULL, 32);
   AsyncWiFiManagerParameter custom_mqtt_topic("mqtt_topic", "MQTT Topic", NULL, 32);
   AsyncWiFiManagerParameter custom_mqtt_port("mqtt_port", "MQTT Port", NULL, 6);
-  AsyncWiFiManagerParameter custom_mqtt_refresh("mqtt_refresh", "MQTT Send Interval", NULL, 4);
-  AsyncWiFiManagerParameter custom_device_name("device_name", "Device Name", NULL, 32);
+  AsyncWiFiManagerParameter custom_mqtt_refresh("mqtt_refresh", "MQTT Send Interval", "300", 4);
+  AsyncWiFiManagerParameter custom_device_name("device_name", "Device Name", "EPEver2MQTT", 32);
   AsyncWiFiManagerParameter custom_device_quantity("device_name", "Device Quantity", NULL, 2);
 
   wm.addParameter(&custom_mqtt_server);
@@ -319,27 +318,25 @@ void setup()
                 if(request->arg("post_mqttjson") != "true") _settings._mqttJson = false;
                 Serial.print(_settings._mqttServer);
                 _settings.save();
-                //delay(500);
-                //_settings.load();
                 });
 
     server.on("/set", HTTP_GET, [](AsyncWebServerRequest *request)
               {
       AsyncWebParameter *p = request->getParam(0);
-      
+    /*  
       if (p->name() == "cleanerrorstate")
       {
         updateProgress = true;
-        if (p->value().toInt() != 0)
-        {
-          epnode.setSlaveId(p->value().toInt());
-          epnode.writeSingleCoil(0x16, true); //0101 ??
+      for (size_t i = 1; i < ((size_t)_settings._deviceQuantity+1); i++)
+      {
+          epnode.setSlaveId(i);
+          epnode.writeSingleCoil(0x0100, true); //0101 ??
           //not finishd yet, move to main page and only display a unlock button when a error is avaible
           //https://forum.iobroker.net/assets/uploads/files/1667825519362-up-hi-communication-protocol-v8.5.pdf
         }
         updateProgress = false;
       }
-      
+      */
       if (p->name() == "datetime")
       {
         uint8_t rtcSetY  = atoi (request->getParam("datetime")->value().substring(0, 2).c_str ());
@@ -433,8 +430,6 @@ void loop()
       {
          if(getEpData(i))
          {
-        //getEpData(i);
-
         getJsonData(i);
         sendtoMQTT(i); // Update data to MQTT server if we should
         }
