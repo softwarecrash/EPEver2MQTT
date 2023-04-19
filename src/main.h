@@ -1,4 +1,5 @@
-
+#define ARDUINOJSON_USE_DOUBLE 0
+#define ARDUINOJSON_USE_LONG_LONG 0
 
 bool getEpData(int invNum);
 
