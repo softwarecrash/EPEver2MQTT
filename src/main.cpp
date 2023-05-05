@@ -122,11 +122,11 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
   {
     data[len] = 0;
     updateProgress = true;
-    if(String((char *)data).substring(0, 9) == "wsSelInv_") //get the inverter number to display on the web
+    if (String((char *)data).substring(0, 9) == "wsSelInv_") // get the inverter number to display on the web
     {
-    wsReqInvNum = String((char *)data).substring(9, 10).toInt();
+      wsReqInvNum = String((char *)data).substring(9, 10).toInt();
     }
-    if(String((char *)data).substring(0, 11) == "loadSwitch_") //get switch data from web loadSwitch_1_1
+    if (String((char *)data).substring(0, 11) == "loadSwitch_") // get switch data from web loadSwitch_1_1
     {
       epnode.setSlaveId(String((char *)data).substring(11, 12).toInt());
       epnode.writeSingleCoil(0x0002, String((char *)data).substring(13, 14).toInt());
@@ -161,8 +161,8 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
 
 void setup()
 {
-  //wifi_set_sleep_type(LIGHT_SLEEP_T); // for testing
-  
+  // wifi_set_sleep_type(LIGHT_SLEEP_T); // for testing
+
   pinMode(EPEVER_DE_RE, OUTPUT);
   _settings.load();
   delay(1000);
@@ -317,8 +317,7 @@ void setup()
                 if(request->arg("post_mqttjson") == "true") _settings._mqttJson = true;
                 if(request->arg("post_mqttjson") != "true") _settings._mqttJson = false;
                 Serial.print(_settings._mqttServer);
-                _settings.save();
-                });
+                _settings.save(); });
 
     server.on("/set", HTTP_GET, [](AsyncWebServerRequest *request)
               {
@@ -371,29 +370,6 @@ void setup()
     server.begin();
     MDNS.addService("http", "tcp", 80);
   }
-
-  if (!mqttclient.connected())
-    mqttclient.connect((String(_settings._deviceName)).c_str(), _settings._mqttUser.c_str(), _settings._mqttPassword.c_str());
-  if (mqttclient.connect(_settings._deviceName.c_str()))
-  {
-    if ((size_t)_settings._deviceQuantity > 1) // if more than one inverter avaible, subscribe to all topics
-    {
-      for (size_t i = 1; i < ((size_t)_settings._deviceQuantity + 1); i++)
-      {
-        if (!_settings._mqttJson) // classic mqtt DP
-          mqttclient.subscribe((topic + "/" + _settings._deviceName + "_" + i + "/LOAD_STATE").c_str());
-        else // subscribe json
-          mqttclient.subscribe((topic + "/" + _settings._deviceName + "_" + i + "/DATA").c_str());
-      }
-    }
-    else // if only one inverter avaible subscribe to one topic
-    {
-      if (!_settings._mqttJson) // classic mqtt DP
-        mqttclient.subscribe((topic + "/" + _settings._deviceName + "/LOAD_STATE").c_str());
-      else // subscribe json
-        mqttclient.subscribe((topic + "/" + _settings._deviceName + "/DATA").c_str());
-    }
-  }
 }
 
 // end void setup
@@ -412,7 +388,7 @@ void loop()
     {
       for (size_t i = 1; i <= ((size_t)_settings._deviceQuantity); i++)
       {
-        if(wsReqInvNum == i && getEpData(i))// only send the data to web was selected
+        if (wsReqInvNum == i && getEpData(i)) // only send the data to web was selected
         {
           getJsonData(i);
           notifyClients();
@@ -428,10 +404,10 @@ void loop()
     {
       for (size_t i = 1; i <= ((size_t)_settings._deviceQuantity); i++)
       {
-         if(getEpData(i))
-         {
-        getJsonData(i);
-        sendtoMQTT(i); // Update data to MQTT server if we should
+        if (getEpData(i))
+        {
+          getJsonData(i);
+          sendtoMQTT(i); // Update data to MQTT server if we should
         }
       }
       mqtttimer = millis();
@@ -439,7 +415,7 @@ void loop()
 
     if (wsClient == nullptr) // if no ws client connected slow down the cpu cycle
     {
-    //  delay(2);
+      //  delay(2);
     }
   }
 
@@ -465,7 +441,7 @@ bool getEpData(int invNum)
   memset(stats.buf, 0, sizeof(stats.buf));
   batteryCurrent = 0;
   batterySOC = 0;
-  uTime.setDateTime(0,0,0,0,0,0);
+  uTime.setDateTime(0, 0, 0, 0, 0, 0);
 
   // Read registers for clock
   epnode.clearResponseBuffer();
@@ -572,7 +548,7 @@ bool getEpData(int invNum)
     return false;
   }
 
-    // Device Temperature
+  // Device Temperature
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(DEVICE_TEMPERATURE, 1);
   if (result == epnode.ku8MBSuccess)
@@ -581,10 +557,10 @@ bool getEpData(int invNum)
   }
   else
   {
-  //  return false;
+    //  return false;
   }
 
-    // Battery temperature
+  // Battery temperature
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(BATTERY_TEMPERATURE, 1);
   if (result == epnode.ku8MBSuccess)
@@ -593,7 +569,7 @@ bool getEpData(int invNum)
   }
   else
   {
-   // return false;
+    // return false;
   }
   return true;
 }
@@ -657,8 +633,53 @@ bool getJsonData(int invNum)
   return true;
 }
 
+bool connectMQTT()
+{
+  if (!mqttclient.connected())
+  {
+    if (mqttclient.connect((String(_settings._deviceName)).c_str(), _settings._mqttUser.c_str(), _settings._mqttPassword.c_str(), (topic + "/Alive").c_str(), 0, true, "false", true))
+    {
+      mqttclient.publish((topic + String("/IP")).c_str(), String(WiFi.localIP().toString()).c_str());
+      mqttclient.publish((topic + String("/Alive")).c_str(), "true", true); // LWT online message must be retained!
+
+      if ((size_t)_settings._deviceQuantity > 1) // if more than one inverter avaible, subscribe to all topics
+      {
+        for (size_t i = 1; i < ((size_t)_settings._deviceQuantity + 1); i++)
+        {
+          if (!_settings._mqttJson) // classic mqtt DP
+            mqttclient.subscribe((topic + "/" + _settings._deviceName + "_" + i + "/LOAD_STATE").c_str());
+          else // subscribe json
+            mqttclient.subscribe((topic + "/" + _settings._deviceName + "_" + i + "/DATA").c_str());
+        }
+      }
+      else // if only one inverter avaible subscribe to one topic
+      {
+        if (!_settings._mqttJson) // classic mqtt DP
+          mqttclient.subscribe((topic + "/" + _settings._deviceName + "/LOAD_STATE").c_str());
+        else // subscribe json
+          mqttclient.subscribe((topic + "/" + _settings._deviceName + "/DATA").c_str());
+      }
+      return true;
+    }
+    else
+    {
+      return false;
+    }
+    return false;
+  }
+  else
+  {
+    return true;
+  }
+}
+
 bool sendtoMQTT(int invNum)
 {
+
+  if (!connectMQTT())
+  {
+    return false;
+  }
   String mqttDeviceName;
 
   if ((size_t)_settings._deviceQuantity > 1)
@@ -670,20 +691,7 @@ bool sendtoMQTT(int invNum)
     mqttDeviceName = _settings._deviceName;
   }
 
-  if (!mqttclient.connected())
-  {
-    if (mqttclient.connect((String(_settings._deviceName)).c_str(), _settings._mqttUser.c_str(), _settings._mqttPassword.c_str()))
-    {
-      if (!_settings._mqttJson)
-      {
-        mqttclient.publish((topic + String("/IP")).c_str(), String(WiFi.localIP().toString()).c_str());
-      }
-    }
-    else
-    {
-      return false; // Exit if we couldnt connect to MQTT brooker
-    }
-  }
+  //-----------------------------------------------------
 
   if (!_settings._mqttJson)
   {
