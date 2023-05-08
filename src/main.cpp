@@ -25,8 +25,6 @@
 #include "webpages/settings.h"     // settings page
 #include "webpages/settingsedit.h" // mqtt settings page
 
-
-
 String topic = "/"; // Default first part of topic. We will add device ID in setup
 
 // flag for saving data and other things
@@ -356,6 +354,9 @@ void setup()
           request->send(200);
           request->redirect("/"); },
         handle_update_progress_cb);
+
+    server.onNotFound([](AsyncWebServerRequest *request)
+                      { request->send(418, "text/plain", "418 I'm a teapot"); });
 
     ws.onEvent(onEvent);
     server.addHandler(&ws);
