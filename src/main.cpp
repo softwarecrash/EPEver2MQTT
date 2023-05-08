@@ -16,6 +16,7 @@
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <UnixTime.h>
+#include "SoftwareSerial.h"
 
 #include "Settings.h" //settings functions
 
@@ -24,9 +25,7 @@
 #include "webpages/settings.h"     // settings page
 #include "webpages/settingsedit.h" // mqtt settings page
 
-#define EPEVER_SERIAL Serial // Set the serial port for communication with the EPEver
-#define EPEVER_BAUD 115200   // baud rate for modbus
-#define EPEVER_DE_RE 5       // connect DE and Re to pin D1
+
 
 String topic = "/"; // Default first part of topic. We will add device ID in setup
 
@@ -41,20 +40,16 @@ byte wsReqInvNum = 1;
 char jsonSerial[1024]; // buffer for serializon
 char mqtt_server[40];
 
+SoftwareSerial EPEVER_SERIAL;
 WiFiClient client;
 Settings _settings;
 PubSubClient mqttclient(client);
-
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 AsyncWebSocketClient *wsClient;
-
 DNSServer dns;
-
 ModbusMaster epnode; // instantiate ModbusMaster object
-
-UnixTime uTime(3); // указать GMT (3 для Москвы)
-
+UnixTime uTime(3);
 DynamicJsonDocument liveJson(mqttBufferSize);
 JsonObject liveData = liveJson.createNestedObject("LiveData");
 JsonObject statsData = liveJson.createNestedObject("StatsData");
@@ -161,15 +156,12 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
 
 void setup()
 {
-  // wifi_set_sleep_type(LIGHT_SLEEP_T); // for testing
-
   pinMode(EPEVER_DE_RE, OUTPUT);
   _settings.load();
-  delay(1000);
   WiFi.persistent(true);              // fix wifi save bug
   AsyncWiFiManager wm(&server, &dns); // create wifimanager instance
-  EPEVER_SERIAL.begin(EPEVER_BAUD);
 
+  EPEVER_SERIAL.begin(EPEVER_BAUD, SWSERIAL_8N1, MYPORT_RX, MYPORT_TX, false);
   epnode.begin(1, EPEVER_SERIAL);
   epnode.preTransmission(preTransmission);
   epnode.postTransmission(postTransmission);
