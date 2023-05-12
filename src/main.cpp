@@ -154,6 +154,7 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
 
 void setup()
 {
+  Serial.begin(9600);
   pinMode(EPEVER_DE_RE, OUTPUT);
   _settings.load();
   WiFi.persistent(true);              // fix wifi save bug
@@ -436,6 +437,7 @@ bool getEpData(int invNum)
   batterySOC = 0;
   uTime.setDateTime(0, 0, 0, 0, 0, 0);
 
+
   // Read registers for clock
   epnode.clearResponseBuffer();
   result = epnode.readHoldingRegisters(RTC_CLOCK, RTC_CLOCK_CNT);
@@ -448,6 +450,11 @@ bool getEpData(int invNum)
   }
   else
   {
+    Serial.print(epnode.ku8MBSuccess);
+    Serial.print(" ");
+    Serial.print(result);
+    Serial.print(" ");
+    Serial.println("Read registers for clock Failed");
     return false;
   }
 
@@ -462,6 +469,11 @@ bool getEpData(int invNum)
   }
   else
   {
+        Serial.print(epnode.ku8MBSuccess);
+    Serial.print(" ");
+    Serial.print(result);
+    Serial.print(" ");
+    Serial.println("read LIVE-Dat Failed");
     return false;
   }
 
@@ -475,6 +487,11 @@ bool getEpData(int invNum)
   }
   else
   {
+        Serial.print(epnode.ku8MBSuccess);
+    Serial.print(" ");
+    Serial.print(result);
+    Serial.print(" ");
+    Serial.println("read Statistical Data Failed");
     return false;
   }
 
@@ -487,6 +504,11 @@ bool getEpData(int invNum)
   }
   else
   {
+        Serial.print(epnode.ku8MBSuccess);
+    Serial.print(" ");
+    Serial.print(result);
+    Serial.print(" ");
+    Serial.println("read Battery SOC Failed");
     return false;
   }
 
@@ -500,6 +522,11 @@ bool getEpData(int invNum)
   }
   else
   {
+        Serial.print(epnode.ku8MBSuccess);
+    Serial.print(" ");
+    Serial.print(result);
+    Serial.print(" ");
+    Serial.println("read Battery Net Current = Icharge - Iload Failed");
     return false;
   }
 
@@ -512,6 +539,11 @@ bool getEpData(int invNum)
   }
   else
   {
+        Serial.print(epnode.ku8MBSuccess);
+    Serial.print(" ");
+    Serial.print(result);
+    Serial.print(" ");
+    Serial.println("read State of the Load Switch Failed");
     return false;
   }
 
@@ -538,6 +570,11 @@ bool getEpData(int invNum)
   }
   else
   {
+        Serial.print(epnode.ku8MBSuccess);
+    Serial.print(" ");
+    Serial.print(result);
+    Serial.print(" ");
+    Serial.println("read Read Status Flags Failed");
     return false;
   }
 
@@ -550,7 +587,12 @@ bool getEpData(int invNum)
   }
   else
   {
-    //  return false;
+        Serial.print(epnode.ku8MBSuccess);
+    Serial.print(" ");
+    Serial.print(result);
+    Serial.print(" ");
+    Serial.println("read Device Temperature Failed");
+    return false;
   }
 
   // Battery temperature
@@ -562,7 +604,12 @@ bool getEpData(int invNum)
   }
   else
   {
-    // return false;
+        Serial.print(epnode.ku8MBSuccess);
+    Serial.print(" ");
+    Serial.print(result);
+    Serial.print(" ");
+    Serial.println("read Battery temperature Failed");
+    return false;
   }
   return true;
 }
