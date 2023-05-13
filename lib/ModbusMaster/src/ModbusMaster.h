@@ -215,6 +215,11 @@ class ModbusMaster
     uint8_t  readWriteMultipleRegisters(uint16_t, uint16_t);
     
   private:
+  	// timing
+	uint32_t T1_5; // inter character timeout
+	uint32_t T3_5; // frame delay (silent interval)
+
+  
     Stream* _serial;                                             ///< reference to serial port object
     uint8_t  _u8MBSlave;                                         ///< Modbus slave (1..255) initialized in begin()
     static const uint8_t ku8MaxBufferSize                = 64;   ///< size of response/transmit buffers    

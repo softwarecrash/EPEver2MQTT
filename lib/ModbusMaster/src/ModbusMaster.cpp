@@ -75,6 +75,19 @@ void ModbusMaster::begin(uint8_t slave, Stream &serial)
   pinMode(__MODBUSMASTER_DEBUG_PIN_A__, OUTPUT);
   pinMode(__MODBUSMASTER_DEBUG_PIN_B__, OUTPUT);
 #endif
+
+	// calculate inter character timeout and frame delay (silent interval)
+  uint32_t baudRate = 115200;
+	if (115200 > 19200)
+	{
+		T1_5 = 650; // 750 us
+		T3_5 = 1650; // 1750 us
+	}
+	else
+	{
+		T1_5 = 16500000 / baudRate; // 1 packet = 11 bits
+		T3_5 = 38500000 / baudRate; // 1 packet = 11 bits
+	}
 }
 
 
@@ -734,7 +747,19 @@ uint8_t ModbusMaster::ModbusMasterTransaction(uint8_t u8MBFunction)
   {
     _postTransmission();
   }
-  
+
+
+
+
+  	// -----------------------------------
+	// - inter frame delay (silent interval) 
+	// - disable transmision
+	delayMicroseconds(T3_5);
+	// -----------------------------------
+
+
+
+
   // loop until we run out of time or bytes, or an error occurs
   u32StartTime = millis();
   while (u8BytesLeft && !u8MBStatus)
@@ -764,6 +789,16 @@ uint8_t ModbusMaster::ModbusMasterTransaction(uint8_t u8MBFunction)
 #endif
     }
     
+
+
+		// -----------------------------------
+		// inter character timeout
+		// -----------------------------------
+		delayMicroseconds(T1_5);
+		// -----------------------------------
+
+
+
     // evaluate slave ID, function code once enough bytes have been read
     if (u8ModbusADUSize == 5)
     {

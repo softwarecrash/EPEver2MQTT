@@ -154,13 +154,13 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
 
 void setup()
 {
-  Serial.begin(9600);
+  Serial.begin(115200);
   pinMode(EPEVER_DE_RE, OUTPUT);
   _settings.load();
   WiFi.persistent(true);              // fix wifi save bug
   AsyncWiFiManager wm(&server, &dns); // create wifimanager instance
 
-  EPEVER_SERIAL.begin(EPEVER_BAUD, SWSERIAL_8N1, MYPORT_RX, MYPORT_TX, false);
+  EPEVER_SERIAL.begin(EPEVER_BAUD, SWSERIAL_8N1, MYPORT_RX, MYPORT_TX, false, 256);
   epnode.begin(1, EPEVER_SERIAL);
   epnode.preTransmission(preTransmission);
   epnode.postTransmission(postTransmission);
@@ -420,7 +420,7 @@ void loop()
     ESP.restart();
   }
 
-  yield();
+
 }
 // End void loop
 
@@ -447,6 +447,11 @@ bool getEpData(int invNum)
     rtc.buf[1] = epnode.getResponseBuffer(1);
     rtc.buf[2] = epnode.getResponseBuffer(2);
     uTime.setDateTime((2000 + rtc.r.y), rtc.r.M, rtc.r.d, (rtc.r.h + 1), rtc.r.m, rtc.r.s);
+
+        Serial.print(epnode.ku8MBSuccess);
+    Serial.print(" ");
+    Serial.print(result);
+    Serial.print(" ");
   }
   else
   {
@@ -466,6 +471,11 @@ bool getEpData(int invNum)
 
     for (i = 0; i < LIVE_DATA_CNT; i++)
       live.buf[i] = epnode.getResponseBuffer(i);
+
+          Serial.print(epnode.ku8MBSuccess);
+    Serial.print(" ");
+    Serial.print(result);
+    Serial.print(" ");
   }
   else
   {
@@ -484,6 +494,11 @@ bool getEpData(int invNum)
   {
     for (i = 0; i < STATISTICS_CNT; i++)
       stats.buf[i] = epnode.getResponseBuffer(i);
+
+          Serial.print(epnode.ku8MBSuccess);
+    Serial.print(" ");
+    Serial.print(result);
+    Serial.print(" ");
   }
   else
   {
@@ -501,6 +516,11 @@ bool getEpData(int invNum)
   if (result == epnode.ku8MBSuccess)
   {
     batterySOC = epnode.getResponseBuffer(0);
+
+        Serial.print(epnode.ku8MBSuccess);
+    Serial.print(" ");
+    Serial.print(result);
+    Serial.print(" ");
   }
   else
   {
@@ -519,6 +539,11 @@ bool getEpData(int invNum)
   {
     batteryCurrent = epnode.getResponseBuffer(0);
     batteryCurrent |= epnode.getResponseBuffer(1) << 16;
+
+        Serial.print(epnode.ku8MBSuccess);
+    Serial.print(" ");
+    Serial.print(result);
+    Serial.print(" ");
   }
   else
   {
@@ -536,6 +561,11 @@ bool getEpData(int invNum)
   if (result == epnode.ku8MBSuccess)
   {
     loadState = epnode.getResponseBuffer(0) ? true : false;
+
+        Serial.print(epnode.ku8MBSuccess);
+    Serial.print(" ");
+    Serial.print(result);
+    Serial.print(" ");
   }
   else
   {
@@ -567,6 +597,12 @@ bool getEpData(int invNum)
     charger_mode = (temp & 0b0000000000001100) >> 2;
     // charger_input     = ( temp & 0b0000000000000000 ) >> 12 ;
     // charger_operation = ( temp & 0b0000000000000000 ) >> 0 ;
+
+
+        Serial.print(epnode.ku8MBSuccess);
+    Serial.print(" ");
+    Serial.print(result);
+    Serial.print(" ");
   }
   else
   {
@@ -584,6 +620,11 @@ bool getEpData(int invNum)
   if (result == epnode.ku8MBSuccess)
   {
     deviceTemperature = epnode.getResponseBuffer(0);
+
+        Serial.print(epnode.ku8MBSuccess);
+    Serial.print(" ");
+    Serial.print(result);
+    Serial.print(" ");
   }
   else
   {
@@ -601,10 +642,15 @@ bool getEpData(int invNum)
   if (result == epnode.ku8MBSuccess)
   {
     batteryTemperature = epnode.getResponseBuffer(0);
+
+        Serial.print(epnode.ku8MBSuccess);
+    Serial.print(" ");
+    Serial.print(result);
+    Serial.print(" ");
   }
   else
   {
-        Serial.print(epnode.ku8MBSuccess);
+    Serial.print(epnode.ku8MBSuccess);
     Serial.print(" ");
     Serial.print(result);
     Serial.print(" ");
