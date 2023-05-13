@@ -162,7 +162,7 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
 void setup()
 {
   // wifi_set_sleep_type(LIGHT_SLEEP_T); // for testing
-
+Serial1.begin(9600);
   pinMode(EPEVER_DE_RE, OUTPUT);
   _settings.load();
   delay(1000);
@@ -455,6 +455,7 @@ bool getEpData(int invNum)
   }
   else
   {
+    Serial1.println("Fail");
     return false;
   }
 
@@ -469,6 +470,7 @@ bool getEpData(int invNum)
   }
   else
   {
+    Serial1.println("Fail");
     return false;
   }
 
@@ -482,6 +484,7 @@ bool getEpData(int invNum)
   }
   else
   {
+    Serial1.println("Fail");
     return false;
   }
 
@@ -494,6 +497,7 @@ bool getEpData(int invNum)
   }
   else
   {
+    Serial1.println("Fail");
     return false;
   }
 
@@ -507,6 +511,7 @@ bool getEpData(int invNum)
   }
   else
   {
+    Serial1.println("Fail");
     return false;
   }
 
@@ -519,6 +524,7 @@ bool getEpData(int invNum)
   }
   else
   {
+    Serial1.println("Fail");
     return false;
   }
 
@@ -545,6 +551,7 @@ bool getEpData(int invNum)
   }
   else
   {
+    Serial1.println("Fail");
     return false;
   }
 
@@ -557,6 +564,7 @@ bool getEpData(int invNum)
   }
   else
   {
+    Serial1.println("Fail");
     //  return false;
   }
 
@@ -569,6 +577,7 @@ bool getEpData(int invNum)
   }
   else
   {
+    Serial1.println("Fail");
     // return false;
   }
   return true;
