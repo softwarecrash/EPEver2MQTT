@@ -754,7 +754,7 @@ uint8_t ModbusMaster::ModbusMasterTransaction(uint8_t u8MBFunction)
   	// -----------------------------------
 	// - inter frame delay (silent interval) 
 	// - disable transmision
-	delayMicroseconds(T3_5);
+	//delayMicroseconds(T3_5);
 	// -----------------------------------
 
 
@@ -794,7 +794,7 @@ uint8_t ModbusMaster::ModbusMasterTransaction(uint8_t u8MBFunction)
 		// -----------------------------------
 		// inter character timeout
 		// -----------------------------------
-		delayMicroseconds(T1_5);
+		//delayMicroseconds(T1_5);
 		// -----------------------------------
 
 
