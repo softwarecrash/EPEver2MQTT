@@ -1,5 +1,5 @@
 const char HTML_MAIN[] PROGMEM = R"rawliteral(
-
+    %HEAD_TEMPLATE%
 <div class="row gx-0 mb-2">
 <div class="col">
 <button id="prevInv" type="button" class="btn btn-primary">&#8882;</button>
@@ -221,4 +221,5 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
         return formatedTime;
     }
 </script>
+%FOOT_TEMPLATE%
 )rawliteral";

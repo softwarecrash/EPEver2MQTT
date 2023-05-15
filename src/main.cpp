@@ -16,7 +16,7 @@
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <UnixTime.h>
-#include "SoftwareSerial.h"
+//#include "SoftwareSerial.h"
 
 #include "Settings.h" //settings functions
 
@@ -24,6 +24,7 @@
 #include "webpages/main.h"         // landing page with menu
 #include "webpages/settings.h"     // settings page
 #include "webpages/settingsedit.h" // mqtt settings page
+#include "webpages/htmlProzessor.h" // The html Prozessor
 
 String topic = "/"; // Default first part of topic. We will add device ID in setup
 
@@ -38,7 +39,9 @@ byte wsReqInvNum = 1;
 char jsonSerial[1024]; // buffer for serializon
 char mqtt_server[40];
 
-SoftwareSerial EPEVER_SERIAL;
+//SoftwareSerial EPEVER_SERIAL;
+#define EPEVER_SERIAL Serial
+
 WiFiClient client;
 Settings _settings;
 PubSubClient mqttclient(client);
@@ -138,10 +141,10 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
     if (getEpData(1))
       getJsonData(1);
     notifyClients();
-    // Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
+    // Serial1.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
     break;
   case WS_EVT_DISCONNECT:
-    //  Serial.printf("WebSocket client #%u disconnected\n", client->id());
+    //  Serial1.printf("WebSocket client #%u disconnected\n", client->id());
     break;
   case WS_EVT_DATA:
     handleWebSocketMessage(arg, data, len);
@@ -154,13 +157,14 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
 
 void setup()
 {
-  Serial.begin(115200);
+  Serial1.begin(115200);
   pinMode(EPEVER_DE_RE, OUTPUT);
   _settings.load();
   WiFi.persistent(true);              // fix wifi save bug
   AsyncWiFiManager wm(&server, &dns); // create wifimanager instance
 
-  EPEVER_SERIAL.begin(EPEVER_BAUD, SWSERIAL_8N1, MYPORT_RX, MYPORT_TX, false, 256);
+//  EPEVER_SERIAL.begin(EPEVER_BAUD, SWSERIAL_8N1, MYPORT_RX, MYPORT_TX, false, 256);
+  EPEVER_SERIAL.begin(EPEVER_BAUD);
   epnode.begin(1, EPEVER_SERIAL);
   epnode.preTransmission(preTransmission);
   epnode.postTransmission(postTransmission);
@@ -224,11 +228,8 @@ void setup()
 
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-                AsyncResponseStream *response = request->beginResponseStream("text/html");
-                response->printf_P(HTML_HEAD);
-                response->printf_P(HTML_MAIN);
-                response->printf_P(HTML_FOOT);
-                request->send(response); });
+      AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", HTML_MAIN, htmlProcessor);
+      request->send(response); });
 
     server.on("/livejson", HTTP_GET, [](AsyncWebServerRequest *request)
               {
@@ -245,11 +246,8 @@ void setup()
                 restartNow = true; });
     server.on("/confirmreset", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-                AsyncResponseStream *response = request->beginResponseStream("text/html");
-                response->printf_P(HTML_HEAD);
-                response->printf_P(HTML_CONFIRM_RESET);
-                response->printf_P(HTML_FOOT);
-                request->send(response); });
+      AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", HTML_CONFIRM_RESET, htmlProcessor);
+      request->send(response); });
 
     server.on("/reset", HTTP_GET, [](AsyncWebServerRequest *request)
               {
@@ -264,19 +262,13 @@ void setup()
 
     server.on("/settings", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-                AsyncResponseStream *response = request->beginResponseStream("text/html");
-                response->printf_P(HTML_HEAD);
-                response->printf_P(HTML_SETTINGS);
-                response->printf_P(HTML_FOOT);
-                request->send(response); });
+      AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", HTML_SETTINGS, htmlProcessor);
+      request->send(response); });
 
     server.on("/settingsedit", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-                AsyncResponseStream *response = request->beginResponseStream("text/html");
-                response->printf_P(HTML_HEAD);
-                response->printf_P(HTML_SETTINGS_EDIT);
-                response->printf_P(HTML_FOOT);
-                request->send(response); });
+      AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", HTML_SETTINGS_EDIT, htmlProcessor);
+      request->send(response); });
 
     server.on("/settingsjson", HTTP_GET, [](AsyncWebServerRequest *request)
               {
@@ -307,7 +299,7 @@ void setup()
                 _settings._deviceQuantity = request->arg("post_deviceQuanttity").toInt() <= 0 ? 1 : request->arg("post_deviceQuanttity").toInt();
                 if(request->arg("post_mqttjson") == "true") _settings._mqttJson = true;
                 if(request->arg("post_mqttjson") != "true") _settings._mqttJson = false;
-                Serial.print(_settings._mqttServer);
+                Serial1.print(_settings._mqttServer);
                 _settings.save(); });
 
     server.on("/set", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -416,7 +408,7 @@ void loop()
   if (restartNow)
   {
     delay(1000);
-    Serial.println("Restart");
+    Serial1.println("Restart");
     ESP.restart();
   }
 
@@ -448,18 +440,18 @@ bool getEpData(int invNum)
     rtc.buf[2] = epnode.getResponseBuffer(2);
     uTime.setDateTime((2000 + rtc.r.y), rtc.r.M, rtc.r.d, (rtc.r.h + 1), rtc.r.m, rtc.r.s);
 
-        Serial.print(epnode.ku8MBSuccess);
-    Serial.print(" ");
-    Serial.print(result);
-    Serial.print(" ");
+        Serial1.print(epnode.ku8MBSuccess);
+    Serial1.print(" ");
+    Serial1.print(result);
+    Serial1.print(" ");
   }
   else
   {
-    Serial.print(epnode.ku8MBSuccess);
-    Serial.print(" ");
-    Serial.print(result);
-    Serial.print(" ");
-    Serial.println("Read registers for clock Failed");
+    Serial1.print(epnode.ku8MBSuccess);
+    Serial1.print(" ");
+    Serial1.print(result);
+    Serial1.print(" ");
+    Serial1.println("Read registers for clock Failed");
     return false;
   }
 
@@ -472,18 +464,18 @@ bool getEpData(int invNum)
     for (i = 0; i < LIVE_DATA_CNT; i++)
       live.buf[i] = epnode.getResponseBuffer(i);
 
-          Serial.print(epnode.ku8MBSuccess);
-    Serial.print(" ");
-    Serial.print(result);
-    Serial.print(" ");
+          Serial1.print(epnode.ku8MBSuccess);
+    Serial1.print(" ");
+    Serial1.print(result);
+    Serial1.print(" ");
   }
   else
   {
-        Serial.print(epnode.ku8MBSuccess);
-    Serial.print(" ");
-    Serial.print(result);
-    Serial.print(" ");
-    Serial.println("read LIVE-Dat Failed");
+        Serial1.print(epnode.ku8MBSuccess);
+    Serial1.print(" ");
+    Serial1.print(result);
+    Serial1.print(" ");
+    Serial1.println("read LIVE-Dat Failed");
     return false;
   }
 
@@ -495,18 +487,18 @@ bool getEpData(int invNum)
     for (i = 0; i < STATISTICS_CNT; i++)
       stats.buf[i] = epnode.getResponseBuffer(i);
 
-          Serial.print(epnode.ku8MBSuccess);
-    Serial.print(" ");
-    Serial.print(result);
-    Serial.print(" ");
+          Serial1.print(epnode.ku8MBSuccess);
+    Serial1.print(" ");
+    Serial1.print(result);
+    Serial1.print(" ");
   }
   else
   {
-        Serial.print(epnode.ku8MBSuccess);
-    Serial.print(" ");
-    Serial.print(result);
-    Serial.print(" ");
-    Serial.println("read Statistical Data Failed");
+        Serial1.print(epnode.ku8MBSuccess);
+    Serial1.print(" ");
+    Serial1.print(result);
+    Serial1.print(" ");
+    Serial1.println("read Statistical Data Failed");
     return false;
   }
 
@@ -517,18 +509,18 @@ bool getEpData(int invNum)
   {
     batterySOC = epnode.getResponseBuffer(0);
 
-        Serial.print(epnode.ku8MBSuccess);
-    Serial.print(" ");
-    Serial.print(result);
-    Serial.print(" ");
+        Serial1.print(epnode.ku8MBSuccess);
+    Serial1.print(" ");
+    Serial1.print(result);
+    Serial1.print(" ");
   }
   else
   {
-        Serial.print(epnode.ku8MBSuccess);
-    Serial.print(" ");
-    Serial.print(result);
-    Serial.print(" ");
-    Serial.println("read Battery SOC Failed");
+        Serial1.print(epnode.ku8MBSuccess);
+    Serial1.print(" ");
+    Serial1.print(result);
+    Serial1.print(" ");
+    Serial1.println("read Battery SOC Failed");
     return false;
   }
 
@@ -540,18 +532,18 @@ bool getEpData(int invNum)
     batteryCurrent = epnode.getResponseBuffer(0);
     batteryCurrent |= epnode.getResponseBuffer(1) << 16;
 
-        Serial.print(epnode.ku8MBSuccess);
-    Serial.print(" ");
-    Serial.print(result);
-    Serial.print(" ");
+        Serial1.print(epnode.ku8MBSuccess);
+    Serial1.print(" ");
+    Serial1.print(result);
+    Serial1.print(" ");
   }
   else
   {
-        Serial.print(epnode.ku8MBSuccess);
-    Serial.print(" ");
-    Serial.print(result);
-    Serial.print(" ");
-    Serial.println("read Battery Net Current = Icharge - Iload Failed");
+        Serial1.print(epnode.ku8MBSuccess);
+    Serial1.print(" ");
+    Serial1.print(result);
+    Serial1.print(" ");
+    Serial1.println("read Battery Net Current = Icharge - Iload Failed");
     return false;
   }
 
@@ -562,18 +554,18 @@ bool getEpData(int invNum)
   {
     loadState = epnode.getResponseBuffer(0) ? true : false;
 
-        Serial.print(epnode.ku8MBSuccess);
-    Serial.print(" ");
-    Serial.print(result);
-    Serial.print(" ");
+        Serial1.print(epnode.ku8MBSuccess);
+    Serial1.print(" ");
+    Serial1.print(result);
+    Serial1.print(" ");
   }
   else
   {
-        Serial.print(epnode.ku8MBSuccess);
-    Serial.print(" ");
-    Serial.print(result);
-    Serial.print(" ");
-    Serial.println("read State of the Load Switch Failed");
+        Serial1.print(epnode.ku8MBSuccess);
+    Serial1.print(" ");
+    Serial1.print(result);
+    Serial1.print(" ");
+    Serial1.println("read State of the Load Switch Failed");
     return false;
   }
 
@@ -590,8 +582,8 @@ bool getEpData(int invNum)
 
     temp = epnode.getResponseBuffer(1);
 
-    // for(i=0; i<16; i++) Serial.print( (temp >> (15-i) ) & 1 );
-    // Serial.println();
+    // for(i=0; i<16; i++) Serial1.print( (temp >> (15-i) ) & 1 );
+    // Serial1.println();
 
     // charger_input     = ( temp & 0b0000000000000000 ) >> 15 ;
     charger_mode = (temp & 0b0000000000001100) >> 2;
@@ -599,18 +591,18 @@ bool getEpData(int invNum)
     // charger_operation = ( temp & 0b0000000000000000 ) >> 0 ;
 
 
-        Serial.print(epnode.ku8MBSuccess);
-    Serial.print(" ");
-    Serial.print(result);
-    Serial.print(" ");
+        Serial1.print(epnode.ku8MBSuccess);
+    Serial1.print(" ");
+    Serial1.print(result);
+    Serial1.print(" ");
   }
   else
   {
-        Serial.print(epnode.ku8MBSuccess);
-    Serial.print(" ");
-    Serial.print(result);
-    Serial.print(" ");
-    Serial.println("read Read Status Flags Failed");
+        Serial1.print(epnode.ku8MBSuccess);
+    Serial1.print(" ");
+    Serial1.print(result);
+    Serial1.print(" ");
+    Serial1.println("read Read Status Flags Failed");
     return false;
   }
 
@@ -621,18 +613,18 @@ bool getEpData(int invNum)
   {
     deviceTemperature = epnode.getResponseBuffer(0);
 
-        Serial.print(epnode.ku8MBSuccess);
-    Serial.print(" ");
-    Serial.print(result);
-    Serial.print(" ");
+        Serial1.print(epnode.ku8MBSuccess);
+    Serial1.print(" ");
+    Serial1.print(result);
+    Serial1.print(" ");
   }
   else
   {
-        Serial.print(epnode.ku8MBSuccess);
-    Serial.print(" ");
-    Serial.print(result);
-    Serial.print(" ");
-    Serial.println("read Device Temperature Failed");
+        Serial1.print(epnode.ku8MBSuccess);
+    Serial1.print(" ");
+    Serial1.print(result);
+    Serial1.print(" ");
+    Serial1.println("read Device Temperature Failed");
     return false;
   }
 
@@ -643,18 +635,18 @@ bool getEpData(int invNum)
   {
     batteryTemperature = epnode.getResponseBuffer(0);
 
-        Serial.print(epnode.ku8MBSuccess);
-    Serial.print(" ");
-    Serial.print(result);
-    Serial.print(" ");
+        Serial1.print(epnode.ku8MBSuccess);
+    Serial1.print(" ");
+    Serial1.print(result);
+    Serial1.print(" ");
   }
   else
   {
-    Serial.print(epnode.ku8MBSuccess);
-    Serial.print(" ");
-    Serial.print(result);
-    Serial.print(" ");
-    Serial.println("read Battery temperature Failed");
+    Serial1.print(epnode.ku8MBSuccess);
+    Serial1.print(" ");
+    Serial1.print(result);
+    Serial1.print(" ");
+    Serial1.println("read Battery temperature Failed");
     return false;
   }
   return true;

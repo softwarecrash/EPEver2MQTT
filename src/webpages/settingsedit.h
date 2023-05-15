@@ -1,4 +1,5 @@
 const char HTML_SETTINGS_EDIT[] PROGMEM = R"rawliteral(
+    %HEAD_TEMPLATE%
 <figure class="text-center"><h1>Edit Configuration</h1></figure>
 <form method="POST" action="/settingssave" enctype="multipart/form-data">
 <div class="input-group mb-3">
@@ -67,4 +68,5 @@ const char HTML_SETTINGS_EDIT[] PROGMEM = R"rawliteral(
         });
         });
 </script>
+%FOOT_TEMPLATE%
 )rawliteral";
