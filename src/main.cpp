@@ -51,6 +51,7 @@ JsonObject statsData = liveJson.createNestedObject("StatsData");
 //----------------------------------------------------------------------
 void saveConfigCallback()
 {
+  SERIAL_DEBUG.println(F("Should save config"));
   shouldSaveConfig = true;
 }
 
