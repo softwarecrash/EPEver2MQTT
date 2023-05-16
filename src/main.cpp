@@ -24,6 +24,7 @@
 #include "webpages/main.h"          // landing page with menu
 #include "webpages/settings.h"      // settings page
 #include "webpages/settingsedit.h"  // mqtt settings page
+#include "webpages/reboot.h"        // Reboot Page
 #include "webpages/htmlProzessor.h" // The html Prozessor
 
 String topic = "/"; // Default first part of topic. We will add device ID in setup
@@ -83,11 +84,9 @@ static void handle_update_progress_cb(AsyncWebServerRequest *request, String fil
     }
     else
     {
-
-      AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", "Please wait while the device is booting new Firmware");
-      response->addHeader("Refresh", "10; url=/");
-      response->addHeader("Connection", "close");
+      AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", HTML_REBOOT, htmlProcessor);
       request->send(response);
+      DEBUG_WEBLN(F("Update complete"));
       RestartTimer = millis();
       restartNow = true; // Set flag so main loop can issue restart call
     }
@@ -251,12 +250,11 @@ void setup()
 
     server.on("/reboot", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-                AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", "Please wait while the device reboots...");
-                response->addHeader("Refresh", "5; url=/");
-                response->addHeader("Connection", "close");
+                AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", HTML_REBOOT, htmlProcessor);
                 request->send(response);
-                RestartTimer = millis();
-                restartNow = true; });
+                restartNow = true;
+                RestartTimer = millis(); });
+
     server.on("/confirmreset", HTTP_GET, [](AsyncWebServerRequest *request)
               {
       AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", HTML_CONFIRM_RESET, htmlProcessor);
@@ -313,7 +311,8 @@ void setup()
                 if(request->arg("post_mqttjson") == "true") _settings._mqttJson = true;
                 if(request->arg("post_mqttjson") != "true") _settings._mqttJson = false;
                 DEBUG_WEB(_settings._mqttServer);
-                _settings.save(); });
+                _settings.save();
+                request->redirect("/reboot"); });
 
     server.on("/set", HTTP_GET, [](AsyncWebServerRequest *request)
               {
