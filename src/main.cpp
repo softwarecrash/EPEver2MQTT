@@ -796,7 +796,7 @@ bool sendtoMQTT(int invNum)
   else
   {
     char data[JSON_BUFFER];
-    size_t n = serializeJson(liveJson, data);
+    serializeJson(liveJson, data);
     mqttclient.setBufferSize(JSON_BUFFER + 100);
     mqttclient.publish((String(topic + "/" + mqttDeviceName + "/DATA")).c_str(), data);
   }
