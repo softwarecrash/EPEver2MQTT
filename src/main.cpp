@@ -203,8 +203,6 @@ void setup()
     _settings._deviceQuantity = atoi(custom_device_quantity.getValue()) <= 0 ? 1 : atoi(custom_device_quantity.getValue());
 
     _settings.save();
-    delay(500);
-    //_settings.load();
     ESP.restart();
   }
 
