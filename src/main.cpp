@@ -138,8 +138,9 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
   {
   case WS_EVT_CONNECT:
     wsClient = client;
-    if (getEpData(1))
-      getJsonData(1);
+    //if (getEpData(1))
+    getEpData(1);
+    getJsonData(1);
     notifyClients();
     DEBUG_WEBF("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
     break;
