@@ -6,11 +6,11 @@ String htmlProcessor(const String &var)
         return (HTML_HEAD);
     if (var == F("FOOT_TEMPLATE"))
         return (HTML_FOOT);
-/*    if (var == F("SOFTWARE_VERSION"))
+    if (var == F("SOFTWARE_VERSION"))
         return (SOFTWARE_VERSION);
     if (var == F("SWVERSION"))
         return (SWVERSION);
-    if (var == F("Flash_Size"))
+/*    if (var == F("Flash_Size"))
         return (String(FlashSize).c_str());
     if (var == F("ESP01"))
         return (String(ESP01).c_str());

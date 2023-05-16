@@ -12,6 +12,9 @@
 #define EPEVER_SERIAL Serial
 //#define SERIAL_DEBUG Serial1
 
+// DON'T edit version here, place version number in platformio.ini (custom_prog_version) !!!
+#define SOFTWARE_VERSION SWVERSION
+
 #define DEBUG_WEB(...) WebSerial.print(__VA_ARGS__)
 #define DEBUG_WEBLN(...) WebSerial.println(__VA_ARGS__)
 #define DEBUG_WEBF(...) WebSerial.printf(__VA_ARGS__)
