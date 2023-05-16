@@ -164,6 +164,7 @@ void setup()
 
   //  EPEVER_SERIAL.begin(EPEVER_BAUD, SWSERIAL_8N1, MYPORT_RX, MYPORT_TX, false, 256);
   EPEVER_SERIAL.begin(EPEVER_BAUD);
+  epnode.setResponseTimeout(100);
   epnode.begin(1, EPEVER_SERIAL);
   epnode.preTransmission(preTransmission);
   epnode.postTransmission(postTransmission);
