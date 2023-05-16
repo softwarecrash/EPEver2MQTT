@@ -442,7 +442,7 @@ bool getEpData(int invNum)
     SERIAL_DEBUG.println("Read registers for clock Failed");
     return false;
   }
-  yield();
+  //yield();
   // read LIVE-Data
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(LIVE_DATA, LIVE_DATA_CNT);
@@ -466,7 +466,7 @@ bool getEpData(int invNum)
     SERIAL_DEBUG.println("read LIVE-Dat Failed");
     return false;
   }
-  yield();
+  //yield();
   // Statistical Data
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(STATISTICS, STATISTICS_CNT);
@@ -489,7 +489,7 @@ bool getEpData(int invNum)
     SERIAL_DEBUG.println("read Statistical Data Failed");
     return false;
   }
-  yield();
+  //yield();
   // Battery SOC
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(BATTERY_SOC, 1);
@@ -511,7 +511,7 @@ bool getEpData(int invNum)
     SERIAL_DEBUG.println("read Battery SOC Failed");
     return false;
   }
-  yield();
+  //yield();
   // Battery Net Current = Icharge - Iload
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(BATTERY_CURRENT_L, 2);
@@ -534,7 +534,7 @@ bool getEpData(int invNum)
     SERIAL_DEBUG.println("read Battery Net Current = Icharge - Iload Failed");
     return false;
   }
-  yield();
+  //yield();
   // State of the Load Switch
   epnode.clearResponseBuffer();
   result = epnode.readCoils(LOAD_STATE, 1);
@@ -556,7 +556,7 @@ bool getEpData(int invNum)
     SERIAL_DEBUG.println("read State of the Load Switch Failed");
     return false;
   }
-  yield();
+  //yield();
   // Read Status Flags
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(0x3200, 2);
@@ -592,7 +592,7 @@ bool getEpData(int invNum)
     SERIAL_DEBUG.println("read Read Status Flags Failed");
     return false;
   }
-  yield();
+  //yield();
   // Device Temperature
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(DEVICE_TEMPERATURE, 1);
@@ -614,7 +614,7 @@ bool getEpData(int invNum)
     SERIAL_DEBUG.println("read Device Temperature Failed");
     return false;
   }
-  yield();
+  //yield();
   // Battery temperature
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(BATTERY_TEMPERATURE, 1);
