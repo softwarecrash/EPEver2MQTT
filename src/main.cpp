@@ -33,6 +33,7 @@ bool restartNow = false;
 bool updateProgress = false;
 unsigned long mqtttimer = 0;
 unsigned long getDataTimer = 0;
+unsigned long RestartTimer = 0;
 byte wsReqInvNum = 1;
 char mqtt_server[80];
 
@@ -85,6 +86,7 @@ static void handle_update_progress_cb(AsyncWebServerRequest *request, String fil
       response->addHeader("Refresh", "10; url=/");
       response->addHeader("Connection", "close");
       request->send(response);
+      RestartTimer = millis();
       restartNow = true; // Set flag so main loop can issue restart call
     }
   }
@@ -237,6 +239,7 @@ void setup()
                 response->addHeader("Refresh", "5; url=/");
                 response->addHeader("Connection", "close");
                 request->send(response);
+                RestartTimer = millis();
                 restartNow = true; });
     server.on("/confirmreset", HTTP_GET, [](AsyncWebServerRequest *request)
               {
@@ -249,7 +252,7 @@ void setup()
                 response->addHeader("Refresh", "15; url=/");
                 response->addHeader("Connection", "close");
                 request->send(response);
-                delay(1000);
+                delay(500);
                 _settings.reset();
                 ESP.eraseConfig();
                 ESP.restart(); });
@@ -392,16 +395,10 @@ void loop()
       }
       mqtttimer = millis();
     }
-
-    if (wsClient == nullptr) // if no ws client connected slow down the cpu cycle
-    {
-      //  delay(2);
-    }
   }
 
-  if (restartNow)
+  if (restartNow && millis() >= (RestartTimer + 500))
   {
-    delay(1000);
     SERIAL_DEBUG.println("Restart");
     ESP.restart();
   }
