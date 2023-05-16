@@ -16,6 +16,7 @@
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <UnixTime.h>
+#include <WebSerialLite.h>
 
 #include "Settings.h" //settings functions
 
@@ -36,6 +37,7 @@ unsigned long getDataTimer = 0;
 unsigned long RestartTimer = 0;
 byte wsReqInvNum = 1;
 char mqtt_server[80];
+int errorcode;
 
 WiFiClient client;
 Settings _settings;
@@ -52,7 +54,7 @@ JsonObject statsData = liveJson.createNestedObject("StatsData");
 //----------------------------------------------------------------------
 void saveConfigCallback()
 {
-  SERIAL_DEBUG.println(F("Should save config"));
+  DEBUG_WEBLN(F("Should save config"));
   shouldSaveConfig = true;
 }
 
@@ -139,10 +141,10 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
     if (getEpData(1))
       getJsonData(1);
     notifyClients();
-    SERIAL_DEBUG.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
+    DEBUG_WEBF("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
     break;
   case WS_EVT_DISCONNECT:
-    SERIAL_DEBUG.printf("WebSocket client #%u disconnected\n", client->id());
+    DEBUG_WEBF("WebSocket client #%u disconnected\n", client->id());
     wsClient = nullptr;
     break;
   case WS_EVT_DATA:
@@ -154,9 +156,20 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
   }
 }
 
+/* Message callback of WebSerial */
+void recvMsg(uint8_t *data, size_t len)
+{
+  WebSerial.println("Received Data...");
+  String d = "";
+  for (uint i = 0; i < len; i++)
+  {
+    d += char(data[i]);
+  }
+  WebSerial.println(d);
+}
+
 void setup()
 {
-  SERIAL_DEBUG.begin(115200);
   pinMode(EPEVER_DE_RE, OUTPUT);
   _settings.load();
   WiFi.persistent(true);              // fix wifi save bug
@@ -298,7 +311,7 @@ void setup()
                 _settings._deviceQuantity = request->arg("post_deviceQuanttity").toInt() <= 0 ? 1 : request->arg("post_deviceQuanttity").toInt();
                 if(request->arg("post_mqttjson") == "true") _settings._mqttJson = true;
                 if(request->arg("post_mqttjson") != "true") _settings._mqttJson = false;
-                SERIAL_DEBUG.print(_settings._mqttServer);
+                DEBUG_WEB(_settings._mqttServer);
                 _settings.save(); });
 
     server.on("/set", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -352,6 +365,12 @@ void setup()
 
     ws.onEvent(onEvent);
     server.addHandler(&ws);
+
+    // WebSerial is accessible at "<IP Address>/webserial" in browser
+    WebSerial.begin(&server);
+    /* Attach Message Callback */
+    WebSerial.onMessage(recvMsg);
+
     server.begin();
     MDNS.addService("http", "tcp", 80);
   }
@@ -401,7 +420,7 @@ void loop()
 
   if (restartNow && millis() >= (RestartTimer + 500))
   {
-    SERIAL_DEBUG.println("Restart");
+    DEBUG_WEBLN("Restart");
     ESP.restart();
   }
 }
@@ -409,7 +428,7 @@ void loop()
 
 bool getEpData(int invNum)
 {
-
+  errorcode = 0;
   epnode.setSlaveId(invNum);
 
   // clear buffers
@@ -430,18 +449,15 @@ bool getEpData(int invNum)
     rtc.buf[2] = epnode.getResponseBuffer(2);
     uTime.setDateTime((2000 + rtc.r.y), rtc.r.M, rtc.r.d, (rtc.r.h + 1), rtc.r.m, rtc.r.s);
 
-    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.print(result);
-    SERIAL_DEBUG.print(" ");
+    errorcode = result;
   }
   else
   {
-    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.print(result);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.println("Read registers for clock Failed");
+    DEBUG_WEB(epnode.ku8MBSuccess);
+    DEBUG_WEB(" ");
+    DEBUG_WEB(result);
+    DEBUG_WEBLN(" Read registers for clock Failed");
+    errorcode = result;
     return false;
   }
   //yield();
@@ -454,18 +470,15 @@ bool getEpData(int invNum)
     for (i = 0; i < LIVE_DATA_CNT; i++)
       live.buf[i] = epnode.getResponseBuffer(i);
 
-    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.print(result);
-    SERIAL_DEBUG.print(" ");
+    errorcode = errorcode + result;
   }
   else
   {
-    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.print(result);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.println("read LIVE-Dat Failed");
+    DEBUG_WEB(epnode.ku8MBSuccess);
+    DEBUG_WEB(" ");
+    DEBUG_WEB(result);
+    DEBUG_WEBLN(" Read LIVE-Dat Failed");
+    errorcode = errorcode + result;
     return false;
   }
   //yield();
@@ -477,18 +490,15 @@ bool getEpData(int invNum)
     for (i = 0; i < STATISTICS_CNT; i++)
       stats.buf[i] = epnode.getResponseBuffer(i);
 
-    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.print(result);
-    SERIAL_DEBUG.print(" ");
+    errorcode = errorcode + result;
   }
   else
   {
-    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.print(result);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.println("read Statistical Data Failed");
+    DEBUG_WEB(epnode.ku8MBSuccess);
+    DEBUG_WEB(" ");
+    DEBUG_WEB(result);
+    DEBUG_WEBLN(" Read Statistical Data Failed");
+    errorcode = errorcode + result;
     return false;
   }
   //yield();
@@ -499,18 +509,15 @@ bool getEpData(int invNum)
   {
     batterySOC = epnode.getResponseBuffer(0);
 
-    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.print(result);
-    SERIAL_DEBUG.print(" ");
+    errorcode = errorcode + result;
   }
   else
   {
-    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.print(result);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.println("read Battery SOC Failed");
+    DEBUG_WEB(epnode.ku8MBSuccess);
+    DEBUG_WEB(" ");
+    DEBUG_WEB(result);
+    DEBUG_WEBLN(" Read Battery SOC Failed");
+    errorcode = errorcode + result;
     return false;
   }
   //yield();
@@ -522,18 +529,15 @@ bool getEpData(int invNum)
     batteryCurrent = epnode.getResponseBuffer(0);
     batteryCurrent |= epnode.getResponseBuffer(1) << 16;
 
-    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.print(result);
-    SERIAL_DEBUG.print(" ");
+    errorcode = errorcode + result;
   }
   else
   {
-    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.print(result);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.println("read Battery Net Current = Icharge - Iload Failed");
+    DEBUG_WEB(epnode.ku8MBSuccess);
+    DEBUG_WEB(" ");
+    DEBUG_WEB(result);
+    DEBUG_WEBLN(" Read Battery Net Current = Icharge - Iload Failed");
+    errorcode = errorcode + result;
     return false;
   }
   //yield();
@@ -544,18 +548,15 @@ bool getEpData(int invNum)
   {
     loadState = epnode.getResponseBuffer(0) ? true : false;
 
-    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.print(result);
-    SERIAL_DEBUG.print(" ");
+    errorcode = errorcode + result;
   }
   else
   {
-    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.print(result);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.println("read State of the Load Switch Failed");
+    DEBUG_WEB(epnode.ku8MBSuccess);
+    DEBUG_WEB(" ");
+    DEBUG_WEB(result);
+    DEBUG_WEBLN(" Read State of the Load Switch Failed");
+    errorcode = errorcode + result;
     return false;
   }
   //yield();
@@ -572,26 +573,23 @@ bool getEpData(int invNum)
 
     temp = epnode.getResponseBuffer(1);
 
-    // for(i=0; i<16; i++) SERIAL_DEBUG.print( (temp >> (15-i) ) & 1 );
-    // SERIAL_DEBUG.println();
+    // for(i=0; i<16; i++) DEBUG_WEB( (temp >> (15-i) ) & 1 );
+    // DEBUG_WEBLN();
 
     // charger_input     = ( temp & 0b0000000000000000 ) >> 15 ;
     charger_mode = (temp & 0b0000000000001100) >> 2;
     // charger_input     = ( temp & 0b0000000000000000 ) >> 12 ;
     // charger_operation = ( temp & 0b0000000000000000 ) >> 0 ;
 
-    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.print(result);
-    SERIAL_DEBUG.print(" ");
+    errorcode = errorcode + result;
   }
   else
   {
-    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.print(result);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.println("read Read Status Flags Failed");
+    DEBUG_WEB(epnode.ku8MBSuccess);
+    DEBUG_WEB(" ");
+    DEBUG_WEB(result);
+    DEBUG_WEBLN(" Read Read Status Flags Failed");
+    errorcode = errorcode + result;
     return false;
   }
   //yield();
@@ -602,18 +600,15 @@ bool getEpData(int invNum)
   {
     deviceTemperature = epnode.getResponseBuffer(0);
 
-    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.print(result);
-    SERIAL_DEBUG.print(" ");
+    errorcode = errorcode + result;
   }
   else
   {
-    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.print(result);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.println("read Device Temperature Failed");
+    DEBUG_WEB(epnode.ku8MBSuccess);
+    DEBUG_WEB(" ");
+    DEBUG_WEB(result);
+    DEBUG_WEBLN(" Read Device Temperature Failed");
+    errorcode = errorcode + result;
     return false;
   }
   //yield();
@@ -624,19 +619,20 @@ bool getEpData(int invNum)
   {
     batteryTemperature = epnode.getResponseBuffer(0);
 
-    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.print(result);
-    SERIAL_DEBUG.print(" ");
+    errorcode = errorcode + result;
   }
   else
   {
-    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.print(result);
-    SERIAL_DEBUG.print(" ");
-    SERIAL_DEBUG.println("read Battery temperature Failed");
+    DEBUG_WEB(epnode.ku8MBSuccess);
+    DEBUG_WEB(" ");
+    DEBUG_WEB(result);
+    DEBUG_WEBLN(" Read Battery temperature Failed");
+    errorcode = errorcode + result;
     return false;
+  }
+  if (errorcode == 0)
+  {
+    DEBUG_WEBLN("Transmission OK.");
   }
   return true;
 }

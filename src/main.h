@@ -10,7 +10,11 @@
 #define MQTT_BUFFER 512
 
 #define EPEVER_SERIAL Serial
-#define SERIAL_DEBUG Serial1
+//#define SERIAL_DEBUG Serial1
+
+#define DEBUG_WEB(...) WebSerial.print(__VA_ARGS__)
+#define DEBUG_WEBLN(...) WebSerial.println(__VA_ARGS__)
+#define DEBUG_WEBF(...) WebSerial.printf(__VA_ARGS__)
 
 bool getEpData(int invNum);
 
