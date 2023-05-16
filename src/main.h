@@ -6,6 +6,12 @@
 #define EPEVER_BAUD 115200   // baud rate for modbus
 #define EPEVER_DE_RE 5       // connect DE and Re to pin D1
 
+#define JSON_BUFFER 2048
+#define MQTT_BUFFER 512
+
+#define EPEVER_SERIAL Serial
+#define SERIAL_DEBUG Serial1
+
 bool getEpData(int invNum);
 
 bool getJsonData(int invNum);

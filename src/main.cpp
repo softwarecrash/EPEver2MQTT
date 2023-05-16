@@ -16,14 +16,13 @@
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <UnixTime.h>
-//#include "SoftwareSerial.h"
 
 #include "Settings.h" //settings functions
 
-#include "webpages/htmlCase.h"     // The HTML Konstructor
-#include "webpages/main.h"         // landing page with menu
-#include "webpages/settings.h"     // settings page
-#include "webpages/settingsedit.h" // mqtt settings page
+#include "webpages/htmlCase.h"      // The HTML Konstructor
+#include "webpages/main.h"          // landing page with menu
+#include "webpages/settings.h"      // settings page
+#include "webpages/settingsedit.h"  // mqtt settings page
 #include "webpages/htmlProzessor.h" // The html Prozessor
 
 String topic = "/"; // Default first part of topic. We will add device ID in setup
@@ -34,13 +33,8 @@ bool restartNow = false;
 bool updateProgress = false;
 unsigned long mqtttimer = 0;
 unsigned long getDataTimer = 0;
-int mqttBufferSize = 1024;
 byte wsReqInvNum = 1;
-char jsonSerial[1024]; // buffer for serializon
-char mqtt_server[40];
-
-//SoftwareSerial EPEVER_SERIAL;
-#define EPEVER_SERIAL Serial
+char mqtt_server[80];
 
 WiFiClient client;
 Settings _settings;
@@ -51,7 +45,7 @@ AsyncWebSocketClient *wsClient;
 DNSServer dns;
 ModbusMaster epnode; // instantiate ModbusMaster object
 UnixTime uTime(3);
-DynamicJsonDocument liveJson(mqttBufferSize);
+StaticJsonDocument<JSON_BUFFER> liveJson;
 JsonObject liveData = liveJson.createNestedObject("LiveData");
 JsonObject statsData = liveJson.createNestedObject("StatsData");
 //----------------------------------------------------------------------
@@ -107,8 +101,9 @@ void postTransmission()
 
 void notifyClients()
 {
-  serializeJson(liveJson, jsonSerial);
-  wsClient->text(jsonSerial);
+  char data[JSON_BUFFER];
+  size_t len = serializeJson(liveJson, data);
+  wsClient->text(data, len);
 }
 
 void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
@@ -141,10 +136,10 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
     if (getEpData(1))
       getJsonData(1);
     notifyClients();
-    // Serial1.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
+    SERIAL_DEBUG.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
     break;
   case WS_EVT_DISCONNECT:
-    //  Serial1.printf("WebSocket client #%u disconnected\n", client->id());
+    SERIAL_DEBUG.printf("WebSocket client #%u disconnected\n", client->id());
     break;
   case WS_EVT_DATA:
     handleWebSocketMessage(arg, data, len);
@@ -157,13 +152,13 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
 
 void setup()
 {
-  Serial1.begin(115200);
+  SERIAL_DEBUG.begin(115200);
   pinMode(EPEVER_DE_RE, OUTPUT);
   _settings.load();
   WiFi.persistent(true);              // fix wifi save bug
   AsyncWiFiManager wm(&server, &dns); // create wifimanager instance
 
-//  EPEVER_SERIAL.begin(EPEVER_BAUD, SWSERIAL_8N1, MYPORT_RX, MYPORT_TX, false, 256);
+  //  EPEVER_SERIAL.begin(EPEVER_BAUD, SWSERIAL_8N1, MYPORT_RX, MYPORT_TX, false, 256);
   EPEVER_SERIAL.begin(EPEVER_BAUD);
   epnode.begin(1, EPEVER_SERIAL);
   epnode.preTransmission(preTransmission);
@@ -215,7 +210,7 @@ void setup()
   topic = _settings._mqttTopic;
   mqttclient.setServer(_settings._mqttServer.c_str(), _settings._mqttPort);
   mqttclient.setCallback(callback);
-  mqttclient.setBufferSize(mqttBufferSize);
+  mqttclient.setBufferSize(MQTT_BUFFER);
   // check is WiFi connected
 
   if (res)
@@ -273,7 +268,7 @@ void setup()
     server.on("/settingsjson", HTTP_GET, [](AsyncWebServerRequest *request)
               {
                 AsyncResponseStream *response = request->beginResponseStream("application/json");
-                DynamicJsonDocument SettingsJson(256);
+                StaticJsonDocument <256> SettingsJson;
                 SettingsJson["device_name"] = _settings._deviceName;
                 SettingsJson["device_quantity"] = _settings._deviceQuantity;
                 SettingsJson["mqtt_server"] = _settings._mqttServer;
@@ -299,7 +294,7 @@ void setup()
                 _settings._deviceQuantity = request->arg("post_deviceQuanttity").toInt() <= 0 ? 1 : request->arg("post_deviceQuanttity").toInt();
                 if(request->arg("post_mqttjson") == "true") _settings._mqttJson = true;
                 if(request->arg("post_mqttjson") != "true") _settings._mqttJson = false;
-                Serial1.print(_settings._mqttServer);
+                SERIAL_DEBUG.print(_settings._mqttServer);
                 _settings.save(); });
 
     server.on("/set", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -408,11 +403,9 @@ void loop()
   if (restartNow)
   {
     delay(1000);
-    Serial1.println("Restart");
+    SERIAL_DEBUG.println("Restart");
     ESP.restart();
   }
-
-
 }
 // End void loop
 
@@ -429,7 +422,6 @@ bool getEpData(int invNum)
   batterySOC = 0;
   uTime.setDateTime(0, 0, 0, 0, 0, 0);
 
-
   // Read registers for clock
   epnode.clearResponseBuffer();
   result = epnode.readHoldingRegisters(RTC_CLOCK, RTC_CLOCK_CNT);
@@ -440,21 +432,21 @@ bool getEpData(int invNum)
     rtc.buf[2] = epnode.getResponseBuffer(2);
     uTime.setDateTime((2000 + rtc.r.y), rtc.r.M, rtc.r.d, (rtc.r.h + 1), rtc.r.m, rtc.r.s);
 
-        Serial1.print(epnode.ku8MBSuccess);
-    Serial1.print(" ");
-    Serial1.print(result);
-    Serial1.print(" ");
+    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.print(result);
+    SERIAL_DEBUG.print(" ");
   }
   else
   {
-    Serial1.print(epnode.ku8MBSuccess);
-    Serial1.print(" ");
-    Serial1.print(result);
-    Serial1.print(" ");
-    Serial1.println("Read registers for clock Failed");
+    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.print(result);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.println("Read registers for clock Failed");
     return false;
   }
-
+  yield();
   // read LIVE-Data
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(LIVE_DATA, LIVE_DATA_CNT);
@@ -464,21 +456,21 @@ bool getEpData(int invNum)
     for (i = 0; i < LIVE_DATA_CNT; i++)
       live.buf[i] = epnode.getResponseBuffer(i);
 
-          Serial1.print(epnode.ku8MBSuccess);
-    Serial1.print(" ");
-    Serial1.print(result);
-    Serial1.print(" ");
+    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.print(result);
+    SERIAL_DEBUG.print(" ");
   }
   else
   {
-        Serial1.print(epnode.ku8MBSuccess);
-    Serial1.print(" ");
-    Serial1.print(result);
-    Serial1.print(" ");
-    Serial1.println("read LIVE-Dat Failed");
+    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.print(result);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.println("read LIVE-Dat Failed");
     return false;
   }
-
+  yield();
   // Statistical Data
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(STATISTICS, STATISTICS_CNT);
@@ -487,21 +479,21 @@ bool getEpData(int invNum)
     for (i = 0; i < STATISTICS_CNT; i++)
       stats.buf[i] = epnode.getResponseBuffer(i);
 
-          Serial1.print(epnode.ku8MBSuccess);
-    Serial1.print(" ");
-    Serial1.print(result);
-    Serial1.print(" ");
+    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.print(result);
+    SERIAL_DEBUG.print(" ");
   }
   else
   {
-        Serial1.print(epnode.ku8MBSuccess);
-    Serial1.print(" ");
-    Serial1.print(result);
-    Serial1.print(" ");
-    Serial1.println("read Statistical Data Failed");
+    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.print(result);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.println("read Statistical Data Failed");
     return false;
   }
-
+  yield();
   // Battery SOC
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(BATTERY_SOC, 1);
@@ -509,21 +501,21 @@ bool getEpData(int invNum)
   {
     batterySOC = epnode.getResponseBuffer(0);
 
-        Serial1.print(epnode.ku8MBSuccess);
-    Serial1.print(" ");
-    Serial1.print(result);
-    Serial1.print(" ");
+    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.print(result);
+    SERIAL_DEBUG.print(" ");
   }
   else
   {
-        Serial1.print(epnode.ku8MBSuccess);
-    Serial1.print(" ");
-    Serial1.print(result);
-    Serial1.print(" ");
-    Serial1.println("read Battery SOC Failed");
+    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.print(result);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.println("read Battery SOC Failed");
     return false;
   }
-
+  yield();
   // Battery Net Current = Icharge - Iload
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(BATTERY_CURRENT_L, 2);
@@ -532,21 +524,21 @@ bool getEpData(int invNum)
     batteryCurrent = epnode.getResponseBuffer(0);
     batteryCurrent |= epnode.getResponseBuffer(1) << 16;
 
-        Serial1.print(epnode.ku8MBSuccess);
-    Serial1.print(" ");
-    Serial1.print(result);
-    Serial1.print(" ");
+    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.print(result);
+    SERIAL_DEBUG.print(" ");
   }
   else
   {
-        Serial1.print(epnode.ku8MBSuccess);
-    Serial1.print(" ");
-    Serial1.print(result);
-    Serial1.print(" ");
-    Serial1.println("read Battery Net Current = Icharge - Iload Failed");
+    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.print(result);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.println("read Battery Net Current = Icharge - Iload Failed");
     return false;
   }
-
+  yield();
   // State of the Load Switch
   epnode.clearResponseBuffer();
   result = epnode.readCoils(LOAD_STATE, 1);
@@ -554,21 +546,21 @@ bool getEpData(int invNum)
   {
     loadState = epnode.getResponseBuffer(0) ? true : false;
 
-        Serial1.print(epnode.ku8MBSuccess);
-    Serial1.print(" ");
-    Serial1.print(result);
-    Serial1.print(" ");
+    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.print(result);
+    SERIAL_DEBUG.print(" ");
   }
   else
   {
-        Serial1.print(epnode.ku8MBSuccess);
-    Serial1.print(" ");
-    Serial1.print(result);
-    Serial1.print(" ");
-    Serial1.println("read State of the Load Switch Failed");
+    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.print(result);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.println("read State of the Load Switch Failed");
     return false;
   }
-
+  yield();
   // Read Status Flags
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(0x3200, 2);
@@ -582,30 +574,29 @@ bool getEpData(int invNum)
 
     temp = epnode.getResponseBuffer(1);
 
-    // for(i=0; i<16; i++) Serial1.print( (temp >> (15-i) ) & 1 );
-    // Serial1.println();
+    // for(i=0; i<16; i++) SERIAL_DEBUG.print( (temp >> (15-i) ) & 1 );
+    // SERIAL_DEBUG.println();
 
     // charger_input     = ( temp & 0b0000000000000000 ) >> 15 ;
     charger_mode = (temp & 0b0000000000001100) >> 2;
     // charger_input     = ( temp & 0b0000000000000000 ) >> 12 ;
     // charger_operation = ( temp & 0b0000000000000000 ) >> 0 ;
 
-
-        Serial1.print(epnode.ku8MBSuccess);
-    Serial1.print(" ");
-    Serial1.print(result);
-    Serial1.print(" ");
+    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.print(result);
+    SERIAL_DEBUG.print(" ");
   }
   else
   {
-        Serial1.print(epnode.ku8MBSuccess);
-    Serial1.print(" ");
-    Serial1.print(result);
-    Serial1.print(" ");
-    Serial1.println("read Read Status Flags Failed");
+    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.print(result);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.println("read Read Status Flags Failed");
     return false;
   }
-
+  yield();
   // Device Temperature
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(DEVICE_TEMPERATURE, 1);
@@ -613,21 +604,21 @@ bool getEpData(int invNum)
   {
     deviceTemperature = epnode.getResponseBuffer(0);
 
-        Serial1.print(epnode.ku8MBSuccess);
-    Serial1.print(" ");
-    Serial1.print(result);
-    Serial1.print(" ");
+    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.print(result);
+    SERIAL_DEBUG.print(" ");
   }
   else
   {
-        Serial1.print(epnode.ku8MBSuccess);
-    Serial1.print(" ");
-    Serial1.print(result);
-    Serial1.print(" ");
-    Serial1.println("read Device Temperature Failed");
+    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.print(result);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.println("read Device Temperature Failed");
     return false;
   }
-
+  yield();
   // Battery temperature
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(BATTERY_TEMPERATURE, 1);
@@ -635,18 +626,18 @@ bool getEpData(int invNum)
   {
     batteryTemperature = epnode.getResponseBuffer(0);
 
-        Serial1.print(epnode.ku8MBSuccess);
-    Serial1.print(" ");
-    Serial1.print(result);
-    Serial1.print(" ");
+    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.print(result);
+    SERIAL_DEBUG.print(" ");
   }
   else
   {
-    Serial1.print(epnode.ku8MBSuccess);
-    Serial1.print(" ");
-    Serial1.print(result);
-    Serial1.print(" ");
-    Serial1.println("read Battery temperature Failed");
+    SERIAL_DEBUG.print(epnode.ku8MBSuccess);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.print(result);
+    SERIAL_DEBUG.print(" ");
+    SERIAL_DEBUG.println("read Battery temperature Failed");
     return false;
   }
   return true;
@@ -654,11 +645,6 @@ bool getEpData(int invNum)
 
 bool getJsonData(int invNum)
 {
-  // prevent buffer leak
-  if ((int)liveJson.memoryUsage() >= (mqttBufferSize - 8))
-  {
-    liveJson.garbageCollect();
-  }
   if ((size_t)_settings._deviceQuantity > 1)
   {
     liveJson["DEVICE_NAME"] = _settings._deviceName + "_" + (invNum);
@@ -810,49 +796,13 @@ bool sendtoMQTT(int invNum)
     mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/GEN_ENERGY_YEAR").c_str(), String(stats.s.genEnerYear / 100.f).c_str());
     mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/GEN_ENERGY_TOT").c_str(), String(stats.s.genEnerTotal / 100.f).c_str());
     mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/CO2_REDUCTION").c_str(), String(stats.s.c02Reduction / 100.f).c_str());
-
-    /*
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/DEVICE_TIME").c_str(), liveJson["DEVICE_TIME"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/LOAD_STATE").c_str(), liveJson["LOAD_STATE"] ? "true" : "false");
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/BATT_VOLT_STATUS").c_str(), liveJson["BATT_VOLT_STATUS"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/BATT_TEMP").c_str(), liveJson["BATT_TEMP"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/CHARGER_INPUT_STATUS").c_str(), liveJson["CHARGER_INPUT_STATUS"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/CHARGER_MODE").c_str(), liveJson["CHARGER_MODE"]);
-
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/SOLAR_VOLTS").c_str(), liveData["SOLAR_VOLTS"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/SOLAR_AMPS").c_str(), liveData["SOLAR_AMPS"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/SOLAR_WATTS").c_str(), liveData["SOLAR_WATTS"]);
-
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/BATT_VOLTS").c_str(), liveData["BATT_VOLTS"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/BATT_AMPS").c_str(), liveData["BATT_AMPS"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/BATT_WATTS").c_str(), liveData["BATT_WATTS"]);
-
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/LOAD_VOLTS").c_str(), liveData["LOAD_VOLTS"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/LOAD_AMPS").c_str(), liveData["LOAD_AMPS"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/LOAD_WATTS").c_str(), liveData["LOAD_WATTS"]);
-
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/BATTERY_SOC").c_str(), liveData["BATTERY_SOC"]);
-
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/SOLAR_MAX").c_str(), statsData["SOLAR_MAX"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/SOLAR_MIN").c_str(), statsData["SOLAR_MIN"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/BATT_MAX").c_str(), statsData["BATT_MAX"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/BATT_MIN").c_str(), statsData["BATT_MIN"]);
-
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/CONS_ENERGY_DAY").c_str(), statsData["CONS_ENERGY_DAY"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/CONS_ENGERY_MON").c_str(), statsData["CONS_ENGERY_MON"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/CONS_ENGERY_YEAR").c_str(), statsData["CONS_ENGERY_YEAR"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/CONS_ENGERY_TOT").c_str(), statsData["CONS_ENGERY_TOT"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/GEN_ENERGY_DAY").c_str(), statsData["GEN_ENERGY_DAY"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/GEN_ENERGY_MON").c_str(), statsData["GEN_ENERGY_MON"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/GEN_ENERGY_YEAR").c_str(), statsData["GEN_ENERGY_YEAR"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/GEN_ENERGY_TOT").c_str(), statsData["GEN_ENERGY_TOT"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/CO2_REDUCTION").c_str(), statsData["CO2_REDUCTION"]);
-    */
   }
   else
   {
-    size_t n = serializeJson(liveJson, jsonSerial);
-    mqttclient.publish((String(topic + "/" + mqttDeviceName + "/DATA")).c_str(), jsonSerial, n);
+    char data[JSON_BUFFER];
+    size_t n = serializeJson(liveJson, data);
+    mqttclient.setBufferSize(JSON_BUFFER + 100);
+    mqttclient.publish((String(topic + "/" + mqttDeviceName + "/DATA")).c_str(), data);
   }
 
   return true;
