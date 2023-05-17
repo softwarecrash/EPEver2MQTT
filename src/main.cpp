@@ -281,7 +281,7 @@ void setup()
       AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", HTML_SETTINGS_EDIT, htmlProcessor);
       request->send(response); });
 
-    server.on("/settingsjson", HTTP_GET, [](AsyncWebServerRequest *request)
+/*    server.on("/settingsjson", HTTP_GET, [](AsyncWebServerRequest *request)
               {
                 AsyncResponseStream *response = request->beginResponseStream("application/json");
                 StaticJsonDocument <256> SettingsJson;
@@ -296,10 +296,10 @@ void setup()
                 SettingsJson["mqtt_json"] = _settings._mqttJson?true:false;
                 serializeJson(SettingsJson, *response);
                 request->send(response); });
-
+*/
     server.on("/settingssave", HTTP_POST, [](AsyncWebServerRequest *request)
               {
-                request->redirect("/reboot");
+//                request->redirect("/reboot");
                 _settings._mqttServer = request->arg("post_mqttServer");
                 _settings._mqttPort = request->arg("post_mqttPort").toInt();
                 _settings._mqttUser = request->arg("post_mqttUser");
@@ -308,9 +308,9 @@ void setup()
                 _settings._mqttRefresh = request->arg("post_mqttRefresh").toInt();
                 _settings._deviceName = request->arg("post_deviceName");
                 _settings._deviceQuantity = request->arg("post_deviceQuanttity").toInt() <= 0 ? 1 : request->arg("post_deviceQuanttity").toInt();
-                if(request->arg("post_mqttjson") == "true") _settings._mqttJson = true;
-                if(request->arg("post_mqttjson") != "true") _settings._mqttJson = false;
-                DEBUG_WEB(_settings._mqttServer);
+                _settings._mqttJson = (request->arg("post_mqttjson") == "true") ? true : false;
+//                if(request->arg("post_mqttjson") == "true") _settings._mqttJson = true;
+//                if(request->arg("post_mqttjson") != "true") _settings._mqttJson = false;
                 _settings.save();
                 request->redirect("/reboot"); });
 

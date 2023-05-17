@@ -20,6 +20,8 @@ String htmlProcessor(const String &var)
         return (String(RELAIS_PIN).c_str());
 */    if (var == F("DEVICE_NAME"))
         return (_settings._deviceName);
+    if (var == ("DEVICE_QUANTITY"))
+        return (String(_settings._deviceQuantity).c_str());
     if (var == F("MQTT_SERVER"))
         return (_settings._mqttServer);
     if (var == F("MQTT_PORT"))
