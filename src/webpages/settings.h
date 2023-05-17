@@ -22,6 +22,7 @@ const char HTML_SETTINGS[] PROGMEM = R"rawliteral(
 <a class="btn btn-primary" onclick='SendDateString();' role="button">Set device time from computer</a>
 <a class="btn btn-warning" href="/reboot" role="button">Reboot</a>
 <a class="btn btn-primary" href="/confirmreset" role="button">Reset ESP</a>
+<a class="btn btn-primary" href="/webserial" role="button" target="_blank">WebSerial</a>
 <a class="btn btn-primary" href="/" role="button">Back</a>
 </div>
 
