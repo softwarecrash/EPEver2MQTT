@@ -354,10 +354,10 @@ void setup()
     server.on(
         "/update", HTTP_POST, [](AsyncWebServerRequest *request)
         {
-          updateProgress = true;
-          delay(500);
-          request->send(200);
-          request->redirect("/"); },
+      Serial.end();
+      updateProgress = true;
+      ws.enable(false);
+      ws.closeAll(); },
         handle_update_progress_cb);
 
     server.onNotFound([](AsyncWebServerRequest *request)
