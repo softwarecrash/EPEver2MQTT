@@ -1,14 +1,15 @@
-# EPEver2MQTT
+# EPEver2MQTT  [![GitHub release](https://img.shields.io/github/release/softwarecrash/EPEver2MQTT?include_prereleases=&sort=semver&color=blue)](https://github.com/softwarecrash/EPEver2MQTT/releases/latest)
 ESP82XX to MQTT based connector for EPEver Solar tracker, support multiple trackers
 
-# Feauteres:
+# Features:
 - set up over captive portal
 - Config in webinterface
 - Firmware update via webinterface
 - classic MQTT Datapoints or Json String over MQTT
-- get Json over web at /livejson?
+- get Json over web at /livejson
 - switch Load Channel via webinterface and MQTT or via web at /set?loadstate=0 or 1
 - set Device time from computer time
+- debug over WebSerial (no need to connect to a PC with a FTDI-Adapter)
 
 ![grafik](https://user-images.githubusercontent.com/44615614/230722020-9ee2ef7e-0f98-4094-83f2-994f6211ecad.png)
 ![grafik](https://user-images.githubusercontent.com/44615614/230722025-69865c5b-da78-4ed5-897f-6f1b389e878c.png)
@@ -20,15 +21,17 @@ ESP82XX to MQTT based connector for EPEver Solar tracker, support multiple track
 
 
 # How to use:
-- flash the bin file to a esp82xx or Wemos D1 Mini with tasmotizer or other way
-- connect the esp like the wireing diagram
+- flash the bin file to a esp82xx or Wemos D1 Mini with [Tasmotizer](https://github.com/tasmota/tasmotizer/releases) or other way
+- connect the esp like the wiring diagram
 - search the wifi ap EPEver2MQTT-AP and connect
 - surf to 192.168.4.1 and set up your wifi, amount of inverters and optional mqtt
-- thats it :)
+- that's it :)
 
-wireing:
-![Unbenannt](https://user-images.githubusercontent.com/44615614/185478302-9db8c1b2-35e8-49b4-a228-8019b8f7f845.png)
+# Wiring
+![EPEVER Pinout MQTT-Projekt](https://github.com/softwarecrash/EPEver2MQTT/assets/17761850/5dd5caa6-cda8-4ed6-bee4-a13ef7d1de22)
 
 
-
-Questions? join https://discord.gg/dHeDRGdtKN
+# Questions? 
+Join https://discord.gg/dHeDRGdtKN (German / English)
+#
+[![LICENSE](https://licensebuttons.net/l/by-nc-sa/4.0/88x31.png)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
