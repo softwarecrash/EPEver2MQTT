@@ -3,7 +3,7 @@ ESP82XX to MQTT based connector for EPEver Solar tracker, support multiple track
 
 # Feauteres:
 - set up over captive portal
-- onfig in webinterface
+- Config in webinterface
 - Firmware update via webinterface
 - classic MQTT Datapoints or Json String over MQTT
 - get Json over web at /livejson?
@@ -21,16 +21,7 @@ ESP82XX to MQTT based connector for EPEver Solar tracker, support multiple track
 - test more devices
 
 # Tested with:
-- EPEVER Tracer 1206AN (Confirmed)
-- EPEVER Tracer 2210AN (Confirmed)
-- EPEVER Tracer 3210AN (Confirmed)
-- EPEVER Tracer 4210AN (confirmed)
-- EPEVER Tracer 5415AN (Confirmed)
-- EPEVER Tracer 5420AN (Confirmed)
-- EPEVER Tracer 6415AN (Confirmed)
-- EPEVER XTRA 4415 (confirmed)
-- EPEVER XTRA 3415N (confirmed)
-- EPEVER XTRA 3210N (confirmed)
+https://github.com/softwarecrash/EPEver2MQTT/wiki/Working-Devices
 
 - from protocol it should work with LS-B VS-B Tracer-B Tracer-A ITracer ETracer Series
 - have you sucessfull run it on another devices? please tell me your device
