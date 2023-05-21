@@ -12,7 +12,7 @@ const char HTML_HEAD[] PROGMEM = R"rawliteral(
     <noscript>
       <strong>We're sorry but it doesn't work properly without JavaScript enabled. Please enable it to continue.</strong>
     </noscript>
-<div class="container-md col-md-5">
+<div class="container-md col-md-4">
 )rawliteral";
 
 const char HTML_FOOT[] PROGMEM = R"rawliteral(
