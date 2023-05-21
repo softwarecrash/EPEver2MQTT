@@ -3,6 +3,7 @@
 
 #define EPEVER_BAUD 115200   // baud rate for modbus
 #define EPEVER_DE_RE 5       // connect DE and Re to pin D1
+#define LED_PIN 02 //D4 with the LED on Wemos D1 Mini
 
 #define JSON_BUFFER 2048
 #define MQTT_BUFFER 512

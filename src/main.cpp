@@ -52,7 +52,7 @@ UnixTime uTime(3);
 StaticJsonDocument<JSON_BUFFER> liveJson;
 JsonObject liveData = liveJson.createNestedObject("LiveData");
 JsonObject statsData = liveJson.createNestedObject("StatsData");
-
+#include "status-LED.h"
 ADC_MODE(ADC_VCC);
 //----------------------------------------------------------------------
 void saveConfigCallback()
@@ -391,6 +391,7 @@ void loop()
     DEBUG_WEBLN("Restart");
     ESP.restart();
   }
+  notificationLED(); // notification LED routine
 }
 // End void loop
 
@@ -428,7 +429,6 @@ bool getEpData(int invNum)
     errorcode = result;
     return false;
   }
-  //yield();
   // read LIVE-Data
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(LIVE_DATA, LIVE_DATA_CNT);
@@ -449,7 +449,6 @@ bool getEpData(int invNum)
     errorcode = errorcode + result;
     return false;
   }
-  //yield();
   // Statistical Data
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(STATISTICS, STATISTICS_CNT);
@@ -469,7 +468,6 @@ bool getEpData(int invNum)
     errorcode = errorcode + result;
     return false;
   }
-  //yield();
   // Battery SOC
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(BATTERY_SOC, 1);
@@ -488,7 +486,6 @@ bool getEpData(int invNum)
     errorcode = errorcode + result;
     return false;
   }
-  //yield();
   // Battery Net Current = Icharge - Iload
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(BATTERY_CURRENT_L, 2);
@@ -508,7 +505,6 @@ bool getEpData(int invNum)
     errorcode = errorcode + result;
     return false;
   }
-  //yield();
   // State of the Load Switch
   epnode.clearResponseBuffer();
   result = epnode.readCoils(LOAD_STATE, 1);
@@ -527,7 +523,6 @@ bool getEpData(int invNum)
     errorcode = errorcode + result;
     return false;
   }
-  //yield();
   // Read Status Flags
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(0x3200, 2);
@@ -559,7 +554,6 @@ bool getEpData(int invNum)
     errorcode = errorcode + result;
     return false;
   }
-  //yield();
   // Device Temperature
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(DEVICE_TEMPERATURE, 1);
@@ -578,7 +572,6 @@ bool getEpData(int invNum)
     errorcode = errorcode + result;
     return false;
   }
-  //yield();
   // Battery temperature
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(BATTERY_TEMPERATURE, 1);
