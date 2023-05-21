@@ -52,6 +52,8 @@ UnixTime uTime(3);
 StaticJsonDocument<JSON_BUFFER> liveJson;
 JsonObject liveData = liveJson.createNestedObject("LiveData");
 JsonObject statsData = liveJson.createNestedObject("StatsData");
+
+ADC_MODE(ADC_VCC);
 //----------------------------------------------------------------------
 void saveConfigCallback()
 {
@@ -653,6 +655,7 @@ bool getJsonData(int invNum)
 
   liveJson["DEVICE_FREE_HEAP"] = ESP.getFreeHeap();
   liveJson["DEVICE_JSON_MEMORY"] = liveJson.memoryUsage();
+  liveJson["ESP_VCC"] = ESP.getVcc() / 1000.0;
 
   liveData["SOLAR_VOLTS"] = live.l.pV / 100.f;
 

@@ -1,5 +1,9 @@
 const char HTML_MAIN[] PROGMEM = R"rawliteral(
     %HEAD_TEMPLATE%
+    <div class="row gx-0 mb-2" id="vcc_alert" style="display: none;">
+    <div class="alert alert-danger" role="alert" style="text-align: center;">
+    <span><b>WARNING ESP VOLTAGE TO LOW</b></span>
+    </div>
 <div class="row gx-0 mb-2">
 <div class="col">
 <button id="prevInv" type="button" class="btn btn-primary">&#8882;</button>
@@ -172,6 +176,11 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
             if(invQuantity <= 1){
             document.getElementById('prevInv').style.visibility = 'hidden';
             document.getElementById('nextInv').style.visibility = 'hidden';
+        }
+        if (data.ESP_VCC < 2.6) {
+            document.getElementById("vcc_alert").style.display = '';
+        }else{
+            document.getElementById("vcc_alert").style.display = 'none';
         }
 
     }
