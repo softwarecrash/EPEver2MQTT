@@ -16,15 +16,8 @@ ESP82XX to MQTT based connector for EPEver Solar tracker, support multiple track
 
 
 
-#Todo:
-- cleanup code
-- test more devices
+# [tested Device List](https://github.com/softwarecrash/EPEver2MQTT/wiki/Working-Devices)
 
-# [Tested with](https://github.com/softwarecrash/EPEver2MQTT/wiki/Working-Devices)
-
-
-- from protocol it should work with LS-B VS-B Tracer-B Tracer-A ITracer ETracer Series
-- have you sucessfull run it on another devices? please tell me your device
 
 # How to use:
 - flash the bin file to a esp82xx or Wemos D1 Mini with tasmotizer or other way
