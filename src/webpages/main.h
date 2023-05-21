@@ -1,9 +1,11 @@
 const char HTML_MAIN[] PROGMEM = R"rawliteral(
     %HEAD_TEMPLATE%
-    <div class="row gx-0 mb-2" id="vcc_alert" style="display: none;">
+<div class="row gx-0 mb-2" id="vcc_alert" style="display: none;">
     <div class="alert alert-danger" role="alert" style="text-align: center;">
     <span><b>WARNING ESP VOLTAGE TO LOW</b></span>
     </div>
+</div>
+
 <div class="row gx-0 mb-2">
 <div class="col">
 <button id="prevInv" type="button" class="btn btn-primary">&#8882;</button>
@@ -23,7 +25,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
     <div class="col">
         <div class="bg-light">Device Time: </div>
     </div>
-    <div class="col-7">
+    <div class="col">
         <div class="bg-light"><span id="devtime"></span></br></div>
     </div>
 </div>
@@ -32,7 +34,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
     <div class="col">
         <div class="bg-light">Solar: </div>
     </div>
-    <div class="col-7">
+    <div class="col">
         <div class="bg-light"><span id="solarV"></span><span id="solarA"></span><span id="solarW"></span></div>
     </div>
 </div>
@@ -41,7 +43,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
     <div class="col">
         <div class="bg-light">Battery: </div>
     </div>
-    <div class="col-7">
+    <div class="col">
         <div class="bg-light"><span id="battV"></span><span id="battA"></span><span id="battW"></span><span
                 id="battSOC"></span></div>
     </div>
@@ -51,8 +53,17 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
     <div class="col">
         <div class="bg-light">Load: </div>
     </div>
-    <div class="col-7">
+    <div class="col">
         <div class="bg-light"><span id="loadV"></span><span id="loadA"></span><span id="loadW"></span></div>
+    </div>
+</div>
+
+<div class="row gx-0 mb-2">
+    <div class="col">
+        <div class="bg-light">temperature: </div>
+    </div>
+    <div class="col">
+        <div class="bg-light"><span id="deviceTemp"></span><span id="battTemp"></span></div>
     </div>
 </div>
 
@@ -60,7 +71,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
     <div class="col">
         <div class="bg-light">Consumed Kwh: </div>
     </div>
-    <div class="col-7">
+    <div class="col">
         <div class="bg-light"><span id="consD"></span><span id="consM"></span><span id="consY"></span><span
                 id="consT"></span></div>
     </div>
@@ -70,7 +81,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
     <div class="col">
         <div class="bg-light">generated Kwh: </div>
     </div>
-    <div class="col-7">
+    <div class="col">
         <div class="bg-light"><span id="genD"></span><span id="genM"></span><span id="genY"></span><span
                 id="genT"></span></div>
     </div>
@@ -80,7 +91,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
     <div class="col">
         <div class="bg-light">CO2 Reduction: </div>
     </div>
-    <div class="col-7">
+    <div class="col">
         <div class="bg-light"><span id="cored"></span></div>
     </div>
 </div>
@@ -89,7 +100,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
     <div class="col">
         <div class="bg-light">Input State: </div>
     </div>
-    <div class="col-7">
+    <div class="col">
         <div class="bg-light"><span id="inputstate"></span></div>
     </div>
 </div>
@@ -98,7 +109,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
     <div class="col">
         <div class="bg-light">Charge Mode: </div>
     </div>
-    <div class="col-7">
+    <div class="col">
         <div class="bg-light"><span id="chrgmode"></span></div>
     </div>
 </div>
@@ -107,7 +118,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
     <div class="col">
         <div class="bg-light">Load State: </div>
     </div>
-    <div class="col-7">
+    <div class="col">
         <div class="bg-light form-check form-switch"><input class="form-check-input" type="checkbox" role="switch"
                 id="loadState" /></div>
     </div>
@@ -156,6 +167,10 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
         document.getElementById("loadA").innerHTML = data.LiveData.LOAD_AMPS + 'A  ';
         document.getElementById("loadW").innerHTML = data.LiveData.LOAD_WATTS + 'W  ';
 
+        document.getElementById("deviceTemp").innerHTML = data.DEVICE_TEMPERATURE + '°C  ';
+        if(data.BATTERY_TEMPERATURE != 25){
+        document.getElementById("battTemp").innerHTML = ' | ' + data.BATTERY_TEMPERATURE + '°C  ';
+        }
         document.getElementById("consD").innerHTML = 'D:' + data.StatsData.CONS_ENERGY_DAY + '  ';
         document.getElementById("consM").innerHTML = 'M:' + data.StatsData.CONS_ENGERY_MON + '  ';
         document.getElementById("consY").innerHTML = 'Y:' + data.StatsData.CONS_ENGERY_YEAR + '  ';
