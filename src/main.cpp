@@ -177,7 +177,6 @@ void setup()
   WiFi.persistent(true);              // fix wifi save bug
   AsyncWiFiManager wm(&server, &dns); // create wifimanager instance
 
-  //  EPEVER_SERIAL.begin(EPEVER_BAUD, SWSERIAL_8N1, MYPORT_RX, MYPORT_TX, false, 256);
   EPEVER_SERIAL.begin(EPEVER_BAUD);
   epnode.setResponseTimeout(100);
   epnode.begin(1, EPEVER_SERIAL);
@@ -283,25 +282,8 @@ void setup()
       AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", HTML_SETTINGS_EDIT, htmlProcessor);
       request->send(response); });
 
-/*    server.on("/settingsjson", HTTP_GET, [](AsyncWebServerRequest *request)
-              {
-                AsyncResponseStream *response = request->beginResponseStream("application/json");
-                StaticJsonDocument <256> SettingsJson;
-                SettingsJson["device_name"] = _settings._deviceName;
-                SettingsJson["device_quantity"] = _settings._deviceQuantity;
-                SettingsJson["mqtt_server"] = _settings._mqttServer;
-                SettingsJson["mqtt_port"] = _settings._mqttPort;
-                SettingsJson["mqtt_topic"] = _settings._mqttTopic;
-                SettingsJson["mqtt_user"] = _settings._mqttUser;
-                SettingsJson["mqtt_password"] = _settings._mqttPassword;
-                SettingsJson["mqtt_refresh"] = _settings._mqttRefresh;
-                SettingsJson["mqtt_json"] = _settings._mqttJson?true:false;
-                serializeJson(SettingsJson, *response);
-                request->send(response); });
-*/
     server.on("/settingssave", HTTP_POST, [](AsyncWebServerRequest *request)
               {
-//                request->redirect("/reboot");
                 _settings._mqttServer = request->arg("post_mqttServer");
                 _settings._mqttPort = request->arg("post_mqttPort").toInt();
                 _settings._mqttUser = request->arg("post_mqttUser");
@@ -311,28 +293,12 @@ void setup()
                 _settings._deviceName = request->arg("post_deviceName");
                 _settings._deviceQuantity = request->arg("post_deviceQuanttity").toInt() <= 0 ? 1 : request->arg("post_deviceQuanttity").toInt();
                 _settings._mqttJson = (request->arg("post_mqttjson") == "true") ? true : false;
-//                if(request->arg("post_mqttjson") == "true") _settings._mqttJson = true;
-//                if(request->arg("post_mqttjson") != "true") _settings._mqttJson = false;
                 _settings.save();
                 request->redirect("/reboot"); });
 
     server.on("/set", HTTP_GET, [](AsyncWebServerRequest *request)
               {
       AsyncWebParameter *p = request->getParam(0);
-    /*  
-      if (p->name() == "cleanerrorstate")
-      {
-        updateProgress = true;
-      for (size_t i = 1; i < ((size_t)_settings._deviceQuantity+1); i++)
-      {
-          epnode.setSlaveId(i);
-          epnode.writeSingleCoil(0x0100, true); //0101 ??
-          //not finishd yet, move to main page and only display a unlock button when a error is avaible
-          //https://forum.iobroker.net/assets/uploads/files/1667825519362-up-hi-communication-protocol-v8.5.pdf
-        }
-        updateProgress = false;
-      }
-      */
       if (p->name() == "datetime")
       {
         uint8_t rtcSetY  = atoi (request->getParam("datetime")->value().substring(0, 2).c_str ());
@@ -576,7 +542,6 @@ bool getEpData(int invNum)
     temp = epnode.getResponseBuffer(1);
 
     // for(i=0; i<16; i++) DEBUG_WEB( (temp >> (15-i) ) & 1 );
-    // DEBUG_WEBLN();
 
     // charger_input     = ( temp & 0b0000000000000000 ) >> 15 ;
     charger_mode = (temp & 0b0000000000001100) >> 2;
