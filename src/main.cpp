@@ -16,17 +16,16 @@
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <UnixTime.h>
+#include <WebSerialLite.h>
 
 #include "Settings.h" //settings functions
 
-#include "webpages/htmlCase.h"     // The HTML Konstructor
-#include "webpages/main.h"         // landing page with menu
-#include "webpages/settings.h"     // settings page
-#include "webpages/settingsedit.h" // mqtt settings page
-
-#define EPEVER_SERIAL Serial // Set the serial port for communication with the EPEver
-#define EPEVER_BAUD 115200   // baud rate for modbus
-#define EPEVER_DE_RE 5       // connect DE and Re to pin D1
+#include "webpages/htmlCase.h"      // The HTML Konstructor
+#include "webpages/main.h"          // landing page with menu
+#include "webpages/settings.h"      // settings page
+#include "webpages/settingsedit.h"  // mqtt settings page
+#include "webpages/reboot.h"        // Reboot Page
+#include "webpages/htmlProzessor.h" // The html Prozessor
 
 String topic = "/"; // Default first part of topic. We will add device ID in setup
 
@@ -36,31 +35,29 @@ bool restartNow = false;
 bool updateProgress = false;
 unsigned long mqtttimer = 0;
 unsigned long getDataTimer = 0;
-int mqttBufferSize = 1024;
+unsigned long RestartTimer = 0;
 byte wsReqInvNum = 1;
-char jsonSerial[1024]; // buffer for serializon
-char mqtt_server[40];
+char mqtt_server[80];
+int errorcode;
 
 WiFiClient client;
 Settings _settings;
 PubSubClient mqttclient(client);
-
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 AsyncWebSocketClient *wsClient;
-
 DNSServer dns;
-
 ModbusMaster epnode; // instantiate ModbusMaster object
-
-UnixTime uTime(3); // указать GMT (3 для Москвы)
-
-DynamicJsonDocument liveJson(mqttBufferSize);
+UnixTime uTime(3);
+StaticJsonDocument<JSON_BUFFER> liveJson;
 JsonObject liveData = liveJson.createNestedObject("LiveData");
 JsonObject statsData = liveJson.createNestedObject("StatsData");
+
+ADC_MODE(ADC_VCC);
 //----------------------------------------------------------------------
 void saveConfigCallback()
 {
+  DEBUG_WEBLN(F("Should save config"));
   shouldSaveConfig = true;
 }
 
@@ -89,11 +86,10 @@ static void handle_update_progress_cb(AsyncWebServerRequest *request, String fil
     }
     else
     {
-
-      AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", "Please wait while the device is booting new Firmware");
-      response->addHeader("Refresh", "10; url=/");
-      response->addHeader("Connection", "close");
+      AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", HTML_REBOOT, htmlProcessor);
       request->send(response);
+      DEBUG_WEBLN(F("Update complete"));
+      RestartTimer = millis();
       restartNow = true; // Set flag so main loop can issue restart call
     }
   }
@@ -111,8 +107,9 @@ void postTransmission()
 
 void notifyClients()
 {
-  serializeJson(liveJson, jsonSerial);
-  wsClient->text(jsonSerial);
+  char data[JSON_BUFFER];
+  size_t len = serializeJson(liveJson, data);
+  wsClient->text(data, len);
 }
 
 void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
@@ -142,13 +139,15 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
   {
   case WS_EVT_CONNECT:
     wsClient = client;
-    if (getEpData(1))
-      getJsonData(1);
+    //if (getEpData(1))
+    getEpData(1);
+    getJsonData(1);
     notifyClients();
-    // Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
+    DEBUG_WEBF("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
     break;
   case WS_EVT_DISCONNECT:
-    //  Serial.printf("WebSocket client #%u disconnected\n", client->id());
+    DEBUG_WEBF("WebSocket client #%u disconnected\n", client->id());
+    wsClient = nullptr;
     break;
   case WS_EVT_DATA:
     handleWebSocketMessage(arg, data, len);
@@ -159,17 +158,28 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
   }
 }
 
+/* Message callback of WebSerial */
+void recvMsg(uint8_t *data, size_t len)
+{
+  WebSerial.println("Received Data...");
+  String d = "";
+  for (uint i = 0; i < len; i++)
+  {
+    d += char(data[i]);
+  }
+  WebSerial.println(d);
+}
+
 void setup()
 {
-  // wifi_set_sleep_type(LIGHT_SLEEP_T); // for testing
-Serial1.begin(9600);
   pinMode(EPEVER_DE_RE, OUTPUT);
   _settings.load();
-  delay(1000);
   WiFi.persistent(true);              // fix wifi save bug
   AsyncWiFiManager wm(&server, &dns); // create wifimanager instance
-  EPEVER_SERIAL.begin(EPEVER_BAUD);
 
+  //  EPEVER_SERIAL.begin(EPEVER_BAUD, SWSERIAL_8N1, MYPORT_RX, MYPORT_TX, false, 256);
+  EPEVER_SERIAL.begin(EPEVER_BAUD);
+  epnode.setResponseTimeout(100);
   epnode.begin(1, EPEVER_SERIAL);
   epnode.preTransmission(preTransmission);
   epnode.postTransmission(postTransmission);
@@ -212,15 +222,13 @@ Serial1.begin(9600);
     _settings._deviceQuantity = atoi(custom_device_quantity.getValue()) <= 0 ? 1 : atoi(custom_device_quantity.getValue());
 
     _settings.save();
-    delay(500);
-    //_settings.load();
     ESP.restart();
   }
 
   topic = _settings._mqttTopic;
   mqttclient.setServer(_settings._mqttServer.c_str(), _settings._mqttPort);
   mqttclient.setCallback(callback);
-  mqttclient.setBufferSize(mqttBufferSize);
+  mqttclient.setBufferSize(MQTT_BUFFER);
   // check is WiFi connected
 
   if (res)
@@ -233,11 +241,8 @@ Serial1.begin(9600);
 
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-                AsyncResponseStream *response = request->beginResponseStream("text/html");
-                response->printf_P(HTML_HEAD);
-                response->printf_P(HTML_MAIN);
-                response->printf_P(HTML_FOOT);
-                request->send(response); });
+      AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", HTML_MAIN, htmlProcessor);
+      request->send(response); });
 
     server.on("/livejson", HTTP_GET, [](AsyncWebServerRequest *request)
               {
@@ -247,18 +252,15 @@ Serial1.begin(9600);
 
     server.on("/reboot", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-                AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", "Please wait while the device reboots...");
-                response->addHeader("Refresh", "5; url=/");
-                response->addHeader("Connection", "close");
+                AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", HTML_REBOOT, htmlProcessor);
                 request->send(response);
-                restartNow = true; });
+                restartNow = true;
+                RestartTimer = millis(); });
+
     server.on("/confirmreset", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-                AsyncResponseStream *response = request->beginResponseStream("text/html");
-                response->printf_P(HTML_HEAD);
-                response->printf_P(HTML_CONFIRM_RESET);
-                response->printf_P(HTML_FOOT);
-                request->send(response); });
+      AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", HTML_CONFIRM_RESET, htmlProcessor);
+      request->send(response); });
 
     server.on("/reset", HTTP_GET, [](AsyncWebServerRequest *request)
               {
@@ -266,31 +268,25 @@ Serial1.begin(9600);
                 response->addHeader("Refresh", "15; url=/");
                 response->addHeader("Connection", "close");
                 request->send(response);
-                delay(1000);
+                delay(500);
                 _settings.reset();
                 ESP.eraseConfig();
                 ESP.restart(); });
 
     server.on("/settings", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-                AsyncResponseStream *response = request->beginResponseStream("text/html");
-                response->printf_P(HTML_HEAD);
-                response->printf_P(HTML_SETTINGS);
-                response->printf_P(HTML_FOOT);
-                request->send(response); });
+      AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", HTML_SETTINGS, htmlProcessor);
+      request->send(response); });
 
     server.on("/settingsedit", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-                AsyncResponseStream *response = request->beginResponseStream("text/html");
-                response->printf_P(HTML_HEAD);
-                response->printf_P(HTML_SETTINGS_EDIT);
-                response->printf_P(HTML_FOOT);
-                request->send(response); });
+      AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", HTML_SETTINGS_EDIT, htmlProcessor);
+      request->send(response); });
 
-    server.on("/settingsjson", HTTP_GET, [](AsyncWebServerRequest *request)
+/*    server.on("/settingsjson", HTTP_GET, [](AsyncWebServerRequest *request)
               {
                 AsyncResponseStream *response = request->beginResponseStream("application/json");
-                DynamicJsonDocument SettingsJson(256);
+                StaticJsonDocument <256> SettingsJson;
                 SettingsJson["device_name"] = _settings._deviceName;
                 SettingsJson["device_quantity"] = _settings._deviceQuantity;
                 SettingsJson["mqtt_server"] = _settings._mqttServer;
@@ -302,10 +298,10 @@ Serial1.begin(9600);
                 SettingsJson["mqtt_json"] = _settings._mqttJson?true:false;
                 serializeJson(SettingsJson, *response);
                 request->send(response); });
-
+*/
     server.on("/settingssave", HTTP_POST, [](AsyncWebServerRequest *request)
               {
-                request->redirect("/reboot");
+//                request->redirect("/reboot");
                 _settings._mqttServer = request->arg("post_mqttServer");
                 _settings._mqttPort = request->arg("post_mqttPort").toInt();
                 _settings._mqttUser = request->arg("post_mqttUser");
@@ -314,10 +310,11 @@ Serial1.begin(9600);
                 _settings._mqttRefresh = request->arg("post_mqttRefresh").toInt();
                 _settings._deviceName = request->arg("post_deviceName");
                 _settings._deviceQuantity = request->arg("post_deviceQuanttity").toInt() <= 0 ? 1 : request->arg("post_deviceQuanttity").toInt();
-                if(request->arg("post_mqttjson") == "true") _settings._mqttJson = true;
-                if(request->arg("post_mqttjson") != "true") _settings._mqttJson = false;
-                Serial.print(_settings._mqttServer);
-                _settings.save(); });
+                _settings._mqttJson = (request->arg("post_mqttjson") == "true") ? true : false;
+//                if(request->arg("post_mqttjson") == "true") _settings._mqttJson = true;
+//                if(request->arg("post_mqttjson") != "true") _settings._mqttJson = false;
+                _settings.save();
+                request->redirect("/reboot"); });
 
     server.on("/set", HTTP_GET, [](AsyncWebServerRequest *request)
               {
@@ -359,14 +356,23 @@ Serial1.begin(9600);
     server.on(
         "/update", HTTP_POST, [](AsyncWebServerRequest *request)
         {
-          updateProgress = true;
-          delay(500);
-          request->send(200);
-          request->redirect("/"); },
+      Serial.end();
+      updateProgress = true;
+      ws.enable(false);
+      ws.closeAll(); },
         handle_update_progress_cb);
+
+    server.onNotFound([](AsyncWebServerRequest *request)
+                      { request->send(418, "text/plain", "418 I'm a teapot"); });
 
     ws.onEvent(onEvent);
     server.addHandler(&ws);
+
+    // WebSerial is accessible at "<IP Address>/webserial" in browser
+    WebSerial.begin(&server);
+    /* Attach Message Callback */
+    WebSerial.onMessage(recvMsg);
+
     server.begin();
     MDNS.addService("http", "tcp", 80);
   }
@@ -412,27 +418,19 @@ void loop()
       }
       mqtttimer = millis();
     }
-
-    if (wsClient == nullptr) // if no ws client connected slow down the cpu cycle
-    {
-      //  delay(2);
-    }
   }
 
-  if (restartNow)
+  if (restartNow && millis() >= (RestartTimer + 500))
   {
-    delay(1000);
-    Serial.println("Restart");
+    DEBUG_WEBLN("Restart");
     ESP.restart();
   }
-
-  yield();
 }
 // End void loop
 
 bool getEpData(int invNum)
 {
-
+  errorcode = 0;
   epnode.setSlaveId(invNum);
 
   // clear buffers
@@ -452,13 +450,19 @@ bool getEpData(int invNum)
     rtc.buf[1] = epnode.getResponseBuffer(1);
     rtc.buf[2] = epnode.getResponseBuffer(2);
     uTime.setDateTime((2000 + rtc.r.y), rtc.r.M, rtc.r.d, (rtc.r.h + 1), rtc.r.m, rtc.r.s);
+
+    errorcode = result;
   }
   else
   {
-    Serial1.println("Fail");
+    DEBUG_WEB(epnode.ku8MBSuccess);
+    DEBUG_WEB(" ");
+    DEBUG_WEB(result);
+    DEBUG_WEBLN(" Read registers for clock Failed");
+    errorcode = result;
     return false;
   }
-
+  //yield();
   // read LIVE-Data
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(LIVE_DATA, LIVE_DATA_CNT);
@@ -467,13 +471,19 @@ bool getEpData(int invNum)
 
     for (i = 0; i < LIVE_DATA_CNT; i++)
       live.buf[i] = epnode.getResponseBuffer(i);
+
+    errorcode = errorcode + result;
   }
   else
   {
-    Serial1.println("Fail");
+    DEBUG_WEB(epnode.ku8MBSuccess);
+    DEBUG_WEB(" ");
+    DEBUG_WEB(result);
+    DEBUG_WEBLN(" Read LIVE-Dat Failed");
+    errorcode = errorcode + result;
     return false;
   }
-
+  //yield();
   // Statistical Data
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(STATISTICS, STATISTICS_CNT);
@@ -481,26 +491,38 @@ bool getEpData(int invNum)
   {
     for (i = 0; i < STATISTICS_CNT; i++)
       stats.buf[i] = epnode.getResponseBuffer(i);
+
+    errorcode = errorcode + result;
   }
   else
   {
-    Serial1.println("Fail");
+    DEBUG_WEB(epnode.ku8MBSuccess);
+    DEBUG_WEB(" ");
+    DEBUG_WEB(result);
+    DEBUG_WEBLN(" Read Statistical Data Failed");
+    errorcode = errorcode + result;
     return false;
   }
-
+  //yield();
   // Battery SOC
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(BATTERY_SOC, 1);
   if (result == epnode.ku8MBSuccess)
   {
     batterySOC = epnode.getResponseBuffer(0);
+
+    errorcode = errorcode + result;
   }
   else
   {
-    Serial1.println("Fail");
+    DEBUG_WEB(epnode.ku8MBSuccess);
+    DEBUG_WEB(" ");
+    DEBUG_WEB(result);
+    DEBUG_WEBLN(" Read Battery SOC Failed");
+    errorcode = errorcode + result;
     return false;
   }
-
+  //yield();
   // Battery Net Current = Icharge - Iload
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(BATTERY_CURRENT_L, 2);
@@ -508,26 +530,38 @@ bool getEpData(int invNum)
   {
     batteryCurrent = epnode.getResponseBuffer(0);
     batteryCurrent |= epnode.getResponseBuffer(1) << 16;
+
+    errorcode = errorcode + result;
   }
   else
   {
-    Serial1.println("Fail");
+    DEBUG_WEB(epnode.ku8MBSuccess);
+    DEBUG_WEB(" ");
+    DEBUG_WEB(result);
+    DEBUG_WEBLN(" Read Battery Net Current = Icharge - Iload Failed");
+    errorcode = errorcode + result;
     return false;
   }
-
+  //yield();
   // State of the Load Switch
   epnode.clearResponseBuffer();
   result = epnode.readCoils(LOAD_STATE, 1);
   if (result == epnode.ku8MBSuccess)
   {
     loadState = epnode.getResponseBuffer(0) ? true : false;
+
+    errorcode = errorcode + result;
   }
   else
   {
-    Serial1.println("Fail");
+    DEBUG_WEB(epnode.ku8MBSuccess);
+    DEBUG_WEB(" ");
+    DEBUG_WEB(result);
+    DEBUG_WEBLN(" Read State of the Load Switch Failed");
+    errorcode = errorcode + result;
     return false;
   }
-
+  //yield();
   // Read Status Flags
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(0x3200, 2);
@@ -541,55 +575,72 @@ bool getEpData(int invNum)
 
     temp = epnode.getResponseBuffer(1);
 
-    // for(i=0; i<16; i++) Serial.print( (temp >> (15-i) ) & 1 );
-    // Serial.println();
+    // for(i=0; i<16; i++) DEBUG_WEB( (temp >> (15-i) ) & 1 );
+    // DEBUG_WEBLN();
 
     // charger_input     = ( temp & 0b0000000000000000 ) >> 15 ;
     charger_mode = (temp & 0b0000000000001100) >> 2;
     // charger_input     = ( temp & 0b0000000000000000 ) >> 12 ;
     // charger_operation = ( temp & 0b0000000000000000 ) >> 0 ;
+
+    errorcode = errorcode + result;
   }
   else
   {
-    Serial1.println("Fail");
+    DEBUG_WEB(epnode.ku8MBSuccess);
+    DEBUG_WEB(" ");
+    DEBUG_WEB(result);
+    DEBUG_WEBLN(" Read Read Status Flags Failed");
+    errorcode = errorcode + result;
     return false;
   }
-
+  //yield();
   // Device Temperature
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(DEVICE_TEMPERATURE, 1);
   if (result == epnode.ku8MBSuccess)
   {
     deviceTemperature = epnode.getResponseBuffer(0);
+
+    errorcode = errorcode + result;
   }
   else
   {
-    Serial1.println("Fail");
-    //  return false;
+    DEBUG_WEB(epnode.ku8MBSuccess);
+    DEBUG_WEB(" ");
+    DEBUG_WEB(result);
+    DEBUG_WEBLN(" Read Device Temperature Failed");
+    errorcode = errorcode + result;
+    return false;
   }
-
+  //yield();
   // Battery temperature
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(BATTERY_TEMPERATURE, 1);
   if (result == epnode.ku8MBSuccess)
   {
     batteryTemperature = epnode.getResponseBuffer(0);
+
+    errorcode = errorcode + result;
   }
   else
   {
-    Serial1.println("Fail");
-    // return false;
+    DEBUG_WEB(epnode.ku8MBSuccess);
+    DEBUG_WEB(" ");
+    DEBUG_WEB(result);
+    DEBUG_WEBLN(" Read Battery temperature Failed");
+    errorcode = errorcode + result;
+    return false;
+  }
+  if (errorcode == 0)
+  {
+    DEBUG_WEBLN("Transmission OK.");
   }
   return true;
 }
 
 bool getJsonData(int invNum)
 {
-  // prevent buffer leak
-  if ((int)liveJson.memoryUsage() >= (mqttBufferSize - 8))
-  {
-    liveJson.garbageCollect();
-  }
   if ((size_t)_settings._deviceQuantity > 1)
   {
     liveJson["DEVICE_NAME"] = _settings._deviceName + "_" + (invNum);
@@ -604,6 +655,7 @@ bool getJsonData(int invNum)
 
   liveJson["DEVICE_FREE_HEAP"] = ESP.getFreeHeap();
   liveJson["DEVICE_JSON_MEMORY"] = liveJson.memoryUsage();
+  liveJson["ESP_VCC"] = ESP.getVcc() / 1000.0;
 
   liveData["SOLAR_VOLTS"] = live.l.pV / 100.f;
 
@@ -741,49 +793,13 @@ bool sendtoMQTT(int invNum)
     mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/GEN_ENERGY_YEAR").c_str(), String(stats.s.genEnerYear / 100.f).c_str());
     mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/GEN_ENERGY_TOT").c_str(), String(stats.s.genEnerTotal / 100.f).c_str());
     mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/CO2_REDUCTION").c_str(), String(stats.s.c02Reduction / 100.f).c_str());
-
-    /*
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/DEVICE_TIME").c_str(), liveJson["DEVICE_TIME"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/LOAD_STATE").c_str(), liveJson["LOAD_STATE"] ? "true" : "false");
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/BATT_VOLT_STATUS").c_str(), liveJson["BATT_VOLT_STATUS"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/BATT_TEMP").c_str(), liveJson["BATT_TEMP"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/CHARGER_INPUT_STATUS").c_str(), liveJson["CHARGER_INPUT_STATUS"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/CHARGER_MODE").c_str(), liveJson["CHARGER_MODE"]);
-
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/SOLAR_VOLTS").c_str(), liveData["SOLAR_VOLTS"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/SOLAR_AMPS").c_str(), liveData["SOLAR_AMPS"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/SOLAR_WATTS").c_str(), liveData["SOLAR_WATTS"]);
-
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/BATT_VOLTS").c_str(), liveData["BATT_VOLTS"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/BATT_AMPS").c_str(), liveData["BATT_AMPS"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/BATT_WATTS").c_str(), liveData["BATT_WATTS"]);
-
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/LOAD_VOLTS").c_str(), liveData["LOAD_VOLTS"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/LOAD_AMPS").c_str(), liveData["LOAD_AMPS"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/LOAD_WATTS").c_str(), liveData["LOAD_WATTS"]);
-
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/BATTERY_SOC").c_str(), liveData["BATTERY_SOC"]);
-
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/SOLAR_MAX").c_str(), statsData["SOLAR_MAX"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/SOLAR_MIN").c_str(), statsData["SOLAR_MIN"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/BATT_MAX").c_str(), statsData["BATT_MAX"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/BATT_MIN").c_str(), statsData["BATT_MIN"]);
-
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/CONS_ENERGY_DAY").c_str(), statsData["CONS_ENERGY_DAY"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/CONS_ENGERY_MON").c_str(), statsData["CONS_ENGERY_MON"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/CONS_ENGERY_YEAR").c_str(), statsData["CONS_ENGERY_YEAR"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/CONS_ENGERY_TOT").c_str(), statsData["CONS_ENGERY_TOT"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/GEN_ENERGY_DAY").c_str(), statsData["GEN_ENERGY_DAY"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/GEN_ENERGY_MON").c_str(), statsData["GEN_ENERGY_MON"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/GEN_ENERGY_YEAR").c_str(), statsData["GEN_ENERGY_YEAR"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/GEN_ENERGY_TOT").c_str(), statsData["GEN_ENERGY_TOT"]);
-    mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/CO2_REDUCTION").c_str(), statsData["CO2_REDUCTION"]);
-    */
   }
   else
   {
-    size_t n = serializeJson(liveJson, jsonSerial);
-    mqttclient.publish((String(topic + "/" + mqttDeviceName + "/DATA")).c_str(), jsonSerial, n);
+    char data[JSON_BUFFER];
+    serializeJson(liveJson, data);
+    mqttclient.setBufferSize(JSON_BUFFER + 100);
+    mqttclient.publish((String(topic + "/" + mqttDeviceName + "/DATA")).c_str(), data);
   }
 
   return true;
