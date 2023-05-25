@@ -38,6 +38,7 @@ unsigned long getDataTimer = 0;
 unsigned long RestartTimer = 0;
 byte wsReqInvNum = 1;
 char mqtt_server[80];
+char mqttClientId[80];
 int errorcode;
 
 WiFiClient client;
@@ -187,6 +188,8 @@ void setup()
   epnode.postTransmission(postTransmission);
 
   wm.setSaveConfigCallback(saveConfigCallback);
+
+  sprintf(mqttClientId, "%s-%06X", _settings._deviceName.c_str(), ESP.getChipId());
 
   AsyncWiFiManagerParameter custom_mqtt_server("mqtt_server", "MQTT server", NULL, 32);
   AsyncWiFiManagerParameter custom_mqtt_user("mqtt_user", "MQTT User", NULL, 32);
@@ -659,7 +662,7 @@ bool connectMQTT()
 {
   if (!mqttclient.connected())
   {
-    if (mqttclient.connect((String(_settings._deviceName)).c_str(), _settings._mqttUser.c_str(), _settings._mqttPassword.c_str(), (topic + "/Alive").c_str(), 0, true, "false", true))
+    if (mqttclient.connect(mqttClientId, _settings._mqttUser.c_str(), _settings._mqttPassword.c_str(), (topic + "/Alive").c_str(), 0, true, "false", true))
     {
       mqttclient.publish((topic + String("/IP")).c_str(), String(WiFi.localIP().toString()).c_str());
       mqttclient.publish((topic + String("/Alive")).c_str(), "true", true); // LWT online message must be retained!
