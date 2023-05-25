@@ -107,9 +107,12 @@ void postTransmission()
 
 void notifyClients()
 {
+  if(wsClient != nullptr && wsClient->canSend())
+  {
   char data[JSON_BUFFER];
   size_t len = serializeJson(liveJson, data);
   wsClient->text(data, len);
+  }
 }
 
 void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
