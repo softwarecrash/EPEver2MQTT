@@ -384,6 +384,7 @@ void loop()
       {
         if (getEpData(i))
         {
+          //need change when no data from epever connect to mqtt
           getJsonData(i);
           sendtoMQTT(i); // Update data to MQTT server if we should
         }
