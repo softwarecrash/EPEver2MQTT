@@ -621,6 +621,7 @@ bool getJsonData(int invNum)
   liveJson["DEVICE_FREE_HEAP"] = ESP.getFreeHeap();
   liveJson["DEVICE_JSON_MEMORY"] = liveJson.memoryUsage();
   liveJson["ESP_VCC"] = ESP.getVcc() / 1000.0;
+  liveJson["Wifi_RSSI"] = WiFi.RSSI();
 
   liveData["SOLAR_VOLTS"] = live.l.pV / 100.f;
 
