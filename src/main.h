@@ -5,11 +5,15 @@
 #define EPEVER_DE_RE 5       // connect DE and Re to pin D1
 #define LED_PIN 02 //D4 with the LED on Wemos D1 Mini
 
+#ifdef ARDUINO_ESP8266_ESP01
+#undef EPEVER_DE_RE
+#define EPEVER_DE_RE 0  // ESP01 
+#endif
+
 #define JSON_BUFFER 2048
 #define MQTT_BUFFER 512
 
 #define EPEVER_SERIAL Serial
-//#define SERIAL_DEBUG Serial1
 
 // DON'T edit version here, place version number in platformio.ini (custom_prog_version) !!!
 #define SOFTWARE_VERSION SWVERSION
