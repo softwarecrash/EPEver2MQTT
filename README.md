@@ -42,6 +42,6 @@ If interested see [here](https://all-solutions.github.io/PCBs/epever2mqtt.html)
 
 
 # Questions? 
-Join https://discord.gg/dHeDRGdtKN (German / English)
+[Join the Discord Channel (German / English)](https://discord.gg/5MVtGDFhKH)
 #
 [![LICENSE](https://licensebuttons.net/l/by-nc-sa/4.0/88x31.png)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
