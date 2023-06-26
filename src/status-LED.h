@@ -28,7 +28,7 @@ void notificationLED()
       ledState = 3;
     else if (errorcode != 0)
       ledState = 2;
-    else if (WiFi.status() == WL_CONNECTED && mqttclient.connected() && errorcode == 0)
+    else if (WiFi.status() == WL_CONNECTED /*&& mqttclient.connected()*/ && errorcode == 0)
       ledState = 1;
   }
 
