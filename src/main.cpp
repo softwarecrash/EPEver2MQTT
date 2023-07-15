@@ -314,7 +314,7 @@ void setup()
         uint8_t rtcSetm  = atoi (request->getParam("datetime")->value().substring(8, 10).c_str ());
         uint8_t rtcSets  = atoi (request->getParam("datetime")->value().substring(10, 12).c_str ());
 
-      for (size_t i = 1; i < ((size_t)_settings._deviceQuantity); i++)
+      for (size_t i = 1; i <= ((size_t)_settings._deviceQuantity); i++)
       //for (size_t i = 1; i < ((size_t)_settings._deviceQuantity + 1); i++)
       {
         epnode.setSlaveId(i);
@@ -322,6 +322,7 @@ void setup()
         epnode.setTransmitBuffer(1, ((uint16_t)rtcSetD << 8) | rtcSeth); // day | hour
         epnode.setTransmitBuffer(2, ((uint16_t)rtcSetY << 8) | rtcSetM); // year | month
         epnode.writeMultipleRegisters(0x9013, 3); //write registers
+        delay(50);
       }
         }
      request->send(200, "text/plain", "message received"); });
