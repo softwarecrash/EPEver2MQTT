@@ -314,7 +314,7 @@ void setup()
         uint8_t rtcSetm  = atoi (request->getParam("datetime")->value().substring(8, 10).c_str ());
         uint8_t rtcSets  = atoi (request->getParam("datetime")->value().substring(10, 12).c_str ());
 
-      for (size_t i = 1; i < ((size_t)_settings._deviceQuantity+1); i++)
+      for (size_t i = 1; i < ((size_t)_settings._deviceQuantity); i++)
       {
         epnode.setSlaveId(i);
         epnode.setTransmitBuffer(0, ((uint16_t)rtcSetm << 8) | rtcSets); // minute | secund
