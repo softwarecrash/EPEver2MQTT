@@ -40,6 +40,7 @@ byte wsReqInvNum = 1;
 char mqtt_server[80];
 char mqttClientId[80];
 int errorcode;
+uint32_t bootcount = 0;
 
 WiFiClient client;
 Settings _settings;
@@ -174,9 +175,47 @@ void recvMsg(uint8_t *data, size_t len)
   WebSerial.println(d);
 }
 
+bool resetCounter(bool count)
+{
+
+  if (count)
+  {
+    if (ESP.getResetInfoPtr()->reason == 6)
+    {
+      ESP.rtcUserMemoryRead(16, &bootcount, sizeof(bootcount));
+
+      if (bootcount >= 10 && bootcount < 20)
+      {
+        // bootcount = 0;
+        // ESP.rtcUserMemoryWrite(16, &bootcount, sizeof(bootcount));
+        _settings.reset();
+        ESP.eraseConfig();
+        ESP.restart();
+      }
+      else
+      {
+        bootcount++;
+        ESP.rtcUserMemoryWrite(16, &bootcount, sizeof(bootcount));
+      }
+    }
+    else
+    {
+      bootcount = 0;
+      ESP.rtcUserMemoryWrite(16, &bootcount, sizeof(bootcount));
+    }
+  }
+  else
+  {
+    bootcount = 0;
+    ESP.rtcUserMemoryWrite(16, &bootcount, sizeof(bootcount));
+  }
+  return true;
+}
+
 void setup()
 {
   pinMode(EPEVER_DE_RE, OUTPUT);
+  resetCounter(true);
   _settings.load();
   WiFi.persistent(true);              // fix wifi save bug
   AsyncWiFiManager wm(&server, &dns); // create wifimanager instance
@@ -350,6 +389,7 @@ void setup()
     server.begin();
     MDNS.addService("http", "tcp", 80);
   }
+  resetCounter(false);
 }
 
 // end void setup
