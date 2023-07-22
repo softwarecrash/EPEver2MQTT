@@ -38,9 +38,7 @@ You are welcome to get fully stocked and tested PCB's. These are then already lo
 
 ![image](https://github.com/softwarecrash/EPEver2MQTT/assets/17761850/0a9ff025-1992-49d0-b7f1-9ea1a1bc7f2a)
 
-If interested see [here](https://all-solutions.store/?apply_coupon=NEWSHOP)
-
-Until 15.07. there is also a discount of 5€ per PCB.
+If interested see [here](https://all-solutions.store)
 
 
 # Questions? 
