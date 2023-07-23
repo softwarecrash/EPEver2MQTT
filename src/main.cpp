@@ -215,6 +215,8 @@ bool resetCounter(bool count)
 void setup()
 {
   pinMode(EPEVER_DE_RE, OUTPUT);
+  pinMode(LED_PIN, OUTPUT);
+  analogWrite(LED_PIN, 0);
   resetCounter(true);
   _settings.load();
   WiFi.persistent(true);              // fix wifi save bug
@@ -389,6 +391,7 @@ void setup()
     server.begin();
     MDNS.addService("http", "tcp", 80);
   }
+  analogWrite(LED_PIN, 255);
   resetCounter(false);
 }
 
