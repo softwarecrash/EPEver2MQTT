@@ -639,6 +639,25 @@ bool getEpData(int invNum)
     errorcode = errorcode + result;
     return false;
   }
+    // Settings Data
+  epnode.clearResponseBuffer();
+  result = epnode.readInputRegisters(DEVICE_SETTINGS, DEVICE_SETTINGS_CNT);
+  if (result == epnode.ku8MBSuccess)
+  {
+    for (i = 0; i < DEVICE_SETTINGS_CNT; i++)
+      settingParam.buf[i] = epnode.getResponseBuffer(i);
+
+    errorcode = errorcode + result;
+  }
+  else
+  {
+    DEBUG_WEB(epnode.ku8MBSuccess);
+    DEBUG_WEB(" ");
+    DEBUG_WEB(result);
+    DEBUG_WEBLN(" Read Settings Data Failed");
+    errorcode = errorcode + result;
+    return false;
+  }
   if (errorcode == 0)
   {
     DEBUG_WEBLN("Transmission OK.");
@@ -764,6 +783,7 @@ bool sendtoMQTT(int invNum)
 
   if (!_settings._mqttJson)
   {
+    //Device Data
     mqttclient.publish((topic + "/" + mqttDeviceName + "/DEVICE_TIME").c_str(), String(uTime.getUnix()).c_str());
     mqttclient.publish((topic + "/" + mqttDeviceName + "/DEVICE_TEMPERATURE").c_str(), String(deviceTemperature / 100.f).c_str());
     mqttclient.publish((topic + "/" + mqttDeviceName + "/LOAD_STATE").c_str(), String(loadState ? "true" : "false").c_str());
@@ -771,27 +791,43 @@ bool sendtoMQTT(int invNum)
     mqttclient.publish((topic + "/" + mqttDeviceName + "/BATT_TEMP").c_str(), String(batt_temp_status[status_batt.temp]).c_str());
     mqttclient.publish((topic + "/" + mqttDeviceName + "/CHARGER_INPUT_STATUS").c_str(), String(charger_input_status[charger_input]).c_str());
     mqttclient.publish((topic + "/" + mqttDeviceName + "/CHARGER_MODE").c_str(), String(charger_charging_status[charger_mode]).c_str());
-
+    //Device Settings Data
+    mqttclient.publish((topic + "/" + mqttDeviceName + "/BATTERY_TYPE").c_str(), String(settingParam.s.bTyp).c_str());
+    mqttclient.publish((topic + "/" + mqttDeviceName + "/BATTERY_CAPACITY").c_str(), String(settingParam.s.bCapacity / 100.f).c_str());
+    mqttclient.publish((topic + "/" + mqttDeviceName + "/TEMPERATURE_COMPENSATION").c_str(), String(settingParam.s.tempCompensation / 100.f).c_str());
+    mqttclient.publish((topic + "/" + mqttDeviceName + "/HIGH_VOLT_DISCONNECT").c_str(), String(settingParam.s.highVDisconnect / 100.f).c_str());
+    mqttclient.publish((topic + "/" + mqttDeviceName + "/CHARGING_LIMIT_VOLTS").c_str(), String(settingParam.s.chLimitVolt / 100.f).c_str());
+    mqttclient.publish((topic + "/" + mqttDeviceName + "/OVER_VOLTS_RECONNECT").c_str(), String(settingParam.s.overVoltRecon / 100.f).c_str());
+    mqttclient.publish((topic + "/" + mqttDeviceName + "/EQUALIZATION_VOLTS").c_str(), String(settingParam.s.equVolt / 100.f).c_str());
+    mqttclient.publish((topic + "/" + mqttDeviceName + "/BOOST_VOLTS").c_str(), String(settingParam.s.boostVolt / 100.f).c_str());
+    mqttclient.publish((topic + "/" + mqttDeviceName + "/FLOAT_VOLTS").c_str(), String(settingParam.s.floatVolt / 100.f).c_str());
+    mqttclient.publish((topic + "/" + mqttDeviceName + "/BOOST_RECONNECT_VOLTS").c_str(), String(settingParam.s.boostVoltRecon / 100.f).c_str());
+    mqttclient.publish((topic + "/" + mqttDeviceName + "/LOW_VOLTS_RECONNECT").c_str(), String(settingParam.s.lowVoltRecon / 100.f).c_str());
+    mqttclient.publish((topic + "/" + mqttDeviceName + "/UNDER_VOLTS_RECOVER").c_str(), String(settingParam.s.underVoltRecov / 100.f).c_str());
+    mqttclient.publish((topic + "/" + mqttDeviceName + "/UNDER_VOLTS_WARNING").c_str(), String(settingParam.s.underVoltWarning / 100.f).c_str());
+    mqttclient.publish((topic + "/" + mqttDeviceName + "/LOW_VOLTS_DISCONNECT").c_str(), String(settingParam.s.lowVoltDiscon / 100.f).c_str());
+    mqttclient.publish((topic + "/" + mqttDeviceName + "/DISCHARGING_LIMIT_VOLTS").c_str(), String(settingParam.s.dischLimitVolt / 100.f).c_str());
+    //Live Solar
     mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/SOLAR_VOLTS").c_str(), String(live.l.pV / 100.f).c_str());
     mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/SOLAR_AMPS").c_str(), String(live.l.pI / 100.f).c_str());
     mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/SOLAR_WATTS").c_str(), String(live.l.pP / 100.f).c_str());
-
+    //Live Batt
     mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/BATT_VOLTS").c_str(), String(live.l.bV / 100.f).c_str());
     mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/BATT_AMPS").c_str(), String(live.l.bI / 100.f).c_str());
     mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/BATT_WATTS").c_str(), String(live.l.bP / 100.f).c_str());
-
+    //Live Load
     mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/LOAD_VOLTS").c_str(), String(live.l.lV / 100.f).c_str());
     mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/LOAD_AMPS").c_str(), String(live.l.lI / 100.f).c_str());
     mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/LOAD_WATTS").c_str(), String(live.l.lP / 100.f).c_str());
-
+    // Live Battery
     mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/BATTERY_SOC").c_str(), String(batterySOC / 1.0f).c_str());
     mqttclient.publish((topic + "/" + mqttDeviceName + "/LiveData/BATTERY_TEMPERATURE").c_str(), String(batteryTemperature / 100.f).c_str());
-
+    //stats Solar min / max
     mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/SOLAR_MAX").c_str(), String(stats.s.pVmax / 100.f).c_str());
     mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/SOLAR_MIN").c_str(), String(stats.s.pVmin / 100.f).c_str());
     mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/BATT_MAX").c_str(), String(stats.s.bVmax / 100.f).c_str());
     mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/BATT_MIN").c_str(), String(stats.s.bVmin / 100.f).c_str());
-
+    //stats sonsumed, generated, Co2
     mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/CONS_ENERGY_DAY").c_str(), String(stats.s.consEnerDay / 100.f).c_str());
     mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/CONS_ENGERY_MON").c_str(), String(stats.s.consEnerMon / 100.f).c_str());
     mqttclient.publish((topic + "/" + mqttDeviceName + "/StatsData/CONS_ENGERY_YEAR").c_str(), String(stats.s.consEnerYear / 100.f).c_str());
