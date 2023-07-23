@@ -33,7 +33,7 @@
 #define DEVICE_TEMPERATURE 0x3111  // device temp sensor
 
 #define DEVICE_SETTINGS 0x9000 // baterie temp sensor
-#define DEVICE_SETTINGS_CNT 15 // device temp sensor
+#define DEVICE_SETTINGS_CNT 14 // device temp sensor
 
 #define STATISTICS 0x3300 // start of statistical data
 #define STATISTICS_CNT 22 // 22 regs
@@ -173,7 +173,7 @@ union
     uint16_t dischLimitVolt;   // Discharging limit voltage
 
   } s;
-  uint16_t buf[15];
+  uint16_t buf[DEVICE_SETTINGS_CNT];
 } settingParam;
 
 // these are too far away for the union conversion trick
