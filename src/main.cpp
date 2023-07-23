@@ -641,7 +641,7 @@ bool getEpData(int invNum)
   }
     // Settings Data
   epnode.clearResponseBuffer();
-  result = epnode.readInputRegisters(DEVICE_SETTINGS, DEVICE_SETTINGS_CNT);
+  result = epnode.readHoldingRegisters(DEVICE_SETTINGS, DEVICE_SETTINGS_CNT);
   if (result == epnode.ku8MBSuccess)
   {
     for (i = 0; i < DEVICE_SETTINGS_CNT; i++)

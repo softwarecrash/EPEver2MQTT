@@ -33,7 +33,7 @@
 #define DEVICE_TEMPERATURE 0x3111  // device temp sensor
 
 #define DEVICE_SETTINGS 0x9000 // Start Device Settings
-#define DEVICE_SETTINGS_CNT 14 // amount of registers
+#define DEVICE_SETTINGS_CNT 15 // amount of registers
 
 #define STATISTICS 0x3300 // start of statistical data
 #define STATISTICS_CNT 22 // 22 regs
