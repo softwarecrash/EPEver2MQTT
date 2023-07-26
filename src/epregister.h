@@ -88,25 +88,25 @@ union
   uint16_t buf[3];
 } rtc;
 
-// live data
+// live data 0x3100
 union
 {
   struct
   {
 
-    int16_t pV;
-    int16_t pI;
-    int32_t pP;
-
-    int16_t bV;
-    int16_t bI;
-    int32_t bP;
+    int16_t pV; // 0x3100
+    int16_t pI; // 0x3101
+    int32_t pP; // 0x3102 - 0x3103
+                // missing something here????
+    int16_t bV; // ??
+    int16_t bI; // ??
+    int32_t bP; // 0x3106 - 0x3107
 
     uint16_t dummy[4];
 
-    int16_t lV;
-    int16_t lI;
-    int32_t lP;
+    int16_t lV; // 0x310C
+    int16_t lI; // 0x310D
+    int32_t lP; // 0x310E - 0x310F
 
   } l;
   uint16_t buf[16];
