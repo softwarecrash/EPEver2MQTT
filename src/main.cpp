@@ -692,7 +692,8 @@ bool getJsonData(int invNum)
   liveData["SOLAR_AMPS"] = live.l.pI / 100.f;
   liveData["SOLAR_WATTS"] = live.l.pP / 100.f;
   liveData["BATT_VOLTS"] = live.l.bV / 100.f;
-  liveData["BATT_AMPS"] = live.l.bI / 100.f;
+  //liveData["BATT_AMPS"] = live.l.bI / 100.f;
+  liveData["BATT_AMPS"] = batteryCurrent / 100.f;
   liveData["BATT_WATTS"] = live.l.bP / 100.f;
   liveData["LOAD_VOLTS"] = live.l.lV / 100.f;
   liveData["LOAD_AMPS"] = live.l.lI / 100.f;

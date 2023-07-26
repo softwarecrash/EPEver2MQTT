@@ -112,7 +112,7 @@ union
   uint16_t buf[16];
 } live;
 
-// statistics
+// statistics 0x3300
 union
 {
   struct
