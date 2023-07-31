@@ -7,7 +7,7 @@ ESP82XX to MQTT based connector for EPEver Solar tracker, support multiple track
 - Firmware update via webinterface
 - classic MQTT Datapoints or Json String over MQTT
 - get Json over web at /livejson
-- switch Load Channel via webinterface and MQTT or via web at /set?loadstate=0 or 1
+- switch Load Channel via webinterface and MQTT
 - set Device time from computer time
 - debug over WebSerial (no need to connect to a PC with a FTDI-Adapter)
 
