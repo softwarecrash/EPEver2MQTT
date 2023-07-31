@@ -97,9 +97,9 @@ union
     int16_t pV; // 0x3100
     int16_t pI; // 0x3101
     int32_t pP; // 0x3102 - 0x3103
-                // missing something here????
-    int16_t bV; // ??
-    int16_t bI; // ??
+
+    int16_t bV; // 0x3004
+    int16_t bI; // 0x3005
     int32_t bP; // 0x3106 - 0x3107
 
     uint16_t dummy[4];
