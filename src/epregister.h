@@ -98,9 +98,9 @@ union
     int16_t pI; // 0x3101
     int32_t pP; // 0x3102 - 0x3103
 
-    int16_t bV; // 0x3004
-    int16_t bI; // 0x3005
-    int32_t bP; // 0x3106 - 0x3107
+    int16_t bV; // 0x3104
+    int16_t bI; // 0x3105
+    int32_t bP; // 0x3106-0x3107 battery CHarging Power
 
     uint16_t dummy[4];
 
@@ -112,8 +112,42 @@ union
   uint16_t buf[16];
 } live;
 
-// statistics 0x3300
+/* -------------- new live data struct
+// live data 3100
 union
+{
+  struct
+  {
+
+    int16_t pvInV; // 3100 Solar charge controller--PV array voltage
+    int16_t pvInA; // 3101 Solar charge controller--PV array current
+    int32_t pvInW; // 3102 - 3103 Solar charge controller--PV array power
+
+    uint16_t dummy[2]; // 3104-3105 missing
+
+    int32_t BattPowerW; // 3106-3107 Battery charging power
+
+    uint16_t dummy[4]; // 3108-310B
+
+    int16_t LoadV; // 310C Load voltag
+    int16_t LoadA; // 310D Load current
+    int32_t LoadW; // 310E - 0x310F Load power
+
+    int16_t BattTemp;    // 3110 Battery Temperature
+    int16_t DeviceTemp;  // 3111 Temperature inside cas
+    int16_t BattSOC;     // 311A The percentage of battery's remaining capacity
+    int16_t RemBattTemp; // 311B The battery temperature measured by remote temperature sensor
+    uint16_t dummy[1];   // 311C
+    int16_t BattRatedV;  // 311D Current system rated voltage. 1200,2400, 3600, 4800 represent 12V，24V，36V，48V
+
+  } l;
+  uint16_t buf[22];
+  not sure is 22 correct
+} live;
+*/
+
+    // statistics 0x3300
+    union
 {
   struct
   {

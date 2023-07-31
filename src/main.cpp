@@ -460,7 +460,7 @@ bool getEpData(int invNum)
   batterySOC = 0;
   uTime.setDateTime(0, 0, 0, 0, 0, 0);
 
-  // Read registers for clock
+  // Read registers for clock 0x9013 ------------------------------- combine with statistic reading
   epnode.clearResponseBuffer();
   result = epnode.readHoldingRegisters(RTC_CLOCK, RTC_CLOCK_CNT);
   if (result == epnode.ku8MBSuccess)
@@ -481,7 +481,7 @@ bool getEpData(int invNum)
     errorcode = result;
     return false;
   }
-  // read LIVE-Data
+  // read LIVE-Data 0x3100
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(LIVE_DATA, LIVE_DATA_CNT);
   if (result == epnode.ku8MBSuccess)
@@ -501,7 +501,7 @@ bool getEpData(int invNum)
     errorcode = errorcode + result;
     return false;
   }
-  // Statistical Data
+  // Statistical Data 0x3300
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(STATISTICS, STATISTICS_CNT);
   if (result == epnode.ku8MBSuccess)
@@ -520,7 +520,7 @@ bool getEpData(int invNum)
     errorcode = errorcode + result;
     return false;
   }
-  // Battery SOC
+  // Battery SOC 0x311A ---------------------------------- move to new 0x31XX reading construct
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(BATTERY_SOC, 1);
   if (result == epnode.ku8MBSuccess)
@@ -606,7 +606,7 @@ bool getEpData(int invNum)
     errorcode = errorcode + result;
     return false;
   }
-  // Device Temperature
+  // Device Temperature ---------------------------------- move to new 0x31XX reading construct
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(DEVICE_TEMPERATURE, 1);
   if (result == epnode.ku8MBSuccess)
@@ -624,7 +624,7 @@ bool getEpData(int invNum)
     errorcode = errorcode + result;
     return false;
   }
-  // Battery temperature
+  // Battery temperature ---------------------------------- move to new 0x31XX reading construct
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(BATTERY_TEMPERATURE, 1);
   if (result == epnode.ku8MBSuccess)
@@ -642,7 +642,7 @@ bool getEpData(int invNum)
     errorcode = errorcode + result;
     return false;
   }
-    // Settings Data
+    // Settings Data 0x9000 ------------------------------------ combine with clock
   epnode.clearResponseBuffer();
   result = epnode.readHoldingRegisters(DEVICE_SETTINGS, DEVICE_SETTINGS_CNT);
   if (result == epnode.ku8MBSuccess)
@@ -688,9 +688,9 @@ bool getJsonData(int invNum)
   liveJson["Wifi_RSSI"] = WiFi.RSSI();
 
   liveData["SOLAR_VOLTS"] = live.l.pV / 100.f;
-
   liveData["SOLAR_AMPS"] = live.l.pI / 100.f;
   liveData["SOLAR_WATTS"] = live.l.pP / 100.f;
+
   liveData["BATT_VOLTS"] = live.l.bV / 100.f;
 
   //liveData["BATT_AMPS"] = live.l.bI / 100.f;
