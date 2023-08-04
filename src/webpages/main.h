@@ -171,7 +171,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
         document.getElementById("solarV").innerHTML = data.LiveData.SOLAR_VOLTS + 'V ';
         document.getElementById("solarA").innerHTML = data.LiveData.SOLAR_AMPS + 'A  ';
         document.getElementById("solarW").innerHTML = data.LiveData.SOLAR_WATTS + 'W  ';
-        document.getElementById("battSOC").innerHTML = data.LiveData.BATTERY_SOC + '%%';
+        //document.getElementById("battSOC").innerHTML = data.LiveData.BATTERY_SOC + '%%';
 
         document.getElementById("SOCbar").innerHTML = data.LiveData.BATTERY_SOC + '%%';
         $('#SOCbar').width(data.LiveData.BATTERY_SOC + "%").attr('aria-valuenow', data.LiveData.BATTERY_SOC);
