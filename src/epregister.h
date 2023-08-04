@@ -94,19 +94,19 @@ union
   struct
   {
 
-    int16_t pV; // 0x3100
-    int16_t pI; // 0x3101
-    int32_t pP; // 0x3102 - 0x3103
+    int16_t pvV; // 0x3100
+    int16_t pvA; // 0x3101
+    int32_t pvW; // 0x3102 - 0x3103
 
-    int16_t bV; // 0x3104
-    int16_t bI; // 0x3105
-    int32_t bP; // 0x3106-0x3107 battery CHarging Power
+    int16_t battV; // 0x3104
+    int16_t battA; // 0x3105
+    int32_t battW; // 0x3106-0x3107 battery CHarging Power
 
     uint16_t dummy[4];
 
-    int16_t lV; // 0x310C
-    int16_t lI; // 0x310D
-    int32_t lP; // 0x310E - 0x310F
+    int16_t loadV; // 0x310C
+    int16_t loadA; // 0x310D
+    int32_t loadW; // 0x310E - 0x310F
 
   } l;
   uint16_t buf[16];

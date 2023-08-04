@@ -20,6 +20,14 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
 </div>
 </div>
 
+        <div class="row gx-0 mb-2">
+            <div class="col">
+                <div class="progress" style="height:1.8rem;">
+                    <div id="SOCbar" class="progress-bar" role="progressbar" style="width:0%;height:1.8rem;"
+                        aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+            </div>
+        </div>
 
 <div class="row gx-0 mb-2">
     <div class="col">
@@ -138,19 +146,25 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
         websocket = new WebSocket(gateway);
         websocket.onopen = onOpen;
         websocket.onclose = onClose;
+        websocket.onerror = onError;
         websocket.onmessage = onMessage;
     }
     function onOpen(event) {
         console.log('Connection opened');
+        setInterval(checkWS, 5000);
     }
     function onClose(event) {
         console.log('Connection closed');
-        setTimeout(initWebSocket, 2000);
+        setTimeout(initWebSocket, 3500);
     }
+    function onError(event) {
+        console.log('Connection lost');
+    }
+
     function onMessage(event) {
         var data = JSON.parse(event.data);
 
-        document.getElementById("devicename").innerHTML = data.DEVICE_NAME == null ? 'No Connection' : 'Device: ' + data.DEVICE_NAME;
+        document.getElementById("devicename").innerHTML = data.DEVICE_NAME == null ? 'No Connection' : data.DEVICE_NAME;
 
         document.getElementById("devtime").innerHTML = unixTimetoDateTime(data.DEVICE_TIME);
 
@@ -158,6 +172,9 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
         document.getElementById("solarA").innerHTML = data.LiveData.SOLAR_AMPS + 'A  ';
         document.getElementById("solarW").innerHTML = data.LiveData.SOLAR_WATTS + 'W  ';
         document.getElementById("battSOC").innerHTML = data.LiveData.BATTERY_SOC + '%%';
+
+        document.getElementById("SOCbar").innerHTML = data.LiveData.BATTERY_SOC + '%%';
+        $('#SOCbar').width(data.LiveData.BATTERY_SOC + "%").attr('aria-valuenow', data.LiveData.BATTERY_SOC);
 
         document.getElementById("battV").innerHTML = data.LiveData.BATT_VOLTS + 'V ';
         document.getElementById("battA").innerHTML = data.LiveData.BATT_AMPS + 'A  ';
@@ -243,6 +260,9 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
             (deviceDate.getMinutes() < 10 ? '0' : '') + deviceDate.getMinutes() + ":" +
             (deviceDate.getSeconds() < 10 ? '0' : '') + deviceDate.getSeconds();
         return formatedTime;
+    }
+    function checkWS(){
+        websocket.send("A9");
     }
 </script>
 %FOOT_TEMPLATE%
