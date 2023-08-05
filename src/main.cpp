@@ -733,7 +733,7 @@ bool connectMQTT()
     if (mqttclient.connect(mqttClientId, _settings.data.mqttUser, _settings.data.mqttPassword, (topic + "/Alive").c_str(), 0, true, "false", true))
     {
       mqttclient.publish((topic + String("/IP")).c_str(), String(WiFi.localIP().toString()).c_str());
-      mqttclient.publish((topic + String("/Alive")).c_str(), "true", true); // LWT online message must be retained!
+      //mqttclient.publish((topic + String("/Alive")).c_str(), "true", true); // LWT online message must be retained!
 
       if(strlen(_settings.data.mqttTriggerPath) > 0)
       {
@@ -791,7 +791,7 @@ bool sendtoMQTT(int invNum)
   }
 
   //-----------------------------------------------------
-
+  mqttclient.publish((topic + String("/Alive")).c_str(), "true", true); // LWT online message must be retained!
   if (!_settings.data.mqttJson)
   {
     // Device Data
