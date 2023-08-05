@@ -7,8 +7,7 @@
 
 <div class="row gx-0 mb-2">
     <div class="col">
-        <button id="prevInv" type="button" class="btn btn-primary">
-            << /button>
+        <button id="prevInv" type="button" class="btn btn-primary"> < </button>
     </div>
     <div class="col-9">
         <figure class="text-center">
@@ -16,7 +15,7 @@
         </figure>
     </div>
     <div class="col">
-        <button id="nextInv" type="button" class="btn btn-primary" style="float: right;">></button>
+        <button id="nextInv" type="button" class="btn btn-primary" style="float: right;"> > </button>
     </div>
 </div>
 
@@ -165,7 +164,6 @@
         var data = JSON.parse(event.data);
 
         document.getElementById("devicename").innerHTML = data.DEVICE_NAME == null ? 'No Connection' : data.DEVICE_NAME;
-
         document.getElementById("devtime").innerHTML = unixTimetoDateTime(data.DEVICE_TIME);
 
         document.getElementById("solarV").innerHTML = data.LiveData.SOLAR_VOLTS + 'V ';

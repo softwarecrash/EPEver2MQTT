@@ -11,22 +11,24 @@ String htmlProcessor(const String &var)
     if (var == F("pre_swversion"))
         return (SWVERSION);
    if (var == F("pre_device_name"))
-        return (_settings._deviceName);
+        return (_settings.data.deviceName);
     if (var == ("pre_device_quantity"))
-        return (String(_settings._deviceQuantity).c_str());
+        return (String(_settings.data.deviceQuantity).c_str());
     if (var == F("pre_mqtt_server"))
-        return (_settings._mqttServer);
+        return (_settings.data.mqttServer);
     if (var == F("pre_mqtt_port"))
-        return (String(_settings._mqttPort).c_str());
+        return (String(_settings.data.mqttPort).c_str());
     if (var == F("pre_mqtt_user"))
-        return (_settings._mqttUser);
+        return (_settings.data.mqttUser);
     if (var == F("pre_mqtt_pass"))
-        return (_settings._mqttPassword);
+        return (_settings.data.mqttPassword);
     if (var == F("pre_mqtt_topic"))
-        return (_settings._mqttTopic);
+        return (_settings.data.mqttTopic);
     if (var == F("pre_mqtt_refresh"))
-        return (String(_settings._mqttRefresh).c_str());
+        return (String(_settings.data.mqttRefresh).c_str());
     if (var == F("pre_mqtt_json"))
-        return (_settings._mqttJson ? "checked":"");
+        return (_settings.data.mqttJson ? "checked":"");
+   if (var == F("pre_mqtt_mqtttrigger"))
+        return (_settings.data.mqttTriggerPath);
     return String();
 }

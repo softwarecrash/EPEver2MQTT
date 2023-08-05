@@ -226,7 +226,7 @@ void setup()
 
   wm.setSaveConfigCallback(saveConfigCallback);
 
-  sprintf(mqttClientId, "%s-%06X", _settings._deviceName.c_str(), ESP.getChipId());
+  sprintf(mqttClientId, "%s-%06X", _settings.data.deviceName, ESP.getChipId());
 
   AsyncWiFiManagerParameter custom_mqtt_server("mqtt_server", "MQTT server", NULL, 32);
   AsyncWiFiManagerParameter custom_mqtt_user("mqtt_user", "MQTT User", NULL, 32);
@@ -234,6 +234,7 @@ void setup()
   AsyncWiFiManagerParameter custom_mqtt_topic("mqtt_topic", "MQTT Topic", "EPEver", 32);
   AsyncWiFiManagerParameter custom_mqtt_port("mqtt_port", "MQTT Port", NULL, 6);
   AsyncWiFiManagerParameter custom_mqtt_refresh("mqtt_refresh", "MQTT Send Interval", "300", 4);
+  AsyncWiFiManagerParameter custom_mqtt_triggerpath("mqtt_triggerpath", "MQTT Data Trigger Path", NULL, 90);
   AsyncWiFiManagerParameter custom_device_name("device_name", "Device Name", "EPEver2MQTT", 32);
   AsyncWiFiManagerParameter custom_device_quantity("device_quantity", "Device Quantity", "1", 2);
 
@@ -243,6 +244,7 @@ void setup()
   wm.addParameter(&custom_mqtt_topic);
   wm.addParameter(&custom_mqtt_port);
   wm.addParameter(&custom_mqtt_refresh);
+  wm.addParameter(&custom_mqtt_triggerpath);
   wm.addParameter(&custom_device_name);
   wm.addParameter(&custom_device_quantity);
 
@@ -254,21 +256,22 @@ void setup()
   // save settings if wifi setup is fire up
   if (shouldSaveConfig)
   {
-    _settings._mqttServer = custom_mqtt_server.getValue();
-    _settings._mqttUser = custom_mqtt_user.getValue();
-    _settings._mqttPassword = custom_mqtt_pass.getValue();
-    _settings._mqttPort = atoi(custom_mqtt_port.getValue());
-    _settings._deviceName = custom_device_name.getValue();
-    _settings._mqttTopic = custom_mqtt_topic.getValue();
-    _settings._mqttRefresh = atoi(custom_mqtt_refresh.getValue());
-    _settings._deviceQuantity = atoi(custom_device_quantity.getValue()) <= 0 ? 1 : atoi(custom_device_quantity.getValue());
+    strncpy(_settings.data.mqttServer, custom_mqtt_server.getValue(), 40);
+    strncpy(_settings.data.mqttUser, custom_mqtt_user.getValue(), 40);
+    strncpy(_settings.data.mqttPassword, custom_mqtt_pass.getValue(), 40);
+    _settings.data.mqttPort = atoi(custom_mqtt_port.getValue());
+    strncpy(_settings.data.deviceName, custom_device_name.getValue(), 40);
+    strncpy(_settings.data.mqttTopic, custom_mqtt_topic.getValue(), 40);
+    _settings.data.mqttRefresh = atoi(custom_mqtt_refresh.getValue());
+    strncpy(_settings.data.mqttTriggerPath, custom_mqtt_triggerpath.getValue(), 80);
+    _settings.data.deviceQuantity = atoi(custom_device_quantity.getValue()) <= 0 ? 1 : atoi(custom_device_quantity.getValue());
 
     _settings.save();
     ESP.restart();
   }
 
-  topic = _settings._mqttTopic;
-  mqttclient.setServer(_settings._mqttServer.c_str(), _settings._mqttPort);
+  topic = _settings.data.mqttTopic;
+  mqttclient.setServer(_settings.data.mqttServer, _settings.data.mqttPort);
   mqttclient.setCallback(callback);
   mqttclient.setBufferSize(MQTT_BUFFER);
   // check is WiFi connected
@@ -276,10 +279,10 @@ void setup()
   if (res)
   {
     // set the device name
-    MDNS.begin(_settings._deviceName);
-    WiFi.hostname(_settings._deviceName);
+    MDNS.begin(_settings.data.deviceName);
+    WiFi.hostname(_settings.data.deviceName);
 
-    liveJson["DEVICE_NAME"] = _settings._deviceName;
+    liveJson["DEVICE_NAME"] = _settings.data.deviceName;
 
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
               {
@@ -327,15 +330,16 @@ void setup()
 
     server.on("/settingssave", HTTP_POST, [](AsyncWebServerRequest *request)
               {
-                _settings._mqttServer = request->arg("post_mqttServer");
-                _settings._mqttPort = request->arg("post_mqttPort").toInt();
-                _settings._mqttUser = request->arg("post_mqttUser");
-                _settings._mqttPassword = request->arg("post_mqttPassword");
-                _settings._mqttTopic = request->arg("post_mqttTopic");
-                _settings._mqttRefresh = request->arg("post_mqttRefresh").toInt();
-                _settings._deviceName = request->arg("post_deviceName");
-                _settings._deviceQuantity = request->arg("post_deviceQuanttity").toInt() <= 0 ? 1 : request->arg("post_deviceQuanttity").toInt();
-                _settings._mqttJson = (request->arg("post_mqttjson") == "true") ? true : false;
+                strncpy(_settings.data.mqttServer, request->arg("post_mqttServer").c_str(), 40);
+                _settings.data.mqttPort = request->arg("post_mqttPort").toInt();
+                strncpy(_settings.data.mqttUser, request->arg("post_mqttUser").c_str(), 40);
+                strncpy(_settings.data.mqttPassword, request->arg("post_mqttPassword").c_str(), 40);
+                strncpy(_settings.data.mqttTopic, request->arg("post_mqttTopic").c_str(), 40);
+                _settings.data.mqttRefresh = request->arg("post_mqttRefresh").toInt() < 1 ? 1 : request->arg("post_mqttRefresh").toInt(); // prevent lower numbers
+                strncpy(_settings.data.deviceName, request->arg("post_deviceName").c_str(), 40);
+                _settings.data.deviceQuantity = request->arg("post_deviceQuanttity").toInt() <= 0 ? 1 : request->arg("post_deviceQuanttity").toInt();
+                _settings.data.mqttJson = (request->arg("post_mqttjson") == "true") ? true : false;
+                strncpy(_settings.data.mqttTriggerPath, request->arg("post_mqtttrigger").c_str(), 80);
                 _settings.save();
                 request->redirect("/reboot"); });
 
@@ -351,8 +355,7 @@ void setup()
         uint8_t rtcSetm  = atoi (request->getParam("datetime")->value().substring(8, 10).c_str ());
         uint8_t rtcSets  = atoi (request->getParam("datetime")->value().substring(10, 12).c_str ());
 
-      for (size_t i = 1; i <= ((size_t)_settings._deviceQuantity); i++)
-      //for (size_t i = 1; i < ((size_t)_settings._deviceQuantity + 1); i++)
+      for (size_t i = 1; i <= ((size_t)_settings.data.deviceQuantity); i++)
       {
         epnode.setSlaveId(i);
         epnode.setTransmitBuffer(0, ((uint16_t)rtcSetm << 8) | rtcSets); // minute | secund
@@ -406,7 +409,7 @@ void loop()
 
     if (millis() > (getDataTimer + 500) && !updateProgress && wsClient != nullptr && wsClient->canSend())
     {
-      for (size_t i = 1; i <= ((size_t)_settings._deviceQuantity); i++)
+      for (size_t i = 1; i <= ((size_t)_settings.data.deviceQuantity); i++)
       {
         if (wsReqInvNum == i && getEpData(i)) // only send the data to web was selected
         {
@@ -421,9 +424,9 @@ void loop()
     {
       getDataTimer = millis();
     }
-    if (millis() > (mqtttimer + (_settings._mqttRefresh * 1000)) && !updateProgress)
+    if (millis() > (mqtttimer + (_settings.data.mqttRefresh * 1000)) && !updateProgress)
     {
-      for (size_t i = 1; i <= ((size_t)_settings._deviceQuantity); i++)
+      for (size_t i = 1; i <= ((size_t)_settings.data.deviceQuantity); i++)
       {
         if (getEpData(i))
         {
@@ -668,15 +671,15 @@ bool getEpData(int invNum)
 
 bool getJsonData(int invNum)
 {
-  if ((size_t)_settings._deviceQuantity > 1)
+  if ((size_t)_settings.data.deviceQuantity > 1)
   {
-    liveJson["DEVICE_NAME"] = _settings._deviceName + "_" + (invNum);
+    liveJson["DEVICE_NAME"] = _settings.deviceNameStr + "_" + (invNum);
   }
   else
   {
-    liveJson["DEVICE_NAME"] = _settings._deviceName;
+    liveJson["DEVICE_NAME"] = _settings.data.deviceName;
   }
-  liveJson["DEVICE_QUANTITY"] = _settings._deviceQuantity;
+  liveJson["DEVICE_QUANTITY"] = _settings.data.deviceQuantity;
   liveJson["DEVICE_TIME"] = uTime.getUnix();
   liveJson["DEVICE_TEMPERATURE"] = deviceTemperature / 100.f;
 
@@ -727,27 +730,33 @@ bool connectMQTT()
 {
   if (!mqttclient.connected())
   {
-    if (mqttclient.connect(mqttClientId, _settings._mqttUser.c_str(), _settings._mqttPassword.c_str(), (topic + "/Alive").c_str(), 0, true, "false", true))
+    if (mqttclient.connect(mqttClientId, _settings.data.mqttUser, _settings.data.mqttPassword, (topic + "/Alive").c_str(), 0, true, "false", true))
     {
       mqttclient.publish((topic + String("/IP")).c_str(), String(WiFi.localIP().toString()).c_str());
       mqttclient.publish((topic + String("/Alive")).c_str(), "true", true); // LWT online message must be retained!
 
-      if ((size_t)_settings._deviceQuantity > 1) // if more than one inverter avaible, subscribe to all topics
+      if(strlen(_settings.data.mqttTriggerPath) > 0)
       {
-        for (size_t i = 1; i < ((size_t)_settings._deviceQuantity + 1); i++)
+        DEBUG_WEBLN("MQTT Data Trigger Subscribed");
+        mqttclient.subscribe(_settings.data.mqttTriggerPath);
+      }
+
+      if ((size_t)_settings.data.deviceQuantity > 1) // if more than one inverter avaible, subscribe to all topics
+      {
+        for (size_t i = 1; i < ((size_t)_settings.data.deviceQuantity + 1); i++)
         {
-          if (!_settings._mqttJson) // classic mqtt DP
-            mqttclient.subscribe((topic + "/" + _settings._deviceName + "_" + i + "/LOAD_STATE").c_str());
+          if (!_settings.data.mqttJson) // classic mqtt DP
+            mqttclient.subscribe((topic + "/" + _settings.deviceNameStr + "_" + i + "/LOAD_STATE").c_str());
           else // subscribe json
-            mqttclient.subscribe((topic + "/" + _settings._deviceName + "_" + i + "/DATA").c_str());
+            mqttclient.subscribe((topic + "/" + _settings.deviceNameStr + "_" + i + "/DATA").c_str());
         }
       }
       else // if only one inverter avaible subscribe to one topic
       {
-        if (!_settings._mqttJson) // classic mqtt DP
-          mqttclient.subscribe((topic + "/" + _settings._deviceName + "/LOAD_STATE").c_str());
+        if (!_settings.data.mqttJson) // classic mqtt DP
+          mqttclient.subscribe((topic + "/" + _settings.deviceNameStr + "/LOAD_STATE").c_str());
         else // subscribe json
-          mqttclient.subscribe((topic + "/" + _settings._deviceName + "/DATA").c_str());
+          mqttclient.subscribe((topic + "/" + _settings.deviceNameStr + "/DATA").c_str());
       }
       return true;
     }
@@ -772,18 +781,18 @@ bool sendtoMQTT(int invNum)
   }
   String mqttDeviceName;
 
-  if ((size_t)_settings._deviceQuantity > 1)
+  if ((size_t)_settings.data.deviceQuantity > 1)
   {
-    mqttDeviceName = _settings._deviceName + "_" + invNum;
+    mqttDeviceName = _settings.deviceNameStr + "_" + invNum;
   }
   else
   {
-    mqttDeviceName = _settings._deviceName;
+    mqttDeviceName = _settings.data.deviceName;
   }
 
   //-----------------------------------------------------
 
-  if (!_settings._mqttJson)
+  if (!_settings.data.mqttJson)
   {
     // Device Data
     mqttclient.publish((topic + "/" + mqttDeviceName + "/DeviceData/DEVICE_TIME").c_str(), String(uTime.getUnix()).c_str());
@@ -857,7 +866,7 @@ bool sendtoMQTT(int invNum)
 void callback(char *top, byte *payload, unsigned int length) // Need rework
 {
   updateProgress = true; // stop servicing data
-  if (!_settings._mqttJson)
+  if (!_settings.data.mqttJson)
   {
     String messageTemp;
     for (unsigned int i = 0; i < length; i++)
@@ -865,11 +874,11 @@ void callback(char *top, byte *payload, unsigned int length) // Need rework
       messageTemp += (char)payload[i];
     }
 
-    if ((size_t)_settings._deviceQuantity > 1)
+    if ((size_t)_settings.data.deviceQuantity > 1)
     {
-      for (size_t k = 1; k < ((size_t)_settings._deviceQuantity + 1); k++)
+      for (size_t k = 1; k < ((size_t)_settings.data.deviceQuantity + 1); k++)
       {
-        if (strcmp(top, (topic + "/" + _settings._deviceName + "_" + k + "/LOAD_STATE").c_str()) == 0)
+        if (strcmp(top, (topic + "/" + _settings.deviceNameStr + "_" + k + "/LOAD_STATE").c_str()) == 0)
         {
           epnode.setSlaveId(k);
           if (messageTemp == "true")
@@ -881,7 +890,7 @@ void callback(char *top, byte *payload, unsigned int length) // Need rework
     }
     else
     {
-      if (strcmp(top, (topic + "/" + _settings._deviceName + "/LOAD_STATE").c_str()) == 0)
+      if (strcmp(top, (topic + "/" + _settings.deviceNameStr + "/LOAD_STATE").c_str()) == 0)
       {
         epnode.setSlaveId(1);
         if (messageTemp == "true")
@@ -896,11 +905,11 @@ void callback(char *top, byte *payload, unsigned int length) // Need rework
     StaticJsonDocument<1024> mqttJsonAnswer;
     deserializeJson(mqttJsonAnswer, (const byte *)payload, length);
 
-    if ((size_t)_settings._deviceQuantity > 1)
+    if ((size_t)_settings.data.deviceQuantity > 1)
     {
-      for (size_t k = 1; k < ((size_t)_settings._deviceQuantity + 1); k++)
+      for (size_t k = 1; k < ((size_t)_settings.data.deviceQuantity + 1); k++)
       {
-        if (mqttJsonAnswer["DEVICE_NAME_" + k] == (_settings._deviceName + "_" + k))
+        if (mqttJsonAnswer["DEVICE_NAME_" + k] == (_settings.deviceNameStr + "_" + k))
         {
           epnode.setSlaveId(k);
           if (mqttJsonAnswer["LOAD_STATE"] == true)
@@ -919,5 +928,11 @@ void callback(char *top, byte *payload, unsigned int length) // Need rework
         epnode.writeSingleCoil(0x0002, 0);
     }
   }
+
+  if (strlen(_settings.data.mqttTriggerPath) > 0 && strcmp(top, _settings.data.mqttTriggerPath) == 0)
+      {
+        DEBUG_WEBLN("MQTT Data Trigger Firered Up");
+        mqtttimer = 0;
+      }
   updateProgress = false; // start data servicing again
 }
