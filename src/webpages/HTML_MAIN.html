@@ -1,5 +1,4 @@
-const char HTML_MAIN[] PROGMEM = R"rawliteral(
-    %HEAD_TEMPLATE%
+%HEAD_TEMPLATE%
 <div class="row gx-0 mb-2" id="vcc_alert" style="display: none;">
     <div class="alert alert-danger" role="alert" style="text-align: center;">
     <span><b>WARNING ESP VOLTAGE TO LOW</b></span>
@@ -8,7 +7,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
 
 <div class="row gx-0 mb-2">
 <div class="col">
-<button id="prevInv" type="button" class="btn btn-primary">&#8882;</button>
+<button id="prevInv" type="button" class="btn btn-primary"><</button>
 </div>
 <div class="col-9">
 <figure class="text-center">
@@ -16,7 +15,7 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
 </figure>
 </div>
 <div class="col">
-<button id="nextInv" type="button" class="btn btn-primary" style="float: right;">&#8883;</button>
+<button id="nextInv" type="button" class="btn btn-primary" style="float: right;">></button>
 </div>
 </div>
 
@@ -266,4 +265,4 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
     }
 </script>
 %FOOT_TEMPLATE%
-)rawliteral";
+<p hidden>Hidden Helper</p> 

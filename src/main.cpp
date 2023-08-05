@@ -20,12 +20,8 @@
 
 #include "Settings.h" //settings functions
 
-#include "webpages/htmlCase.h"      // The HTML Konstructor
-#include "webpages/main.h"          // landing page with menu
-#include "webpages/settings.h"      // settings page
-#include "webpages/settingsedit.h"  // mqtt settings page
-#include "webpages/reboot.h"        // Reboot Page
-#include "webpages/htmlProzessor.h" // The html Prozessor
+#include "html.h" //the HTML content
+#include "htmlProzessor.h" // The html Prozessor
 
 String topic = "/"; // Default first part of topic. We will add device ID in setup
 
