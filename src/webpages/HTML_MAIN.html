@@ -1,32 +1,33 @@
-%HEAD_TEMPLATE%
+%pre_head_template%
 <div class="row gx-0 mb-2" id="vcc_alert" style="display: none;">
     <div class="alert alert-danger" role="alert" style="text-align: center;">
-    <span><b>WARNING ESP VOLTAGE TO LOW</b></span>
+        <span><b>WARNING ESP VOLTAGE TO LOW</b></span>
     </div>
 </div>
 
 <div class="row gx-0 mb-2">
-<div class="col">
-<button id="prevInv" type="button" class="btn btn-primary"><</button>
-</div>
-<div class="col-9">
-<figure class="text-center">
-    <h3 id="devicename"></h3>
-</figure>
-</div>
-<div class="col">
-<button id="nextInv" type="button" class="btn btn-primary" style="float: right;">></button>
-</div>
+    <div class="col">
+        <button id="prevInv" type="button" class="btn btn-primary">
+            << /button>
+    </div>
+    <div class="col-9">
+        <figure class="text-center">
+            <h3 id="devicename"></h3>
+        </figure>
+    </div>
+    <div class="col">
+        <button id="nextInv" type="button" class="btn btn-primary" style="float: right;">></button>
+    </div>
 </div>
 
-        <div class="row gx-0 mb-2">
-            <div class="col">
-                <div class="progress" style="height:1.8rem;">
-                    <div id="SOCbar" class="progress-bar" role="progressbar" style="width:0%;height:1.8rem;"
-                        aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
-                </div>
-            </div>
+<div class="row gx-0 mb-2">
+    <div class="col">
+        <div class="progress" style="height:1.8rem;">
+            <div id="SOCbar" class="progress-bar" role="progressbar" style="width:0%;height:1.8rem;" aria-valuenow="0"
+                aria-valuemin="0" aria-valuemax="100"></div>
         </div>
+    </div>
+</div>
 
 <div class="row gx-0 mb-2">
     <div class="col">
@@ -184,8 +185,8 @@
         document.getElementById("loadW").innerHTML = data.LiveData.LOAD_WATTS + 'W  ';
 
         document.getElementById("deviceTemp").innerHTML = data.DEVICE_TEMPERATURE + '°C  ';
-        if(data.BATTERY_TEMPERATURE != 25){
-        document.getElementById("battTemp").innerHTML = ' | ' + data.BATTERY_TEMPERATURE + '°C  ';
+        if (data.BATTERY_TEMPERATURE != 25) {
+            document.getElementById("battTemp").innerHTML = ' | ' + data.BATTERY_TEMPERATURE + '°C  ';
         }
         document.getElementById("consD").innerHTML = 'D:' + data.StatsData.CONS_ENERGY_DAY + '  ';
         document.getElementById("consM").innerHTML = 'M:' + data.StatsData.CONS_ENGERY_MON + '  ';
@@ -204,13 +205,13 @@
 
         document.getElementById("loadState").checked = data.LOAD_STATE;
         invQuantity = data.DEVICE_QUANTITY;
-            if(invQuantity <= 1){
+        if (invQuantity <= 1) {
             document.getElementById('prevInv').style.visibility = 'hidden';
             document.getElementById('nextInv').style.visibility = 'hidden';
         }
         if (data.ESP_VCC < 2.6) {
             document.getElementById("vcc_alert").style.display = '';
-        }else{
+        } else {
             document.getElementById("vcc_alert").style.display = 'none';
         }
 
@@ -260,9 +261,9 @@
             (deviceDate.getSeconds() < 10 ? '0' : '') + deviceDate.getSeconds();
         return formatedTime;
     }
-    function checkWS(){
+    function checkWS() {
         websocket.send("A9");
     }
 </script>
-%FOOT_TEMPLATE%
-<p hidden>Hidden Helper</p> 
+%pre_foot_template%
+<p hidden>Hidden Helper</p>
