@@ -1,25 +1,32 @@
-const char HTML_MAIN[] PROGMEM = R"rawliteral(
-    %HEAD_TEMPLATE%
+%pre_head_template%
 <div class="row gx-0 mb-2" id="vcc_alert" style="display: none;">
     <div class="alert alert-danger" role="alert" style="text-align: center;">
-    <span><b>WARNING ESP VOLTAGE TO LOW</b></span>
+        <span><b>WARNING ESP VOLTAGE TO LOW</b></span>
     </div>
 </div>
 
 <div class="row gx-0 mb-2">
-<div class="col">
-<button id="prevInv" type="button" class="btn btn-primary">&#8882;</button>
-</div>
-<div class="col-9">
-<figure class="text-center">
-    <h3 id="devicename"></h3>
-</figure>
-</div>
-<div class="col">
-<button id="nextInv" type="button" class="btn btn-primary" style="float: right;">&#8883;</button>
-</div>
+    <div class="col">
+        <button id="prevInv" type="button" class="btn btn-primary"> < </button>
+    </div>
+    <div class="col-9">
+        <figure class="text-center">
+            <h3 id="devicename"></h3>
+        </figure>
+    </div>
+    <div class="col">
+        <button id="nextInv" type="button" class="btn btn-primary" style="float: right;"> > </button>
+    </div>
 </div>
 
+<div class="row gx-0 mb-2">
+    <div class="col">
+        <div class="progress" style="height:1.8rem;">
+            <div id="SOCbar" class="progress-bar" role="progressbar" style="width:0%;height:1.8rem;" aria-valuenow="0"
+                aria-valuemin="0" aria-valuemax="100"></div>
+        </div>
+    </div>
+</div>
 
 <div class="row gx-0 mb-2">
     <div class="col">
@@ -138,26 +145,34 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
         websocket = new WebSocket(gateway);
         websocket.onopen = onOpen;
         websocket.onclose = onClose;
+        websocket.onerror = onError;
         websocket.onmessage = onMessage;
     }
     function onOpen(event) {
         console.log('Connection opened');
+        setInterval(checkWS, 5000);
     }
     function onClose(event) {
         console.log('Connection closed');
-        setTimeout(initWebSocket, 2000);
+        setTimeout(initWebSocket, 3500);
     }
+    function onError(event) {
+        console.log('Connection lost');
+    }
+
     function onMessage(event) {
         var data = JSON.parse(event.data);
 
-        document.getElementById("devicename").innerHTML = data.DEVICE_NAME == null ? 'No Connection' : 'Device: ' + data.DEVICE_NAME;
-
+        document.getElementById("devicename").innerHTML = data.DEVICE_NAME == null ? 'No Connection' : data.DEVICE_NAME;
         document.getElementById("devtime").innerHTML = unixTimetoDateTime(data.DEVICE_TIME);
 
         document.getElementById("solarV").innerHTML = data.LiveData.SOLAR_VOLTS + 'V ';
         document.getElementById("solarA").innerHTML = data.LiveData.SOLAR_AMPS + 'A  ';
         document.getElementById("solarW").innerHTML = data.LiveData.SOLAR_WATTS + 'W  ';
-        document.getElementById("battSOC").innerHTML = data.LiveData.BATTERY_SOC + '%%';
+        //document.getElementById("battSOC").innerHTML = data.LiveData.BATTERY_SOC + '%%';
+
+        document.getElementById("SOCbar").innerHTML = data.LiveData.BATTERY_SOC + '%%';
+        $('#SOCbar').width(data.LiveData.BATTERY_SOC + "%").attr('aria-valuenow', data.LiveData.BATTERY_SOC);
 
         document.getElementById("battV").innerHTML = data.LiveData.BATT_VOLTS + 'V ';
         document.getElementById("battA").innerHTML = data.LiveData.BATT_AMPS + 'A  ';
@@ -168,8 +183,8 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
         document.getElementById("loadW").innerHTML = data.LiveData.LOAD_WATTS + 'W  ';
 
         document.getElementById("deviceTemp").innerHTML = data.DEVICE_TEMPERATURE + '°C  ';
-        if(data.BATTERY_TEMPERATURE != 25){
-        document.getElementById("battTemp").innerHTML = ' | ' + data.BATTERY_TEMPERATURE + '°C  ';
+        if (data.BATTERY_TEMPERATURE != 25) {
+            document.getElementById("battTemp").innerHTML = ' | ' + data.BATTERY_TEMPERATURE + '°C  ';
         }
         document.getElementById("consD").innerHTML = 'D:' + data.StatsData.CONS_ENERGY_DAY + '  ';
         document.getElementById("consM").innerHTML = 'M:' + data.StatsData.CONS_ENGERY_MON + '  ';
@@ -188,13 +203,13 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
 
         document.getElementById("loadState").checked = data.LOAD_STATE;
         invQuantity = data.DEVICE_QUANTITY;
-            if(invQuantity <= 1){
+        if (invQuantity <= 1) {
             document.getElementById('prevInv').style.visibility = 'hidden';
             document.getElementById('nextInv').style.visibility = 'hidden';
         }
         if (data.ESP_VCC < 2.6) {
             document.getElementById("vcc_alert").style.display = '';
-        }else{
+        } else {
             document.getElementById("vcc_alert").style.display = 'none';
         }
 
@@ -244,6 +259,9 @@ const char HTML_MAIN[] PROGMEM = R"rawliteral(
             (deviceDate.getSeconds() < 10 ? '0' : '') + deviceDate.getSeconds();
         return formatedTime;
     }
+    function checkWS() {
+        websocket.send("A9");
+    }
 </script>
-%FOOT_TEMPLATE%
-)rawliteral";
+%pre_foot_template%
+<p hidden>Hidden Helper</p>
