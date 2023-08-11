@@ -790,8 +790,8 @@ bool sendtoMQTT(int invNum)
   }
 
   //-----------------------------------------------------
-  mqttclient.publish((mqttDeviceName + String("/Alive")).c_str(), "true", true); // LWT online message must be retained!
-  mqttclient.publish((mqttDeviceName + String("/Wifi_RSSI")).c_str(), String(WiFi.RSSI()).c_str());
+  mqttclient.publish((topic + String("/Alive")).c_str(), "true", true); // LWT online message must be retained!
+  mqttclient.publish((topic + String("/Wifi_RSSI")).c_str(), String(WiFi.RSSI()).c_str());
   if (!_settings.data.mqttJson)
   {
     // Device Data
