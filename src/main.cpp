@@ -461,7 +461,6 @@ bool getEpData(int invNum)
   batterySOC = 0;
   uTime.setDateTime(0, 0, 0, 0, 0, 0);
 
-  // Read registers for clock 0x9013 ------------------------------- combine with statistic reading
   epnode.clearResponseBuffer();
   result = epnode.readHoldingRegisters(RTC_CLOCK, RTC_CLOCK_CNT);
   if (result == epnode.ku8MBSuccess)
@@ -521,7 +520,7 @@ bool getEpData(int invNum)
     errorcode = errorcode + result;
     return false;
   }
-  // Battery SOC 0x311A ---------------------------------- move to new 0x31XX reading construct
+
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(BATTERY_SOC, 1);
   if (result == epnode.ku8MBSuccess)
@@ -607,7 +606,7 @@ bool getEpData(int invNum)
     errorcode = errorcode + result;
     return false;
   }
-  // Device Temperature ---------------------------------- move to new 0x31XX reading construct
+
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(DEVICE_TEMPERATURE, 1);
   if (result == epnode.ku8MBSuccess)
@@ -625,7 +624,7 @@ bool getEpData(int invNum)
     errorcode = errorcode + result;
     return false;
   }
-  // Battery temperature ---------------------------------- move to new 0x31XX reading construct
+
   epnode.clearResponseBuffer();
   result = epnode.readInputRegisters(BATTERY_TEMPERATURE, 1);
   if (result == epnode.ku8MBSuccess)
@@ -643,7 +642,7 @@ bool getEpData(int invNum)
     errorcode = errorcode + result;
     return false;
   }
-  // Settings Data 0x9000 ------------------------------------ combine with clock
+
   epnode.clearResponseBuffer();
   result = epnode.readHoldingRegisters(DEVICE_SETTINGS, DEVICE_SETTINGS_CNT);
   if (result == epnode.ku8MBSuccess)
