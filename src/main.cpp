@@ -666,7 +666,7 @@ bool getJsonData(int invNum)
     liveJson["EP_" + String(invNum)]["LiveData"]["LOAD_W"] = live.l.loadW / 100.f;
     liveJson["EP_" + String(invNum)]["LiveData"]["LOAD_STATE"] = loadState;
     // charger
-    liveJson["EP_" + String(invNum)]["LiveData"]["CHARGER_IN_STATE"] = charger_input_status[charger_input];
+    liveJson["EP_" + String(invNum)]["LiveData"]["CHARGER_STATE"] = charger_input_status[charger_input];
     liveJson["EP_" + String(invNum)]["LiveData"]["CHARGER_MODE"] = charger_charging_status[charger_mode];
     // statistic
     liveJson["EP_" + String(invNum)]["StatsData"]["SOLAR_MAX"] = stats.s.pVmax / 100.f;
