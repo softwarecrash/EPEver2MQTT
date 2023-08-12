@@ -7,7 +7,7 @@
 
 <div class="row gx-0 mb-2">
     <div class="col">
-        <button id="prevInv" type="button" class="btn btn-primary"> ⊲ </button>
+        <button id="prevDev" type="button" class="btn btn-primary" style="Display: none;"> ⊲ </button>
     </div>
     <div class="col-9">
         <figure class="text-center">
@@ -15,7 +15,7 @@
         </figure>
     </div>
     <div class="col">
-        <button id="nextInv" type="button" class="btn btn-primary" style="float: right;"> ⊳ </button>
+        <button id="nextDev" type="button" class="btn btn-primary" style="float: right; display: none;"> ⊳ </button>
     </div>
 </div>
 
@@ -137,8 +137,9 @@
 <script>
     var gateway = `ws://${window.location.hostname}/ws`;
     var websocket;
-    var selInverter = 1;
-    var invQuantity = 1;
+    var deviceQuantity = 0;
+    var shDevNum = 1;
+    var devPrA = "EP_";
     window.addEventListener('load', onLoad);
     function initWebSocket() {
         console.log('Trying to open a WebSocket connection...');
@@ -163,50 +164,61 @@
     function onMessage(event) {
         var data = JSON.parse(event.data);
 
-        document.getElementById("devicename").innerHTML = data.DEVICE_NAME == null ? 'No Connection' : data.DEVICE_NAME;
-        document.getElementById("devtime").innerHTML = unixTimetoDateTime(data.DEVICE_TIME);
-
-        document.getElementById("solarV").innerHTML = data.LiveData.SOLAR_VOLTS + 'V ';
-        document.getElementById("solarA").innerHTML = data.LiveData.SOLAR_AMPS + 'A  ';
-        document.getElementById("solarW").innerHTML = data.LiveData.SOLAR_WATTS + 'W  ';
-        //document.getElementById("battSOC").innerHTML = data.LiveData.BATTERY_SOC + '%%';
-
-        document.getElementById("SOCbar").innerHTML = data.LiveData.BATTERY_SOC + '%%';
-        $('#SOCbar').width(data.LiveData.BATTERY_SOC + "%").attr('aria-valuenow', data.LiveData.BATTERY_SOC);
-
-        document.getElementById("battV").innerHTML = data.LiveData.BATT_VOLTS + 'V ';
-        document.getElementById("battA").innerHTML = data.LiveData.BATT_AMPS + 'A  ';
-        document.getElementById("battW").innerHTML = data.LiveData.BATT_WATTS + 'W  ';
-
-        document.getElementById("loadV").innerHTML = data.LiveData.LOAD_VOLTS + 'V ';
-        document.getElementById("loadA").innerHTML = data.LiveData.LOAD_AMPS + 'A  ';
-        document.getElementById("loadW").innerHTML = data.LiveData.LOAD_WATTS + 'W  ';
-
-        document.getElementById("deviceTemp").innerHTML = data.DEVICE_TEMPERATURE + '°C  ';
-        if (data.BATTERY_TEMPERATURE != 25) {
-            document.getElementById("battTemp").innerHTML = ' | ' + data.BATTERY_TEMPERATURE + '°C  ';
+        for (let i = 1; i <= 10; i++) {
+            if (!data.hasOwnProperty("EP_" + i)) {
+                deviceQuantity = i - 1;
+                break;
+            }
         }
-        document.getElementById("consD").innerHTML = 'D:' + data.StatsData.CONS_ENERGY_DAY + '  ';
-        document.getElementById("consM").innerHTML = 'M:' + data.StatsData.CONS_ENGERY_MON + '  ';
-        document.getElementById("consY").innerHTML = 'Y:' + data.StatsData.CONS_ENGERY_YEAR + '  ';
-        document.getElementById("consT").innerHTML = 'T:' + data.StatsData.CONS_ENGERY_TOT;
+        if (deviceQuantity == 0) {
+            document.getElementById("devicename").innerHTML = 'No data from Device ' + shDevNum;
+        } else {
+            if (deviceQuantity > 1) {
+                document.getElementById("devicename").innerHTML = data.DEVICE_NAME + " " + shDevNum;
+                document.getElementById('prevDev').style.visibility = '';
+                document.getElementById('nextDev').style.visibility = '';
+            } else {
+                document.getElementById("devicename").innerHTML = data.DEVICE_NAME
+            }
+            document.getElementById("devtime").innerHTML = unixTimetoDateTime(data[devPrA + shDevNum].LiveData.DEVICE_TIME);
 
-        document.getElementById("genD").innerHTML = 'D:' + data.StatsData.GEN_ENERGY_DAY + '  ';
-        document.getElementById("genM").innerHTML = 'M:' + data.StatsData.GEN_ENERGY_MON + '  ';
-        document.getElementById("genY").innerHTML = 'Y:' + data.StatsData.GEN_ENERGY_YEAR + '  ';
-        document.getElementById("genT").innerHTML = 'T:' + data.StatsData.GEN_ENERGY_TOT;
+            document.getElementById("SOCbar").innerHTML = data[devPrA + shDevNum].LiveData.BATT_SOC + '%%';
+            $('#SOCbar').width(data[devPrA + shDevNum].LiveData.BATT_SOC + "%").attr('aria-valuenow', data[devPrA + shDevNum].LiveData.BATT_SOC);
 
-        document.getElementById("cored").innerHTML = data.StatsData.CO2_REDUCTION + 't ';
+            document.getElementById("solarV").innerHTML = data[devPrA + shDevNum].LiveData.SOLAR_V + 'V ';
+            document.getElementById("solarA").innerHTML = data[devPrA + shDevNum].LiveData.SOLAR_A + 'A  ';
+            document.getElementById("solarW").innerHTML = data[devPrA + shDevNum].LiveData.SOLAR_W + 'W  ';
 
-        document.getElementById("inputstate").innerHTML = data.CHARGER_INPUT_STATUS;
-        document.getElementById("chrgmode").innerHTML = data.CHARGER_MODE;
+            document.getElementById("battV").innerHTML = data[devPrA + shDevNum].LiveData.BATT_V + 'V ';
+            document.getElementById("battA").innerHTML = data[devPrA + shDevNum].LiveData.BATT_A + 'A  ';
+            document.getElementById("battW").innerHTML = data[devPrA + shDevNum].LiveData.BATT_W + 'W  ';
 
-        document.getElementById("loadState").checked = data.LOAD_STATE;
-        invQuantity = data.DEVICE_QUANTITY;
-        if (invQuantity <= 1) {
-            document.getElementById('prevInv').style.visibility = 'hidden';
-            document.getElementById('nextInv').style.visibility = 'hidden';
+            document.getElementById("loadV").innerHTML = data[devPrA + shDevNum].LiveData.LOAD_V + 'V ';
+            document.getElementById("loadA").innerHTML = data[devPrA + shDevNum].LiveData.LOAD_A + 'A  ';
+            document.getElementById("loadW").innerHTML = data[devPrA + shDevNum].LiveData.LOAD_W + 'W  ';
+
+            document.getElementById("deviceTemp").innerHTML = data[devPrA + shDevNum].LiveData.DEVICE_TEMP + '°C  ';
+            if (data[devPrA + shDevNum].LiveData.BATTERY_TEMP != 25) {
+                document.getElementById("battTemp").innerHTML = ' | ' + data[devPrA + shDevNum].LiveData.BATT_TEMP + '°C  ';
+            }
+            document.getElementById("consD").innerHTML = 'D:' + data[devPrA + shDevNum].StatsData.CONS_DAY + '  ';
+            document.getElementById("consM").innerHTML = 'M:' + data[devPrA + shDevNum].StatsData.CONS_MON + '  ';
+            document.getElementById("consY").innerHTML = 'Y:' + data[devPrA + shDevNum].StatsData.CONS_YEAR + '  ';
+            document.getElementById("consT").innerHTML = 'T:' + data[devPrA + shDevNum].StatsData.CONS_TOT;
+
+            document.getElementById("genD").innerHTML = 'D:' + data[devPrA + shDevNum].StatsData.GEN_DAY + '  ';
+            document.getElementById("genM").innerHTML = 'M:' + data[devPrA + shDevNum].StatsData.GEN_MON + '  ';
+            document.getElementById("genY").innerHTML = 'Y:' + data[devPrA + shDevNum].StatsData.GEN_YEAR + '  ';
+            document.getElementById("genT").innerHTML = 'T:' + data[devPrA + shDevNum].StatsData.GEN_TOT;
+
+            document.getElementById("cored").innerHTML = data[devPrA + shDevNum].StatsData.CO2_REDUCTION + 't ';
+
+            document.getElementById("inputstate").innerHTML = data[devPrA + shDevNum].LiveData.CHARGER_IN_STATE;
+            document.getElementById("chrgmode").innerHTML = data[devPrA + shDevNum].LiveData.CHARGER_MODE;
+
+            document.getElementById("loadState").checked = data[devPrA + shDevNum].LiveData.LOAD_STATE;
         }
+
         if (data.ESP_VCC < 2.6) {
             document.getElementById("vcc_alert").style.display = '';
         } else {
@@ -222,30 +234,34 @@
 
     function initButton() {
         document.getElementById('loadState').addEventListener('click', LoadSwitch);
-
-        document.getElementById('prevInv').addEventListener('click', SelInvp);
-        document.getElementById('nextInv').addEventListener('click', SelInvn);
+        document.getElementById('prevDev').addEventListener('click', function () { selDev('down') });
+        document.getElementById('nextDev').addEventListener('click', function () { selDev('up') });
     }
-
 
     function LoadSwitch() {
         let loadSwitch;
         if (document.getElementById('loadState').checked) { loadSwitch = 1 }
         else { loadSwitch = 0 }
-
-        websocket.send('loadSwitch_' + selInverter + '_' + loadSwitch);
+        websocket.send('loadSwitch_' + shDevNum + '_' + loadSwitch);
     }
 
-    function SelInvp() {
-        if (selInverter > 1) {
-            selInverter--;
-            websocket.send('wsSelInv_' + selInverter);
+    function selDev(dir) {
+        console.log("button clicked");
+        if (dir == "up") {
+            if (shDevNum == deviceQuantity) {
+                shDevNum = 1;
+            } else {
+                shDevNum++;
+            }
+            console.log("up");
         }
-    }
-    function SelInvn() {
-        if (selInverter < invQuantity) {
-            selInverter++;
-            websocket.send('wsSelInv_' + selInverter);
+        if (dir == "down") {
+            if (shDevNum == 1) {
+                shDevNum = deviceQuantity;
+            } else {
+                shDevNum--;
+            }
+            console.log("down");
         }
     }
 

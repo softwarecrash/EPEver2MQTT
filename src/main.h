@@ -10,7 +10,7 @@
 #define EPEVER_DE_RE 0  // ESP01 
 #endif
 
-#define JSON_BUFFER 2048
+#define JSON_BUFFER 8192
 #define MQTT_BUFFER 512
 
 #define EPEVER_SERIAL Serial
@@ -28,4 +28,6 @@ bool getJsonData(int invNum);
 
 void callback(char *top, byte *payload, unsigned int length);
 
-bool sendtoMQTT(int invNum);
+bool sendtoMQTT();
+
+bool epWorker();
