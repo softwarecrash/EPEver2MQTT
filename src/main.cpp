@@ -19,7 +19,7 @@
 #include "html.h"          //the HTML content
 #include "htmlProzessor.h" // The html Prozessor
 
-String topic = "";          // Default first part of topic. We will add device ID in setup
+String topic = "";           // Default first part of topic. We will add device ID in setup
 String devicePrefix = "EP_"; // prefix for datapath for every device
 
 // flag for saving data and other things
@@ -339,6 +339,7 @@ void setup()
     server.on("/set", HTTP_GET, [](AsyncWebServerRequest *request)
               {
       AsyncWebParameter *p = request->getParam(0);
+      String resultMsg = "message received";
       if (p->name() == "datetime")
       {
         uint8_t rtcSetY  = atoi (request->getParam("datetime")->value().substring(0, 2).c_str ());
@@ -348,17 +349,53 @@ void setup()
         uint8_t rtcSetm  = atoi (request->getParam("datetime")->value().substring(8, 10).c_str ());
         uint8_t rtcSets  = atoi (request->getParam("datetime")->value().substring(10, 12).c_str ());
 
-      for (size_t i = 1; i <= ((size_t)_settings.data.deviceQuantity); i++)
-      {
-        epnode.setSlaveId(i);
-        epnode.setTransmitBuffer(0, ((uint16_t)rtcSetm << 8) | rtcSets); // minute | secund
-        epnode.setTransmitBuffer(1, ((uint16_t)rtcSetD << 8) | rtcSeth); // day | hour
-        epnode.setTransmitBuffer(2, ((uint16_t)rtcSetY << 8) | rtcSetM); // year | month
-        epnode.writeMultipleRegisters(0x9013, 3); //write registers
-        delay(50);
-      }
+        for (size_t i = 1; i <= ((size_t)_settings.data.deviceQuantity); i++)
+        {
+          epnode.setSlaveId(i);
+          epnode.setTransmitBuffer(0, ((uint16_t)rtcSetm << 8) | rtcSets); // minute | secund
+          epnode.setTransmitBuffer(1, ((uint16_t)rtcSetD << 8) | rtcSeth); // day | hour
+          epnode.setTransmitBuffer(2, ((uint16_t)rtcSetY << 8) | rtcSetM); // year | month
+          epnode.writeMultipleRegisters(0x9013, 3); //write registers
+          delay(50);
         }
-     request->send(200, "text/plain", "message received"); });
+      }
+      if (p->name() == "devid")
+      {
+        updateProgress = true; //disable the workers
+        digitalWrite(EPEVER_DE_RE, 1);
+          delay(50);
+
+          byte u8TransmitRaw[8];
+          u8TransmitRaw[0] = 0xF8;
+          u8TransmitRaw[1] = 0x45;
+          u8TransmitRaw[2] = 0x00;
+          u8TransmitRaw[3] = 0x01;
+          u8TransmitRaw[4] = 0x01;
+          u8TransmitRaw[5] = p->value().toInt();
+
+        uint16_t crcBuff = 0xFFFF;
+          for (i = 0; i < 6; i++)
+          {
+            crcBuff = crc16_update(crcBuff, u8TransmitRaw[i]);
+          }
+          u8TransmitRaw[6] = lowByte(crcBuff);
+          u8TransmitRaw[7] = highByte(crcBuff);
+          EPEVER_SERIAL.write(u8TransmitRaw, sizeof(u8TransmitRaw));
+          //read the answer
+          delay(10);
+          digitalWrite(EPEVER_DE_RE, 0);
+          char result[4];
+          EPEVER_SERIAL.readBytes(result, 4);
+
+          if(result[2] == p->value().toInt()){
+            resultMsg = "ID " + String(result[2], HEX) + " Successfull Set";
+          } else {
+            resultMsg = "ID set Fail... Actual id is: " + String(result[2], HEX);
+          }
+
+        updateProgress = false; //enable workers
+      }
+     request->send(200, "text/plain", resultMsg.c_str()); });
 
     server.on(
         "/update", HTTP_POST, [](AsyncWebServerRequest *request)
@@ -395,7 +432,10 @@ void loop()
     ws.cleanupClients(); // clean unused client connections
     MDNS.update();
     mqttclient.loop(); // Check if we have something to read from MQTT
-    epWorker();        // the loop worker
+    if (!updateProgress)
+    {
+      epWorker(); // the loop worker
+    }
 
     if (updateProgress)
     {
@@ -636,65 +676,65 @@ bool getEpData(int invNum)
 bool getJsonData(int invNum)
 {
 
- // for (size_t invNum = 1; invNum <= 6; invNum++) // for testing only
- // {
-    liveJson["EP_" + String(invNum)]["LiveData"]["CONNECTION"] = errorcode;
+  // for (size_t invNum = 1; invNum <= 6; invNum++) // for testing only
+  // {
+  liveJson["EP_" + String(invNum)]["LiveData"]["CONNECTION"] = errorcode;
 
-    liveJson["EP_" + String(invNum)]["LiveData"]["DEVICE_NUM"] = String(invNum); // for testing
-    // device
-    liveJson["EP_" + String(invNum)]["LiveData"]["DEVICE_TIME"] = uTime.getUnix();
-    liveJson["EP_" + String(invNum)]["LiveData"]["DEVICE_TEMP"] = deviceTemperature / 100.f;
-    // solar input
-    liveJson["EP_" + String(invNum)]["LiveData"]["SOLAR_V"] = live.l.pvV / 100.f;
-    liveJson["EP_" + String(invNum)]["LiveData"]["SOLAR_A"] = live.l.pvA / 100.f;
-    liveJson["EP_" + String(invNum)]["LiveData"]["SOLAR_W"] = live.l.pvW / 100.f;
-    // battery
-    liveJson["EP_" + String(invNum)]["LiveData"]["BATT_SOC"] = batterySOC / 1.0f;
-    liveJson["EP_" + String(invNum)]["LiveData"]["BATT_V"] = live.l.battV / 100.f;
-    liveJson["EP_" + String(invNum)]["LiveData"]["BATT_A"] = batteryCurrent / 100.f;
-    liveJson["EP_" + String(invNum)]["LiveData"]["BATT_W"] = (int(live.l.battV / 10) * int(batteryCurrent / 10) / 100.f);
-    liveJson["EP_" + String(invNum)]["LiveData"]["BATT_STATE"] = batt_volt_status[status_batt.volt];
-    liveJson["EP_" + String(invNum)]["LiveData"]["BATT_TEMP"] = batteryTemperature / 100.f;
-    liveJson["EP_" + String(invNum)]["LiveData"]["BATT_TEMP_STATE"] = batt_temp_status[status_batt.temp];
-    // load out
-    liveJson["EP_" + String(invNum)]["LiveData"]["LOAD_V"] = live.l.loadV / 100.f;
-    liveJson["EP_" + String(invNum)]["LiveData"]["LOAD_A"] = live.l.loadA / 100.f;
-    liveJson["EP_" + String(invNum)]["LiveData"]["LOAD_W"] = live.l.loadW / 100.f;
-    liveJson["EP_" + String(invNum)]["LiveData"]["LOAD_STATE"] = loadState;
-    // charger
-    liveJson["EP_" + String(invNum)]["LiveData"]["CHARGER_STATE"] = charger_input_status[charger_input];
-    liveJson["EP_" + String(invNum)]["LiveData"]["CHARGER_MODE"] = charger_charging_status[charger_mode];
-    // statistic
-    liveJson["EP_" + String(invNum)]["StatsData"]["SOLAR_MAX"] = stats.s.pVmax / 100.f;
-    liveJson["EP_" + String(invNum)]["StatsData"]["SOLAR_MIN"] = stats.s.pVmin / 100.f;
-    liveJson["EP_" + String(invNum)]["StatsData"]["BATT_MAX"] = stats.s.bVmax / 100.f;
-    liveJson["EP_" + String(invNum)]["StatsData"]["BATT_MIN"] = stats.s.bVmin / 100.f;
-    liveJson["EP_" + String(invNum)]["StatsData"]["CONS_DAY"] = stats.s.consEnerDay / 100.f;
-    liveJson["EP_" + String(invNum)]["StatsData"]["CONS_MON"] = stats.s.consEnerMon / 100.f;
-    liveJson["EP_" + String(invNum)]["StatsData"]["CONS_YEAR"] = stats.s.consEnerYear / 100.f;
-    liveJson["EP_" + String(invNum)]["StatsData"]["CONS_TOT"] = stats.s.consEnerTotal / 100.f;
-    liveJson["EP_" + String(invNum)]["StatsData"]["GEN_DAY"] = stats.s.genEnerDay / 100.f;
-    liveJson["EP_" + String(invNum)]["StatsData"]["GEN_MON"] = stats.s.genEnerMon / 100.f;
-    liveJson["EP_" + String(invNum)]["StatsData"]["GEN_YEAR"] = stats.s.genEnerYear / 100.f;
-    liveJson["EP_" + String(invNum)]["StatsData"]["GEN_TOT"] = stats.s.genEnerTotal / 100.f;
-    liveJson["EP_" + String(invNum)]["StatsData"]["CO2_REDUCTION"] = stats.s.c02Reduction / 100.f;
-    // device settings data
-    liveJson["EP_" + String(invNum)]["DeviceData"]["BATTERY_TYPE"] = settingParam.s.bTyp;
-    liveJson["EP_" + String(invNum)]["DeviceData"]["BATTERY_CAPACITY"] = settingParam.s.bCapacity / 100.f;
-    liveJson["EP_" + String(invNum)]["DeviceData"]["TEMPERATURE_COMPENSATION"] = settingParam.s.tempCompensation / 100.f;
-    liveJson["EP_" + String(invNum)]["DeviceData"]["HIGH_VOLT_DISCONNECT"] = settingParam.s.highVDisconnect / 100.f;
-    liveJson["EP_" + String(invNum)]["DeviceData"]["CHARGING_LIMIT_VOLTS"] = settingParam.s.chLimitVolt / 100.f;
-    liveJson["EP_" + String(invNum)]["DeviceData"]["OVER_VOLTS_RECONNECT"] = settingParam.s.overVoltRecon / 100.f;
-    liveJson["EP_" + String(invNum)]["DeviceData"]["EQUALIZATION_VOLTS"] = settingParam.s.equVolt / 100.f;
-    liveJson["EP_" + String(invNum)]["DeviceData"]["BOOST_VOLTS"] = settingParam.s.boostVolt / 100.f;
-    liveJson["EP_" + String(invNum)]["DeviceData"]["FLOAT_VOLTS"] = settingParam.s.floatVolt / 100.f;
-    liveJson["EP_" + String(invNum)]["DeviceData"]["BOOST_RECONNECT_VOLTS"] = settingParam.s.boostVoltRecon / 100.f;
-    liveJson["EP_" + String(invNum)]["DeviceData"]["LOW_VOLTS_RECONNECT"] = settingParam.s.lowVoltRecon / 100.f;
-    liveJson["EP_" + String(invNum)]["DeviceData"]["UNDER_VOLTS_RECOVER"] = settingParam.s.underVoltRecov / 100.f;
-    liveJson["EP_" + String(invNum)]["DeviceData"]["UNDER_VOLTS_WARNING"] = settingParam.s.underVoltWarning / 100.f;
-    liveJson["EP_" + String(invNum)]["DeviceData"]["LOW_VOLTS_DISCONNECT"] = settingParam.s.lowVoltDiscon / 100.f;
-    liveJson["EP_" + String(invNum)]["DeviceData"]["DISCHARGING_LIMIT_VOLTS"] = settingParam.s.dischLimitVolt / 100.f;
- // }
+  liveJson["EP_" + String(invNum)]["LiveData"]["DEVICE_NUM"] = String(invNum); // for testing
+  // device
+  liveJson["EP_" + String(invNum)]["LiveData"]["DEVICE_TIME"] = uTime.getUnix();
+  liveJson["EP_" + String(invNum)]["LiveData"]["DEVICE_TEMP"] = deviceTemperature / 100.f;
+  // solar input
+  liveJson["EP_" + String(invNum)]["LiveData"]["SOLAR_V"] = live.l.pvV / 100.f;
+  liveJson["EP_" + String(invNum)]["LiveData"]["SOLAR_A"] = live.l.pvA / 100.f;
+  liveJson["EP_" + String(invNum)]["LiveData"]["SOLAR_W"] = live.l.pvW / 100.f;
+  // battery
+  liveJson["EP_" + String(invNum)]["LiveData"]["BATT_SOC"] = batterySOC / 1.0f;
+  liveJson["EP_" + String(invNum)]["LiveData"]["BATT_V"] = live.l.battV / 100.f;
+  liveJson["EP_" + String(invNum)]["LiveData"]["BATT_A"] = batteryCurrent / 100.f;
+  liveJson["EP_" + String(invNum)]["LiveData"]["BATT_W"] = (int(live.l.battV / 10) * int(batteryCurrent / 10) / 100.f);
+  liveJson["EP_" + String(invNum)]["LiveData"]["BATT_STATE"] = batt_volt_status[status_batt.volt];
+  liveJson["EP_" + String(invNum)]["LiveData"]["BATT_TEMP"] = batteryTemperature / 100.f;
+  liveJson["EP_" + String(invNum)]["LiveData"]["BATT_TEMP_STATE"] = batt_temp_status[status_batt.temp];
+  // load out
+  liveJson["EP_" + String(invNum)]["LiveData"]["LOAD_V"] = live.l.loadV / 100.f;
+  liveJson["EP_" + String(invNum)]["LiveData"]["LOAD_A"] = live.l.loadA / 100.f;
+  liveJson["EP_" + String(invNum)]["LiveData"]["LOAD_W"] = live.l.loadW / 100.f;
+  liveJson["EP_" + String(invNum)]["LiveData"]["LOAD_STATE"] = loadState;
+  // charger
+  liveJson["EP_" + String(invNum)]["LiveData"]["CHARGER_STATE"] = charger_input_status[charger_input];
+  liveJson["EP_" + String(invNum)]["LiveData"]["CHARGER_MODE"] = charger_charging_status[charger_mode];
+  // statistic
+  liveJson["EP_" + String(invNum)]["StatsData"]["SOLAR_MAX"] = stats.s.pVmax / 100.f;
+  liveJson["EP_" + String(invNum)]["StatsData"]["SOLAR_MIN"] = stats.s.pVmin / 100.f;
+  liveJson["EP_" + String(invNum)]["StatsData"]["BATT_MAX"] = stats.s.bVmax / 100.f;
+  liveJson["EP_" + String(invNum)]["StatsData"]["BATT_MIN"] = stats.s.bVmin / 100.f;
+  liveJson["EP_" + String(invNum)]["StatsData"]["CONS_DAY"] = stats.s.consEnerDay / 100.f;
+  liveJson["EP_" + String(invNum)]["StatsData"]["CONS_MON"] = stats.s.consEnerMon / 100.f;
+  liveJson["EP_" + String(invNum)]["StatsData"]["CONS_YEAR"] = stats.s.consEnerYear / 100.f;
+  liveJson["EP_" + String(invNum)]["StatsData"]["CONS_TOT"] = stats.s.consEnerTotal / 100.f;
+  liveJson["EP_" + String(invNum)]["StatsData"]["GEN_DAY"] = stats.s.genEnerDay / 100.f;
+  liveJson["EP_" + String(invNum)]["StatsData"]["GEN_MON"] = stats.s.genEnerMon / 100.f;
+  liveJson["EP_" + String(invNum)]["StatsData"]["GEN_YEAR"] = stats.s.genEnerYear / 100.f;
+  liveJson["EP_" + String(invNum)]["StatsData"]["GEN_TOT"] = stats.s.genEnerTotal / 100.f;
+  liveJson["EP_" + String(invNum)]["StatsData"]["CO2_REDUCTION"] = stats.s.c02Reduction / 100.f;
+  // device settings data
+  liveJson["EP_" + String(invNum)]["DeviceData"]["BATTERY_TYPE"] = settingParam.s.bTyp;
+  liveJson["EP_" + String(invNum)]["DeviceData"]["BATTERY_CAPACITY"] = settingParam.s.bCapacity / 100.f;
+  liveJson["EP_" + String(invNum)]["DeviceData"]["TEMPERATURE_COMPENSATION"] = settingParam.s.tempCompensation / 100.f;
+  liveJson["EP_" + String(invNum)]["DeviceData"]["HIGH_VOLT_DISCONNECT"] = settingParam.s.highVDisconnect / 100.f;
+  liveJson["EP_" + String(invNum)]["DeviceData"]["CHARGING_LIMIT_VOLTS"] = settingParam.s.chLimitVolt / 100.f;
+  liveJson["EP_" + String(invNum)]["DeviceData"]["OVER_VOLTS_RECONNECT"] = settingParam.s.overVoltRecon / 100.f;
+  liveJson["EP_" + String(invNum)]["DeviceData"]["EQUALIZATION_VOLTS"] = settingParam.s.equVolt / 100.f;
+  liveJson["EP_" + String(invNum)]["DeviceData"]["BOOST_VOLTS"] = settingParam.s.boostVolt / 100.f;
+  liveJson["EP_" + String(invNum)]["DeviceData"]["FLOAT_VOLTS"] = settingParam.s.floatVolt / 100.f;
+  liveJson["EP_" + String(invNum)]["DeviceData"]["BOOST_RECONNECT_VOLTS"] = settingParam.s.boostVoltRecon / 100.f;
+  liveJson["EP_" + String(invNum)]["DeviceData"]["LOW_VOLTS_RECONNECT"] = settingParam.s.lowVoltRecon / 100.f;
+  liveJson["EP_" + String(invNum)]["DeviceData"]["UNDER_VOLTS_RECOVER"] = settingParam.s.underVoltRecov / 100.f;
+  liveJson["EP_" + String(invNum)]["DeviceData"]["UNDER_VOLTS_WARNING"] = settingParam.s.underVoltWarning / 100.f;
+  liveJson["EP_" + String(invNum)]["DeviceData"]["LOW_VOLTS_DISCONNECT"] = settingParam.s.lowVoltDiscon / 100.f;
+  liveJson["EP_" + String(invNum)]["DeviceData"]["DISCHARGING_LIMIT_VOLTS"] = settingParam.s.dischLimitVolt / 100.f;
+  // }
   liveJson["DEVICE_QUANTITY"] = _settings.data.deviceQuantity;
   liveJson["DEVICE_FREE_HEAP"] = ESP.getFreeHeap();
   liveJson["DEVICE_FREE_JSON"] = (JSON_BUFFER - liveJson.memoryUsage());
@@ -724,7 +764,7 @@ bool connectMQTT()
         if (!_settings.data.mqttJson) // classic mqtt DP
           mqttclient.subscribe((topic + "/" + devicePrefix + i + "/DeviceControl/LOAD_STATE").c_str());
         else // subscribe json
-          mqttclient.subscribe((topic + "/" + devicePrefix  + i + "/DATA").c_str());
+          mqttclient.subscribe((topic + "/" + devicePrefix + i + "/DATA").c_str());
       }
       return true;
     }
