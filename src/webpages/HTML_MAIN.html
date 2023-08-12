@@ -164,21 +164,27 @@
     function onMessage(event) {
         var data = JSON.parse(event.data);
 
-        for (let i = 1; i <= 10; i++) {
-            if (!data.hasOwnProperty("EP_" + i)) {
-                deviceQuantity = i - 1;
-                break;
+       // for (let i = 1; i <= 10; i++) {
+        //    if (!data.hasOwnProperty("EP_" + i)) {
+        //        deviceQuantity = i - 1;
+         //       break;
+         //   }
+        //}
+        if (data.hasOwnProperty("DEVICE_QUANTITY")) {
+                deviceQuantity = data.DEVICE_QUANTITY;
             }
-        }
-        if (deviceQuantity == 0) {
+
+        if (deviceQuantity == 0 || !data.hasOwnProperty("EP_" + shDevNum)) {
             document.getElementById("devicename").innerHTML = 'No data from Device ' + shDevNum;
         } else {
             if (deviceQuantity > 1) {
                 document.getElementById("devicename").innerHTML = data.DEVICE_NAME + " " + shDevNum;
-                document.getElementById('prevDev').style.visibility = '';
-                document.getElementById('nextDev').style.visibility = '';
+                document.getElementById('prevDev').style.display = '';
+                document.getElementById('nextDev').style.display = '';
             } else {
                 document.getElementById("devicename").innerHTML = data.DEVICE_NAME
+                document.getElementById('prevDev').style.display = 'none';
+                document.getElementById('nextDev').style.display = 'none';
             }
             document.getElementById("devtime").innerHTML = unixTimetoDateTime(data[devPrA + shDevNum].LiveData.DEVICE_TIME);
 
