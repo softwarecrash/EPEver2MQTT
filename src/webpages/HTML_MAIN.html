@@ -22,7 +22,7 @@
 <div class="row gx-0 mb-2">
     <div class="col">
         <div class="progress" style="height:1.8rem;">
-            <div id="SOCbar" class="progress-bar" role="progressbar" style="width:0%;height:1.8rem;" aria-valuenow="0"
+            <div id="SOCbar" class="progress-bar  dF" role="progressbar" style="width:0%;height:1.8rem;" aria-valuenow="0"
                 aria-valuemin="0" aria-valuemax="100"></div>
         </div>
     </div>
@@ -32,7 +32,7 @@
     <div class="col">
         <div class="bg-light">Device Time: </div>
     </div>
-    <div class="col">
+    <div class="col dF">
         <div class="bg-light"><span id="devtime"></span></br></div>
     </div>
 </div>
@@ -41,7 +41,7 @@
     <div class="col">
         <div class="bg-light">Solar: </div>
     </div>
-    <div class="col">
+    <div class="col dF">
         <div class="bg-light"><span id="solarV"></span><span id="solarA"></span><span id="solarW"></span></div>
     </div>
 </div>
@@ -50,7 +50,7 @@
     <div class="col">
         <div class="bg-light">Battery: </div>
     </div>
-    <div class="col">
+    <div class="col dF">
         <div class="bg-light"><span id="battV"></span><span id="battA"></span><span id="battW"></span><span
                 id="battSOC"></span></div>
     </div>
@@ -60,7 +60,7 @@
     <div class="col">
         <div class="bg-light">Load: </div>
     </div>
-    <div class="col">
+    <div class="col dF">
         <div class="bg-light"><span id="loadV"></span><span id="loadA"></span><span id="loadW"></span></div>
     </div>
 </div>
@@ -69,7 +69,7 @@
     <div class="col">
         <div class="bg-light">temperature: </div>
     </div>
-    <div class="col">
+    <div class="col dF">
         <div class="bg-light"><span id="deviceTemp"></span><span id="battTemp"></span></div>
     </div>
 </div>
@@ -78,7 +78,7 @@
     <div class="col">
         <div class="bg-light">Consumed Kwh: </div>
     </div>
-    <div class="col">
+    <div class="col dF">
         <div class="bg-light"><span id="consD"></span><span id="consM"></span><span id="consY"></span><span
                 id="consT"></span></div>
     </div>
@@ -88,7 +88,7 @@
     <div class="col">
         <div class="bg-light">generated Kwh: </div>
     </div>
-    <div class="col">
+    <div class="col dF">
         <div class="bg-light"><span id="genD"></span><span id="genM"></span><span id="genY"></span><span
                 id="genT"></span></div>
     </div>
@@ -98,7 +98,7 @@
     <div class="col">
         <div class="bg-light">CO2 Reduction: </div>
     </div>
-    <div class="col">
+    <div class="col dF">
         <div class="bg-light"><span id="cored"></span></div>
     </div>
 </div>
@@ -107,7 +107,7 @@
     <div class="col">
         <div class="bg-light">Input State: </div>
     </div>
-    <div class="col">
+    <div class="col dF">
         <div class="bg-light"><span id="inputstate"></span></div>
     </div>
 </div>
@@ -116,7 +116,7 @@
     <div class="col">
         <div class="bg-light">Charge Mode: </div>
     </div>
-    <div class="col">
+    <div class="col dF">
         <div class="bg-light"><span id="chrgmode"></span></div>
     </div>
 </div>
@@ -125,7 +125,7 @@
     <div class="col">
         <div class="bg-light">Load State: </div>
     </div>
-    <div class="col">
+    <div class="col dF">
         <div class="bg-light form-check form-switch"><input class="form-check-input" type="checkbox" role="switch"
                 id="loadState" /></div>
     </div>
@@ -140,6 +140,7 @@
     var deviceQuantity = 0;
     var shDevNum = 1;
     var devPrA = "EP_";
+    var dataFields = document.getElementsByClassName("dF");
     window.addEventListener('load', onLoad);
     function initWebSocket() {
         console.log('Trying to open a WebSocket connection...');
@@ -164,19 +165,18 @@
     function onMessage(event) {
         var data = JSON.parse(event.data);
 
-       // for (let i = 1; i <= 10; i++) {
-        //    if (!data.hasOwnProperty("EP_" + i)) {
-        //        deviceQuantity = i - 1;
-         //       break;
-         //   }
-        //}
         if (data.hasOwnProperty("DEVICE_QUANTITY")) {
-                deviceQuantity = data.DEVICE_QUANTITY;
-            }
-
+            deviceQuantity = data.DEVICE_QUANTITY;
+        }
         if (deviceQuantity == 0 || !data.hasOwnProperty("EP_" + shDevNum)) {
             document.getElementById("devicename").innerHTML = 'No data from Device ' + shDevNum;
+            for (var i = 0; i < dataFields.length; i++) {
+                dataFields[i].style.display = 'none';
+            }
         } else {
+            for (var i = 0; i < dataFields.length; i++) {
+                dataFields[i].style.display = '';
+            }
             if (deviceQuantity > 1) {
                 document.getElementById("devicename").innerHTML = data.DEVICE_NAME + " " + shDevNum;
                 document.getElementById('prevDev').style.display = '';
