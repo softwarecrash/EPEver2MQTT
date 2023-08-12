@@ -27,7 +27,6 @@ bool shouldSaveConfig = false;
 bool restartNow = false;
 bool updateProgress = false;
 unsigned long mqtttimer = 0;
-unsigned long getDataTimer = 0;
 unsigned long RestartTimer = 0;
 byte ReqDevAddr = 1;
 char mqtt_server[80];
@@ -435,24 +434,6 @@ void loop()
     if (!updateProgress)
     {
       epWorker(); // the loop worker
-    }
-
-    if (updateProgress)
-    {
-      getDataTimer = millis();
-    }
-    if (millis() > (mqtttimer + (_settings.data.mqttRefresh * 1000)) && !updateProgress)
-    {
-      for (size_t i = 1; i <= ((size_t)_settings.data.deviceQuantity); i++)
-      {
-        //   if (getEpData(i))
-        //   {
-        // need change when no data from epever connect to mqtt
-        //   getJsonData(i);
-        //    sendtoMQTT(i); // Update data to MQTT server if we should
-        // }
-      }
-      mqtttimer = millis();
     }
   }
 
