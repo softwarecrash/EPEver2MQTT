@@ -4,8 +4,9 @@ ESP82XX to MQTT based connector for EPEver Solar tracker, support multiple track
 # Features:
 - set up over captive portal
 - Config in webinterface
+- [Multiple Device Support](https://github.com/softwarecrash/EPEver2MQTT/wiki/Multi-Device-Tutorial)
 - Firmware update via webinterface
-- classic MQTT Datapoints or Json String over MQTT
+- MQTT Datapoints or Json String over MQTT
 - get Json over web at /livejson
 - switch Load Channel via webinterface and MQTT
 - set Device time from computer time
