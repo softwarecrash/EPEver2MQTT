@@ -25,6 +25,7 @@ public:
     unsigned int mqttRefresh;    // mqtt refresh time
     unsigned int deviceQuantity; // Quantity of Devices
     bool mqttJson;               // switch between classic mqtt and json
+    bool webUIdarkmode;               // Flag for color mode in webUI
   } data;
 
   void load()
@@ -98,6 +99,10 @@ private:
     {
       strcpy(data.mqttTriggerPath, "");
     }
+    if (data.webUIdarkmode && !data.webUIdarkmode)
+    {
+      data.mqttJson = false;
+    }
   }
   void coVersCheck()
   {
@@ -114,6 +119,7 @@ private:
       data.mqttPort = 0;
       data.mqttRefresh = 300;
       data.mqttJson = false;
+      data.webUIdarkmode = false;
 
       save();
       load();

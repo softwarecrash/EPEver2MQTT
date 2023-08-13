@@ -337,6 +337,7 @@ void setup()
                 _settings.data.deviceQuantity = request->arg("post_deviceQuanttity").toInt() <= 0 ? 1 : request->arg("post_deviceQuanttity").toInt();
                 _settings.data.mqttJson = (request->arg("post_mqttjson") == "true") ? true : false;
                 strncpy(_settings.data.mqttTriggerPath, request->arg("post_mqtttrigger").c_str(), 80);
+                _settings.data.webUIdarkmode = (request->arg("post_webuicolormode") == "true") ? true : false;
                 _settings.save();
                 request->redirect("/reboot"); });
 

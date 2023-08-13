@@ -30,5 +30,9 @@ String htmlProcessor(const String &var)
         return (_settings.data.mqttJson ? "checked":"");
    if (var == F("pre_mqtt_mqtttrigger"))
         return (_settings.data.mqttTriggerPath);
+   if (var == F("pre_darkmode"))
+        return (_settings.data.webUIdarkmode ? "dark":"light");
+    if (var == F("pre_webuidarkmode"))
+        return (_settings.data.webUIdarkmode ? "checked":"");
     return String();
 }
