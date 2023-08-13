@@ -12,6 +12,7 @@
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <UnixTime.h>
+#include <Updater.h> //new
 #include <WebSerialLite.h>
 
 #include "Settings.h" //settings functions
@@ -55,6 +56,7 @@ void saveConfigCallback()
 
 static void handle_update_progress_cb(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final)
 {
+  const char *responseText;
   uint32_t free_space = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
   if (!index)
   {
@@ -75,15 +77,17 @@ static void handle_update_progress_cb(AsyncWebServerRequest *request, String fil
     if (!Update.end(true))
     {
       Update.printError(EPEVER_SERIAL);
+      responseText = "Failed";
     }
     else
     {
-      AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", HTML_REBOOT, htmlProcessor);
-      request->send(response);
+      responseText = "Success";
       DEBUG_WEBLN(F("Update complete"));
-      RestartTimer = millis();
-      restartNow = true; // Set flag so main loop can issue restart call
+      // RestartTimer = millis();
+      // restartNow = true; // Set flag so main loop can issue restart call
     }
+    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", responseText);
+    request->send(response);
   }
 }
 
@@ -199,6 +203,11 @@ bool resetCounter(bool count)
   return true;
 }
 
+void updateprogressfunction()
+{
+  updateProgress = true;
+}
+
 void setup()
 {
   pinMode(EPEVER_DE_RE, OUTPUT);
@@ -228,11 +237,6 @@ void setup()
   AsyncWiFiManagerParameter custom_mqtt_triggerpath("mqtt_triggerpath", "MQTT Data Trigger Path", NULL, 80);
   AsyncWiFiManagerParameter custom_device_name("device_name", "Device Name", "EPEver2MQTT", 32);
   AsyncWiFiManagerParameter custom_device_quantity("device_quantity", "Device Quantity", "1", 2);
-  //not working
-  //const char* custom_radio_str = "<br/><div style='border-color: #8f8f9d;border-left-width: 1px;border-left-style: solid;border-top-width: 1px;border-top-style: solid;margin-left: 0px;border-right-width: 1px;border-right-style: solid;border-bottom-width: 1px;border-bottom-style: solid;padding-right: 0px;margin-right: 2px;margin-top: 0px;'><label for='device_quantity'>Device Quantity: </label><select name='device_quantity' id='device_quantity' style='width: 40%; float:right;'><option value='1'>1</option><option value='2'>2</option><option value='3'>3</option><option value='4'>4</option><option value='5'>5</option><option value='6'>6</option></select></div><br/>";
-  //AsyncWiFiManagerParameter custom_device_quantity(custom_radio_str);
-
-
 
   wm.addParameter(&custom_mqtt_server);
   wm.addParameter(&custom_mqtt_user);
@@ -405,10 +409,11 @@ void setup()
     server.on(
         "/update", HTTP_POST, [](AsyncWebServerRequest *request)
         {
-      Serial.end();
-      updateProgress = true;
-      ws.enable(false);
-      ws.closeAll(); },
+          updateprogressfunction();
+          updateProgress = true;
+          // ws.enable(false);
+          // ws.closeAll();
+        },
         handle_update_progress_cb);
 
     server.onNotFound([](AsyncWebServerRequest *request)
