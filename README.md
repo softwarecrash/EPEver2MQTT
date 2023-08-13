@@ -19,9 +19,8 @@ ESP82XX to MQTT based connector for EPEver Solar tracker, support multiple track
 
 
 # How to use:
-- [connect the ESP](https://github.com/softwarecrash/EPEver2MQTT/wiki/Wireing)
 - flash the bin file to a esp82xx or Wemos D1 Mini with [Tasmotizer](https://github.com/tasmota/tasmotizer/releases) or other way
-- connect the esp like the wiring diagram
+- connect the esp like the [wiring diagram](https://github.com/softwarecrash/EPEver2MQTT/wiki/Wireing)
 - search the wifi ap EPEver2MQTT-AP and connect
 - surf to 192.168.4.1 and set up your wifi, amount of inverters and optional mqtt
 - that's it :)
