@@ -78,6 +78,8 @@ static void handle_update_progress_cb(AsyncWebServerRequest *request, String fil
     {
       Update.printError(EPEVER_SERIAL);
       responseText = "Failed";
+      restartNow = true;
+      RestartTimer = millis();
     }
     else
     {
