@@ -33,7 +33,9 @@
     request.onreadystatechange = function () {
       if (request.readyState == XMLHttpRequest.DONE) {
         $('#progress-bar-file1').html(request.responseText);
-        window.location.href = "/reboot";
+        if(request.responseText == "Success"){
+          window.location.href = "/reboot";
+        }
       }
     }
     request.upload.addEventListener('progress', function (e) {
