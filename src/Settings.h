@@ -25,7 +25,7 @@ public:
     unsigned int mqttRefresh;    // mqtt refresh time
     unsigned int deviceQuantity; // Quantity of Devices
     bool mqttJson;               // switch between classic mqtt and json
-    bool webUIdarkmode;               // Flag for color mode in webUI
+    bool webUIdarkmode;          // Flag for color mode in webUI
   } data;
 
   void load()
