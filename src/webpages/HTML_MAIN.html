@@ -183,12 +183,11 @@
             document.getElementById("loadState").checked = data[devPrA + shDevNum].LiveData.LOAD_STATE;
         }
 
-        if (data.ESP_VCC < 2.6) {
+        if (data.ESP_VCC < 2.8) {
             document.getElementById("vcc_alert").style.display = '';
         } else {
             document.getElementById("vcc_alert").style.display = 'none';
         }
-
     }
 
     function onLoad(event) {

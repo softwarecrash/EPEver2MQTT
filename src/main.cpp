@@ -718,7 +718,7 @@ bool getJsonData(int invNum)
   liveJson["DEVICE_QUANTITY"] = _settings.data.deviceQuantity;
   liveJson["DEVICE_FREE_HEAP"] = ESP.getFreeHeap();
   liveJson["DEVICE_FREE_JSON"] = (JSON_BUFFER - liveJson.memoryUsage());
-  liveJson["ESP_VCC"] = ESP.getVcc() / 1000.0;
+  liveJson["ESP_VCC"] = (ESP.getVcc() / 1000.0)+0.3;
   liveJson["Wifi_RSSI"] = WiFi.RSSI();
   liveJson["sw_version"] = SOFTWARE_VERSION;
   return true;
