@@ -12,7 +12,7 @@
 
 #define JSON_BUFFER 8192
 #define MQTT_BUFFER 512
-
+#define MAX_DEVICES 6
 #define EPEVER_SERIAL Serial
 
 // DON'T edit version here, place version number in platformio.ini (custom_prog_version) !!!
