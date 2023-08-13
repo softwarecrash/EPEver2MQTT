@@ -32,9 +32,12 @@
     var request = new XMLHttpRequest();
     request.onreadystatechange = function () {
       if (request.readyState == XMLHttpRequest.DONE) {
+        console.log(request.responseText);
         $('#progress-bar-file1').html(request.responseText);
-        if(request.responseText == "Success"){
+        if (request.responseText == "OK") {
           window.location.href = "/reboot";
+        } else {
+          $('#progress-bar-file1').html(request.responseText).style.color = "red";
         }
       }
     }

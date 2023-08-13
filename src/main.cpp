@@ -54,43 +54,6 @@ void saveConfigCallback()
   shouldSaveConfig = true;
 }
 
-static void handle_update_progress_cb(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final)
-{
-  const char *responseText;
-  uint32_t free_space = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
-  if (!index)
-  {
-    Update.runAsync(true);
-    if (!Update.begin(free_space))
-    {
-      Update.printError(EPEVER_SERIAL);
-    }
-  }
-
-  if (Update.write(data, len) != len)
-  {
-    Update.printError(EPEVER_SERIAL);
-  }
-
-  if (final)
-  {
-    if (!Update.end(true))
-    {
-      Update.printError(EPEVER_SERIAL);
-      responseText = "Failed";
-      restartNow = true;
-      RestartTimer = millis();
-    }
-    else
-    {
-      responseText = "Success";
-      DEBUG_WEBLN(F("Update complete"));
-    }
-    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", responseText);
-    request->send(response);
-  }
-}
-
 void preTransmission()
 {
   digitalWrite(EPEVER_DE_RE, 1);
@@ -201,11 +164,6 @@ bool resetCounter(bool count)
     ESP.rtcUserMemoryWrite(16, &bootcount, sizeof(bootcount));
   }
   return true;
-}
-
-void updateprogressfunction()
-{
-  updateProgress = true;
 }
 
 void setup()
@@ -406,15 +364,45 @@ void setup()
       }
      request->send(200, "text/plain", resultMsg.c_str()); });
 
-    server.on(
-        "/update", HTTP_POST, [](AsyncWebServerRequest *request)
-        {
-          updateprogressfunction();
-          updateProgress = true;
-          // ws.enable(false);
-          // ws.closeAll();
-        },
-        handle_update_progress_cb);
+     server.on("/update", HTTP_POST, [](AsyncWebServerRequest *request){
+    //https://gist.github.com/JMishou/60cb762047b735685e8a09cd2eb42a60
+    // the request handler is triggered after the upload has finished... 
+    // create the response, add header, and send response
+    AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", (Update.hasError())?"FAIL":"OK");
+    response->addHeader("Connection", "close");
+    response->addHeader("Access-Control-Allow-Origin", "*");
+    //restartNow = true; // Tell the main loop to restart the ESP
+    //RestartTimer = millis();  // Tell the main loop to restart the ESP
+    request->send(response);
+  },[](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final){
+    //Upload handler chunks in data
+    
+    if(!index){ // if index == 0 then this is the first frame of data
+      Serial.printf("UploadStart: %s\n", filename.c_str());
+      Serial.setDebugOutput(true);
+      
+      // calculate sketch space required for the update
+      uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
+      if(!Update.begin(maxSketchSpace)){//start with max available size
+        Update.printError(Serial);
+      }
+      Update.runAsync(true); // tell the updaterClass to run in async mode
+    }
+
+    //Write chunked data to the free sketch space
+    if(Update.write(data, len) != len){
+        Update.printError(Serial);
+    }
+    
+    if(final){ // if the final flag is set then this is the last frame of data
+      if(Update.end(true)){ //true to set the size to the current progress
+          Serial.printf("Update Success: %u B\nRebooting...\n", index+len);
+        } else {
+          Update.printError(Serial);
+        }
+        Serial.setDebugOutput(false);
+    }
+  });
 
     server.onNotFound([](AsyncWebServerRequest *request)
                       { request->send(418, "text/plain", "418 I'm a teapot"); });
