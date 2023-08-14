@@ -144,7 +144,7 @@ bool resetCounter(bool count)
         // ESP.rtcUserMemoryWrite(16, &bootcount, sizeof(bootcount));
         _settings.reset();
         ESP.eraseConfig();
-        ESP.restart();
+        ESP.reset();
       }
       else
       {
@@ -439,7 +439,7 @@ void loop()
   if (restartNow && millis() >= (RestartTimer + 500))
   {
     DEBUG_WEBLN("Restart");
-    ESP.restart();
+    ESP.reset();
   }
   notificationLED(); // notification LED routine
 }
