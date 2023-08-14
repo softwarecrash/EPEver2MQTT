@@ -26,7 +26,7 @@ String devicePrefix = "EP_"; // prefix for datapath for every device
 // flag for saving data and other things
 bool shouldSaveConfig = false;
 bool restartNow = false;
-bool updateProgress = false;
+//bool updateProgress = false;
 unsigned long mqtttimer = 0;
 unsigned long RestartTimer = 0;
 byte ReqDevAddr = 1;
@@ -84,13 +84,11 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
   if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT)
   {
     data[len] = 0;
-    updateProgress = true;
     if (String((char *)data).substring(0, 11) == "loadSwitch_") // get switch data from web loadSwitch_1_1
     {
       epnode.setSlaveId(String((char *)data).substring(11, 12).toInt());
       epnode.writeSingleCoil(0x0002, String((char *)data).substring(13, 14).toInt());
     }
-    updateProgress = false;
   }
 }
 
@@ -328,7 +326,6 @@ void setup()
       }
       if (p->name() == "devid")
       {
-        updateProgress = true; //disable the workers
         digitalWrite(EPEVER_DE_RE, 1);
           delay(50);
 
@@ -359,8 +356,6 @@ void setup()
           } else {
             resultMsg = "ID set Fail... Actual id is: " + String(result[2], HEX);
           }
-
-        updateProgress = false; //enable workers
       }
      request->send(200, "text/plain", resultMsg.c_str()); });
 
@@ -425,15 +420,15 @@ void setup()
 void loop()
 {
   // Make sure wifi is in the right mode
-  if (WiFi.status() == WL_CONNECTED)
+  if (WiFi.status() == WL_CONNECTED && !Update.isRunning())
   {                      // No use going to next step unless WIFI is up and running.
     ws.cleanupClients(); // clean unused client connections
     MDNS.update();
     mqttclient.loop(); // Check if we have something to read from MQTT
-    if (!updateProgress)
-    {
+ //   if (updateProgress == false)
+ //   {
       epWorker(); // the loop worker
-    }
+ //   }
   }
 
   if (restartNow && millis() >= (RestartTimer + 500))
@@ -441,7 +436,7 @@ void loop()
     DEBUG_WEBLN("Restart");
     ESP.reset();
   }
-  notificationLED(); // notification LED routine
+    notificationLED(); // notification LED routine
 }
 
 bool epWorker()
@@ -457,7 +452,7 @@ bool epWorker()
   }
 
   // mqtt part, when time is come, fire up the mqtt function to send all data to the broker
-  if (millis() > (mqtttimer + (_settings.data.mqttRefresh * 1000)) && !updateProgress)
+  if (millis() > (mqtttimer + (_settings.data.mqttRefresh * 1000)) && !Update.isRunning())
   {
     sendtoMQTT(); // Update data to MQTT server if we should
     mqtttimer = millis();
@@ -799,7 +794,7 @@ bool sendtoMQTT()
 
 void callback(char *top, byte *payload, unsigned int length)
 {
-  updateProgress = true; // stop servicing data
+ // updateProgress = true; // stop servicing data
   if (!_settings.data.mqttJson)
   {
     String messageTemp;
@@ -854,5 +849,5 @@ void callback(char *top, byte *payload, unsigned int length)
     DEBUG_WEBLN("MQTT Data Trigger Firered Up");
     mqtttimer = 0;
   }
-  updateProgress = false; // start data servicing again
+ // updateProgress = false; // start data servicing again
 }
