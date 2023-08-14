@@ -3,11 +3,11 @@
   <h1>Settings</h1>
 </figure>
 <div class="d-grid gap-2">
-  <form>
+  <form id="uploadform">
     <div class="input-group">
-      <input class="form-control" id="uploadform" aria-describedby="uploadform" aria-label="Upload" type="file"
+      <input class="form-control" id="uploadformfield" aria-describedby="uploadformfield" aria-label="Upload" type="file"
         name="update">
-      <input class="btn btn-outline-secondary" id="uploadform" type="button" value="Update" onclick="postFile()">
+      <input class="btn btn-outline-secondary" id="uploadformfield" type="button" value="Update" onclick="postFile()">
     </div>
   </form>
   <div class="row gx-0 mb-2" style="display:none;" id="uploadbar">
@@ -26,9 +26,17 @@
   <a class="btn btn-primary" href="/" role="button">Back</a>
 </div>
 <script>
+    var Flash_Size = Number("%pre_flash_size%");
+  if (Flash_Size < 1048575) {
+    document.getElementById("flash_alert").style.display = '';
+    document.getElementById("uploadform").style.display = 'none';
+  } else {
+    document.getElementById("flash_alert").style.display = 'none';
+    document.getElementById("uploadform").style.display = '';
+  }
   function postFile() {
     var formdata = new FormData();
-    formdata.append('uploadform', $('#uploadform')[0].files[0]);
+    formdata.append('uploadformfield', $('#uploadformfield')[0].files[0]);
     var request = new XMLHttpRequest();
     request.onreadystatechange = function () {
       if (request.readyState == XMLHttpRequest.DONE) {
@@ -42,7 +50,7 @@
       }
     }
     request.upload.addEventListener('progress', function (e) {
-      var file1Size = $('#uploadform')[0].files[0].size;
+      var file1Size = $('#uploadformfield')[0].files[0].size;
       document.getElementById('uploadbar').style.display = '';
 
       if (e.loaded <= file1Size) {
