@@ -26,7 +26,7 @@ String devicePrefix = "EP_"; // prefix for datapath for every device
 // flag for saving data and other things
 bool shouldSaveConfig = false;
 bool restartNow = false;
-//bool updateProgress = false;
+bool workerCanRun = true;
 unsigned long mqtttimer = 0;
 unsigned long RestartTimer = 0;
 byte ReqDevAddr = 1;
@@ -419,16 +419,17 @@ void setup()
 
 void loop()
 {
+    if (Update.isRunning())
+  {
+    workerCanRun = false;
+  }
   // Make sure wifi is in the right mode
-  if (WiFi.status() == WL_CONNECTED && !Update.isRunning())
+  if (WiFi.status() == WL_CONNECTED  && workerCanRun)
   {                      // No use going to next step unless WIFI is up and running.
     ws.cleanupClients(); // clean unused client connections
     MDNS.update();
     mqttclient.loop(); // Check if we have something to read from MQTT
- //   if (updateProgress == false)
- //   {
-      epWorker(); // the loop worker
- //   }
+    epWorker(); // the loop worker
   }
 
   if (restartNow && millis() >= (RestartTimer + 500))
@@ -436,7 +437,10 @@ void loop()
     DEBUG_WEBLN("Restart");
     ESP.reset();
   }
+    if (workerCanRun)
+  {
     notificationLED(); // notification LED routine
+  }
 }
 
 bool epWorker()
