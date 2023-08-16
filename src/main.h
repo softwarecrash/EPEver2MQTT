@@ -5,9 +5,15 @@
 #define EPEVER_DE_RE 5       // connect DE and Re to pin D1
 #define LED_PIN 02 //D4 with the LED on Wemos D1 Mini
 
+#define ESP01
+#define FlashSize ESP.getFlashChipSize()
 #ifdef ARDUINO_ESP8266_ESP01
 #undef EPEVER_DE_RE
 #define EPEVER_DE_RE 0  // ESP01 
+#ifdef ESP01
+#undef ESP01
+#define ESP01 "display: none;"
+#endif 
 #endif
 
 #define JSON_BUFFER 8192
@@ -17,6 +23,7 @@
 
 // DON'T edit version here, place version number in platformio.ini (custom_prog_version) !!!
 #define SOFTWARE_VERSION SWVERSION
+#define FlashSize ESP.getFlashChipSize()
 
 #define DEBUG_WEB(...) WebSerial.print(__VA_ARGS__)
 #define DEBUG_WEBLN(...) WebSerial.println(__VA_ARGS__)

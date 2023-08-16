@@ -26,7 +26,7 @@ String devicePrefix = "EP_"; // prefix for datapath for every device
 // flag for saving data and other things
 bool shouldSaveConfig = false;
 bool restartNow = false;
-bool updateProgress = false;
+bool workerCanRun = true;
 unsigned long mqtttimer = 0;
 unsigned long RestartTimer = 0;
 byte ReqDevAddr = 1;
@@ -52,43 +52,6 @@ void saveConfigCallback()
 {
   DEBUG_WEBLN(F("Should save config"));
   shouldSaveConfig = true;
-}
-
-static void handle_update_progress_cb(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final)
-{
-  const char *responseText;
-  uint32_t free_space = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
-  if (!index)
-  {
-    Update.runAsync(true);
-    if (!Update.begin(free_space))
-    {
-      Update.printError(EPEVER_SERIAL);
-    }
-  }
-
-  if (Update.write(data, len) != len)
-  {
-    Update.printError(EPEVER_SERIAL);
-  }
-
-  if (final)
-  {
-    if (!Update.end(true))
-    {
-      Update.printError(EPEVER_SERIAL);
-      responseText = "Failed";
-      restartNow = true;
-      RestartTimer = millis();
-    }
-    else
-    {
-      responseText = "Success";
-      DEBUG_WEBLN(F("Update complete"));
-    }
-    AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", responseText);
-    request->send(response);
-  }
 }
 
 void preTransmission()
@@ -121,13 +84,11 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
   if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT)
   {
     data[len] = 0;
-    updateProgress = true;
     if (String((char *)data).substring(0, 11) == "loadSwitch_") // get switch data from web loadSwitch_1_1
     {
       epnode.setSlaveId(String((char *)data).substring(11, 12).toInt());
       epnode.writeSingleCoil(0x0002, String((char *)data).substring(13, 14).toInt());
     }
-    updateProgress = false;
   }
 }
 
@@ -181,7 +142,7 @@ bool resetCounter(bool count)
         // ESP.rtcUserMemoryWrite(16, &bootcount, sizeof(bootcount));
         _settings.reset();
         ESP.eraseConfig();
-        ESP.restart();
+        ESP.reset();
       }
       else
       {
@@ -201,11 +162,6 @@ bool resetCounter(bool count)
     ESP.rtcUserMemoryWrite(16, &bootcount, sizeof(bootcount));
   }
   return true;
-}
-
-void updateprogressfunction()
-{
-  updateProgress = true;
 }
 
 void setup()
@@ -370,7 +326,6 @@ void setup()
       }
       if (p->name() == "devid")
       {
-        updateProgress = true; //disable the workers
         digitalWrite(EPEVER_DE_RE, 1);
           delay(50);
 
@@ -401,20 +356,48 @@ void setup()
           } else {
             resultMsg = "ID set Fail... Actual id is: " + String(result[2], HEX);
           }
-
-        updateProgress = false; //enable workers
       }
      request->send(200, "text/plain", resultMsg.c_str()); });
 
-    server.on(
-        "/update", HTTP_POST, [](AsyncWebServerRequest *request)
-        {
-          updateprogressfunction();
-          updateProgress = true;
-          // ws.enable(false);
-          // ws.closeAll();
-        },
-        handle_update_progress_cb);
+     server.on("/update", HTTP_POST, [](AsyncWebServerRequest *request){
+    //https://gist.github.com/JMishou/60cb762047b735685e8a09cd2eb42a60
+    // the request handler is triggered after the upload has finished... 
+    // create the response, add header, and send response
+    AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", (Update.hasError())?"FAIL":"OK");
+    response->addHeader("Connection", "close");
+    response->addHeader("Access-Control-Allow-Origin", "*");
+    //restartNow = true; // Tell the main loop to restart the ESP
+    //RestartTimer = millis();  // Tell the main loop to restart the ESP
+    request->send(response);
+  },[](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final){
+    //Upload handler chunks in data
+    
+    if(!index){ // if index == 0 then this is the first frame of data
+      Serial.printf("UploadStart: %s\n", filename.c_str());
+      Serial.setDebugOutput(true);
+      
+      // calculate sketch space required for the update
+      uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
+      if(!Update.begin(maxSketchSpace)){//start with max available size
+        Update.printError(Serial);
+      }
+      Update.runAsync(true); // tell the updaterClass to run in async mode
+    }
+
+    //Write chunked data to the free sketch space
+    if(Update.write(data, len) != len){
+        Update.printError(Serial);
+    }
+    
+    if(final){ // if the final flag is set then this is the last frame of data
+      if(Update.end(true)){ //true to set the size to the current progress
+          Serial.printf("Update Success: %u B\nRebooting...\n", index+len);
+        } else {
+          Update.printError(Serial);
+        }
+        Serial.setDebugOutput(false);
+    }
+  });
 
     server.onNotFound([](AsyncWebServerRequest *request)
                       { request->send(418, "text/plain", "418 I'm a teapot"); });
@@ -436,24 +419,28 @@ void setup()
 
 void loop()
 {
+    if (Update.isRunning())
+  {
+    workerCanRun = false;
+  }
   // Make sure wifi is in the right mode
-  if (WiFi.status() == WL_CONNECTED)
+  if (WiFi.status() == WL_CONNECTED  && workerCanRun)
   {                      // No use going to next step unless WIFI is up and running.
     ws.cleanupClients(); // clean unused client connections
     MDNS.update();
     mqttclient.loop(); // Check if we have something to read from MQTT
-    if (!updateProgress)
-    {
-      epWorker(); // the loop worker
-    }
+    epWorker(); // the loop worker
   }
 
   if (restartNow && millis() >= (RestartTimer + 500))
   {
     DEBUG_WEBLN("Restart");
-    ESP.restart();
+    ESP.reset();
   }
-  notificationLED(); // notification LED routine
+    if (workerCanRun)
+  {
+    notificationLED(); // notification LED routine
+  }
 }
 
 bool epWorker()
@@ -469,7 +456,7 @@ bool epWorker()
   }
 
   // mqtt part, when time is come, fire up the mqtt function to send all data to the broker
-  if (millis() > (mqtttimer + (_settings.data.mqttRefresh * 1000)) && !updateProgress)
+  if (millis() > (mqtttimer + (_settings.data.mqttRefresh * 1000)) && !Update.isRunning())
   {
     sendtoMQTT(); // Update data to MQTT server if we should
     mqtttimer = millis();
@@ -730,7 +717,7 @@ bool getJsonData(int invNum)
   liveJson["DEVICE_QUANTITY"] = _settings.data.deviceQuantity;
   liveJson["DEVICE_FREE_HEAP"] = ESP.getFreeHeap();
   liveJson["DEVICE_FREE_JSON"] = (JSON_BUFFER - liveJson.memoryUsage());
-  liveJson["ESP_VCC"] = ESP.getVcc() / 1000.0;
+  liveJson["ESP_VCC"] = (ESP.getVcc() / 1000.0)+0.3;
   liveJson["Wifi_RSSI"] = WiFi.RSSI();
   liveJson["sw_version"] = SOFTWARE_VERSION;
   return true;
@@ -811,7 +798,7 @@ bool sendtoMQTT()
 
 void callback(char *top, byte *payload, unsigned int length)
 {
-  updateProgress = true; // stop servicing data
+ // updateProgress = true; // stop servicing data
   if (!_settings.data.mqttJson)
   {
     String messageTemp;
@@ -866,5 +853,5 @@ void callback(char *top, byte *payload, unsigned int length)
     DEBUG_WEBLN("MQTT Data Trigger Firered Up");
     mqtttimer = 0;
   }
-  updateProgress = false; // start data servicing again
+ // updateProgress = false; // start data servicing again
 }
