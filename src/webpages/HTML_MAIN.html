@@ -239,7 +239,10 @@
         return formatedTime;
     }
     function checkWS() {
-        websocket.send("A9");
+        if(websocket.readyState !== WebSocket.CLOSED)
+        {
+            websocket.send("A9");
+        }
     }
 </script>
 %pre_foot_template%
