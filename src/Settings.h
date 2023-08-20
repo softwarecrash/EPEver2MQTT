@@ -105,21 +105,21 @@ private:
     }
     if (data.webUIdarkmode && !data.webUIdarkmode)
     {
-      data.mqttJson = false;
+      data.webUIdarkmode = false;
     }
     if (data.StaticNetwork && !data.StaticNetwork)
     {
-      data.mqttJson = false;
+      data.StaticNetwork = false;
     }
-        if (strlen(data.staticIp) == 0 || strlen(data.staticIp) >= 20)
+    if (strlen(data.staticIp) == 0 || strlen(data.staticIp) >= 20)
     {
       strcpy(data.staticIp, "");
     }
-        if (strlen(data.staticGw) == 0 || strlen(data.staticGw) >= 20)
+    if (strlen(data.staticGw) == 0 || strlen(data.staticGw) >= 20)
     {
       strcpy(data.staticGw, "");
     }
-        if (strlen(data.staticDns) == 0 || strlen(data.staticDns) >= 20)
+    if (strlen(data.staticDns) == 0 || strlen(data.staticDns) >= 20)
     {
       strcpy(data.staticDns, "");
     }
