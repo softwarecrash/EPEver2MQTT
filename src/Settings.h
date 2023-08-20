@@ -26,6 +26,7 @@ public:
     unsigned int deviceQuantity; // Quantity of Devices
     bool mqttJson;               // switch between classic mqtt and json
     bool webUIdarkmode;          // Flag for color mode in webUI
+    bool StaticNetwork;          // is static network config used?
     char staticIp[20];           // static ip when
     char staticGw[20];           // static gateway
     char staticDns[20];          // static DNS
@@ -106,6 +107,22 @@ private:
     {
       data.mqttJson = false;
     }
+    if (data.StaticNetwork && !data.StaticNetwork)
+    {
+      data.mqttJson = false;
+    }
+        if (strlen(data.staticIp) == 0 || strlen(data.staticIp) >= 20)
+    {
+      strcpy(data.staticIp, "");
+    }
+        if (strlen(data.staticGw) == 0 || strlen(data.staticGw) >= 20)
+    {
+      strcpy(data.staticGw, "");
+    }
+        if (strlen(data.staticDns) == 0 || strlen(data.staticDns) >= 20)
+    {
+      strcpy(data.staticDns, "");
+    }
   }
   void coVersCheck()
   {
@@ -123,6 +140,10 @@ private:
       data.mqttRefresh = 300;
       data.mqttJson = false;
       data.webUIdarkmode = false;
+      data.StaticNetwork = false;
+      strcpy(data.staticIp, "");
+      strcpy(data.staticGw, "");
+      strcpy(data.staticDns, "");
 
       save();
       load();
