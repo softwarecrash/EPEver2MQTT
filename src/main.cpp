@@ -194,7 +194,7 @@ void setup()
 
   bool res = wm.autoConnect("EPEver2MQTT-AP");
 
-  wm.setConnectTimeout(30);       // how long to try to connect for before continuing
+ // wm.setConnectTimeout(30);       // how long to try to connect for before continuing
   wm.setConfigPortalTimeout(120); // auto close configportal after n seconds
 
   // save settings if wifi setup is fire up
