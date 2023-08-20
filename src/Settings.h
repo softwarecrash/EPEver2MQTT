@@ -30,7 +30,7 @@ public:
     char staticIp[20];           // static ip when
     char staticGw[20];           // static gateway
         char staticSn[20];        // static Subnet
-    char staticDns[20];          // static DNS
+    char staticNs[20];          // static DNS
   } data;
 
   void load()
@@ -124,9 +124,9 @@ private:
     {
       strcpy(data.staticSn, "");
     }
-    if (strlen(data.staticDns) == 0 || strlen(data.staticDns) >= 20)
+    if (strlen(data.staticNs) == 0 || strlen(data.staticNs) >= 20)
     {
-      strcpy(data.staticDns, "");
+      strcpy(data.staticNs, "");
     }
   }
   void coVersCheck()
@@ -149,7 +149,7 @@ private:
       strcpy(data.staticIp, "");
       strcpy(data.staticGw, "");
       strcpy(data.staticSn, "");
-      strcpy(data.staticDns, "");
+      strcpy(data.staticNs, "");
 
       save();
       load();
