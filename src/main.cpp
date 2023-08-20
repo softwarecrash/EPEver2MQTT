@@ -398,6 +398,7 @@ void setup()
 
     server.begin();
     MDNS.addService("http", "tcp", 80);
+    MDNS.update();
   }
   analogWrite(LED_PIN, 255);
   resetCounter(false);
