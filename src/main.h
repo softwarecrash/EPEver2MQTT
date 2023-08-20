@@ -11,7 +11,7 @@
 #define EPEVER_DE_RE 0  // ESP01 
 #ifdef ESP01
 #undef ESP01
-#define ESP01 "display: none;"
+#define ESP01 "display:none;"
 #endif 
 #endif
 
