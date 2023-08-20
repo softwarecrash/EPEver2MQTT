@@ -26,6 +26,9 @@ public:
     unsigned int deviceQuantity; // Quantity of Devices
     bool mqttJson;               // switch between classic mqtt and json
     bool webUIdarkmode;          // Flag for color mode in webUI
+    char staticIp[20];           // static ip when
+    char staticGw[20];           // static gateway
+    char staticDns[20];          // static DNS
   } data;
 
   void load()
