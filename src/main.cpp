@@ -29,6 +29,7 @@ bool restartNow = false;
 bool workerCanRun = true;
 unsigned long mqtttimer = 0;
 unsigned long RestartTimer = 0;
+unsigned long notifyTimer = 0;
 byte ReqDevAddr = 1;
 char mqtt_server[80];
 char mqttClientId[80];
@@ -439,7 +440,13 @@ bool epWorker()
   }
   else
   {
-    notifyClients(); // anyway, call the client something
+    if(errorcode != 0 && millis() > (notifyTimer +1000)){
+      notifyClients(); // anyway, call the client something
+      notifyTimer = millis();
+    } else if(errorcode == 0) {
+      notifyClients(); // anyway, call the client something
+    }
+
   }
 
   // mqtt part, when time is come, fire up the mqtt function to send all data to the broker

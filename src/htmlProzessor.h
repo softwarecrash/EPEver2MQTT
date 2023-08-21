@@ -3,9 +3,9 @@ String htmlProcessor(const String &var)
 {
     extern Settings _settings;
     if (var == F("pre_head_template"))
-        return (HTML_HEAD);
+        return (FPSTR(HTML_HEAD));
     if (var == F("pre_foot_template"))
-        return (HTML_FOOT);
+        return (FPSTR(HTML_FOOT));
     if (var == F("pre_software_version"))
         return (SOFTWARE_VERSION);
     if (var == F("pre_swversion"))
@@ -16,7 +16,7 @@ String htmlProcessor(const String &var)
         return (String(ESP01).c_str());
     if (var == F("pre_device_name"))
         return (_settings.data.deviceName);
-    if (var == ("pre_device_quantity"))
+    if (var == F("pre_device_quantity"))
         return (String(_settings.data.deviceQuantity).c_str());
     if (var == F("pre_mqtt_server"))
         return (_settings.data.mqttServer);
