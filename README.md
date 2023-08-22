@@ -1,4 +1,4 @@
-# EPEver2MQTT  [![GitHub release](https://img.shields.io/github/release/softwarecrash/EPEver2MQTT?include_prereleases=&sort=semver&color=blue)](https://github.com/softwarecrash/EPEver2MQTT/releases/latest)
+# EPEver2MQTT  [![GitHub release](https://img.shields.io/github/release/softwarecrash/EPEver2MQTT?include_prereleases=&sort=semver&color=blue)](https://github.com/softwarecrash/EPEver2MQTT/releases/latest) ![Discord](https://img.shields.io/discord/1007020337482973254?logo=discord&label=Discord&link=https%3A%2F%2Fdiscord.gg%2FHup3gg4YsN)
 ESP82XX to MQTT based connector for EPEver Solar tracker, support multiple trackers
 
 # Features:
@@ -33,9 +33,6 @@ You are welcome to get fully stocked and tested PCB's. These are then already lo
 
 If interested see [here](https://all-solutions.store)
 
-
-# Questions? 
-[Join the Discord Channel (German / English)](https://discord.gg/Hup3gg4YsN)
 #
 [<img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"/>](https://donate.softwarecrash.de)
 #
