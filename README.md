@@ -29,7 +29,7 @@ ESP82XX to MQTT based connector for EPEver Solar tracker, support multiple track
 
 You are welcome to get fully stocked and tested PCB's. These are then already loaded with the lastest firmware. The earnings from the PCBs are used for the further development of existing and new projects.
 
-![image](https://github.com/softwarecrash/EPEver2MQTT/assets/17761850/0a9ff025-1992-49d0-b7f1-9ea1a1bc7f2a)
+[![image](https://github.com/softwarecrash/EPEver2MQTT/assets/17761850/0a9ff025-1992-49d0-b7f1-9ea1a1bc7f2a)](https://all-solutions.store)
 
 If interested see [here](https://all-solutions.store)
 
