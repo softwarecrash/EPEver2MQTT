@@ -27,9 +27,9 @@ String devicePrefix = "EP_"; // prefix for datapath for every device
 bool shouldSaveConfig = false;
 bool restartNow = false;
 bool workerCanRun = true;
-long mqtttimer = 0;
-long RestartTimer = 0;
-long notifyTimer = 0;
+unsigned long mqtttimer = 0;
+unsigned long RestartTimer = 0;
+unsigned long notifyTimer = 0;
 byte ReqDevAddr = 1;
 char mqtt_server[80];
 char mqttClientId[80];
