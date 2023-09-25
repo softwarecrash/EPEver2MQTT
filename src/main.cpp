@@ -195,7 +195,7 @@ void setup()
 
   bool res = wm.autoConnect("EPEver2MQTT-AP");
 
- // wm.setConnectTimeout(30);       // how long to try to connect for before continuing
+  // wm.setConnectTimeout(30);       // how long to try to connect for before continuing
   wm.setConfigPortalTimeout(120); // auto close configportal after n seconds
 
   // save settings if wifi setup is fire up
@@ -348,7 +348,9 @@ void setup()
       }
      request->send(200, "text/plain", resultMsg.c_str()); });
 
-     server.on("/update", HTTP_POST, [](AsyncWebServerRequest *request){
+    server.on(
+        "/update", HTTP_POST, [](AsyncWebServerRequest *request)
+        {
     //https://gist.github.com/JMishou/60cb762047b735685e8a09cd2eb42a60
     // the request handler is triggered after the upload has finished... 
     // create the response, add header, and send response
@@ -357,36 +359,44 @@ void setup()
     response->addHeader("Access-Control-Allow-Origin", "*");
     //restartNow = true; // Tell the main loop to restart the ESP
     //RestartTimer = millis();  // Tell the main loop to restart the ESP
-    request->send(response);
-  },[](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final){
-    //Upload handler chunks in data
-    
-    if(!index){ // if index == 0 then this is the first frame of data
-      Serial.printf("UploadStart: %s\n", filename.c_str());
-      Serial.setDebugOutput(true);
-      
-      // calculate sketch space required for the update
-      uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
-      if(!Update.begin(maxSketchSpace)){//start with max available size
-        Update.printError(Serial);
-      }
-      Update.runAsync(true); // tell the updaterClass to run in async mode
-    }
+    request->send(response); },
+        [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final)
+        {
+          // Upload handler chunks in data
 
-    //Write chunked data to the free sketch space
-    if(Update.write(data, len) != len){
-        Update.printError(Serial);
-    }
-    
-    if(final){ // if the final flag is set then this is the last frame of data
-      if(Update.end(true)){ //true to set the size to the current progress
-          Serial.printf("Update Success: %u B\nRebooting...\n", index+len);
-        } else {
-          Update.printError(Serial);
-        }
-        Serial.setDebugOutput(false);
-    }
-  });
+          if (!index)
+          { // if index == 0 then this is the first frame of data
+            Serial.printf("UploadStart: %s\n", filename.c_str());
+            Serial.setDebugOutput(true);
+
+            // calculate sketch space required for the update
+            uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
+            if (!Update.begin(maxSketchSpace))
+            { // start with max available size
+              Update.printError(Serial);
+            }
+            Update.runAsync(true); // tell the updaterClass to run in async mode
+          }
+
+          // Write chunked data to the free sketch space
+          if (Update.write(data, len) != len)
+          {
+            Update.printError(Serial);
+          }
+
+          if (final)
+          { // if the final flag is set then this is the last frame of data
+            if (Update.end(true))
+            { // true to set the size to the current progress
+              Serial.printf("Update Success: %u B\nRebooting...\n", index + len);
+            }
+            else
+            {
+              Update.printError(Serial);
+            }
+            Serial.setDebugOutput(false);
+          }
+        });
 
     server.onNotFound([](AsyncWebServerRequest *request)
                       { request->send(418, "text/plain", "418 I'm a teapot"); });
@@ -407,17 +417,17 @@ void setup()
 
 void loop()
 {
-    if (Update.isRunning())
+  if (Update.isRunning())
   {
     workerCanRun = false;
   }
   // Make sure wifi is in the right mode
-  if (WiFi.status() == WL_CONNECTED  && workerCanRun)
+  if (WiFi.status() == WL_CONNECTED && workerCanRun)
   {                      // No use going to next step unless WIFI is up and running.
     ws.cleanupClients(); // clean unused client connections
     MDNS.update();
     mqttclient.loop(); // Check if we have something to read from MQTT
-    epWorker(); // the loop worker
+    epWorker();        // the loop worker
   }
 
   if (restartNow && millis() >= (RestartTimer + 500))
@@ -425,7 +435,7 @@ void loop()
     DEBUG_WEBLN("Restart");
     ESP.reset();
   }
-    if (workerCanRun)
+  if (workerCanRun)
   {
     notificationLED(); // notification LED routine
   }
@@ -440,13 +450,15 @@ bool epWorker()
   }
   else
   {
-    if(errorcode != 0 && millis() > (notifyTimer +1000)){
+    if (errorcode != 0 && millis() > (notifyTimer + 1000))
+    {
       notifyClients(); // anyway, call the client something
       notifyTimer = millis();
-    } else if(errorcode == 0) {
+    }
+    else if (errorcode == 0)
+    {
       notifyClients(); // anyway, call the client something
     }
-
   }
 
   // mqtt part, when time is come, fire up the mqtt function to send all data to the broker
@@ -711,7 +723,7 @@ bool getJsonData(int invNum)
   liveJson["DEVICE_QUANTITY"] = _settings.data.deviceQuantity;
   liveJson["DEVICE_FREE_HEAP"] = ESP.getFreeHeap();
   liveJson["DEVICE_FREE_JSON"] = (JSON_BUFFER - liveJson.memoryUsage());
-  liveJson["ESP_VCC"] = (ESP.getVcc() / 1000.0)+0.3;
+  liveJson["ESP_VCC"] = (ESP.getVcc() / 1000.0) + 0.3;
   liveJson["Wifi_RSSI"] = WiFi.RSSI();
   liveJson["sw_version"] = SOFTWARE_VERSION;
   return true;
@@ -732,13 +744,15 @@ bool connectMQTT()
         mqttclient.subscribe(_settings.data.mqttTriggerPath);
       }
 
-      for (size_t i = 1; i < ((size_t)_settings.data.deviceQuantity + 1); i++)
-      {
-        if (!_settings.data.mqttJson) // classic mqtt DP
+      if (!_settings.data.mqttJson) // classic mqtt DP
+
+        for (size_t i = 1; i < ((size_t)_settings.data.deviceQuantity + 1); i++)
+        {
           mqttclient.subscribe((topic + "/" + devicePrefix + i + "/DeviceControl/LOAD_STATE").c_str());
-        else // subscribe json
-          mqttclient.subscribe((topic + "/" + devicePrefix + i + "/DATA").c_str());
-      }
+        }
+      else // subscribe json
+        mqttclient.subscribe((topic + "/DATA").c_str());
+
       return true;
     }
     else
@@ -792,7 +806,7 @@ bool sendtoMQTT()
 
 void callback(char *top, byte *payload, unsigned int length)
 {
- // updateProgress = true; // stop servicing data
+  // updateProgress = true; // stop servicing data
   if (!_settings.data.mqttJson)
   {
     String messageTemp;
@@ -818,27 +832,16 @@ void callback(char *top, byte *payload, unsigned int length)
     StaticJsonDocument<1024> mqttJsonAnswer;
     deserializeJson(mqttJsonAnswer, (const byte *)payload, length);
 
-    if ((size_t)_settings.data.deviceQuantity > 1)
+    for (size_t k = 1; k < ((size_t)_settings.data.deviceQuantity + 1); k++)
     {
-      for (size_t k = 1; k < ((size_t)_settings.data.deviceQuantity + 1); k++)
+      if (mqttJsonAnswer.containsKey(devicePrefix + k))
       {
-        if (mqttJsonAnswer["DEVICE_NAME_" + k] == (_settings.deviceNameStr + "_" + k))
-        {
-          epnode.setSlaveId(k);
-          if (mqttJsonAnswer["LOAD_STATE"] == true)
-            epnode.writeSingleCoil(0x0002, 1);
-          if (mqttJsonAnswer["LOAD_STATE"] == false)
-            epnode.writeSingleCoil(0x0002, 0);
-        }
+        epnode.setSlaveId(k);
+        if (mqttJsonAnswer[devicePrefix + k]["LiveData"]["LOAD_STATE"] == true)
+          epnode.writeSingleCoil(0x0002, 1);
+        if (mqttJsonAnswer[devicePrefix + k]["LiveData"]["LOAD_STATE"] == false)
+          epnode.writeSingleCoil(0x0002, 0);
       }
-    }
-    else
-    {
-      epnode.setSlaveId(1);
-      if (mqttJsonAnswer["LOAD_STATE"] == true)
-        epnode.writeSingleCoil(0x0002, 1);
-      if (mqttJsonAnswer["LOAD_STATE"] == false)
-        epnode.writeSingleCoil(0x0002, 0);
     }
   }
 
@@ -847,5 +850,5 @@ void callback(char *top, byte *payload, unsigned int length)
     DEBUG_WEBLN("MQTT Data Trigger Firered Up");
     mqtttimer = 0;
   }
- // updateProgress = false; // start data servicing again
+  // updateProgress = false; // start data servicing again
 }
