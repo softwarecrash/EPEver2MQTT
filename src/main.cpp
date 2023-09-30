@@ -100,7 +100,7 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
   {
   case WS_EVT_CONNECT:
     wsClient = client;
-    notifyClients();
+    //notifyClients();
     DEBUG_WEBF("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
     break;
   case WS_EVT_DISCONNECT:
