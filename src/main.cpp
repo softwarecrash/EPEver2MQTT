@@ -27,6 +27,7 @@ String devicePrefix = "EP_"; // prefix for datapath for every device
 bool shouldSaveConfig = false;
 bool restartNow = false;
 bool workerCanRun = true;
+bool haDiscTrigger = false;
 unsigned long mqtttimer = 0;
 unsigned long RestartTimer = 0;
 unsigned long notifyTimer = 0;
@@ -100,7 +101,7 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
   {
   case WS_EVT_CONNECT:
     wsClient = client;
-    //notifyClients();
+    // notifyClients();
     DEBUG_WEBF("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
     break;
   case WS_EVT_DISCONNECT:
@@ -346,6 +347,10 @@ void setup()
             resultMsg = "ID set Fail... Actual id is: " + String(result[2], HEX);
           }
       }
+      if (p->name() == "ha")
+        {
+          haDiscTrigger = true;
+        }
      request->send(200, "text/plain", resultMsg.c_str()); });
 
     server.on(
@@ -428,6 +433,11 @@ void loop()
     MDNS.update();
     mqttclient.loop(); // Check if we have something to read from MQTT
     epWorker();        // the loop worker
+          if (haDiscTrigger)
+      {
+        sendHaDiscovery();
+        haDiscTrigger = false;
+      }
   }
 
   if (restartNow && millis() >= (RestartTimer + 500))
@@ -851,4 +861,51 @@ void callback(char *top, byte *payload, unsigned int length)
     mqtttimer = 0;
   }
   // updateProgress = false; // start data servicing again
+}
+
+bool sendHaDiscovery()
+{
+  /*
+  if (!connectMQTT())
+  {
+    return false;
+  }
+  char topBuff[128];
+  char configBuff[1024];
+  size_t mqttContentLength;
+
+    for (JsonPair jsonDev : liveJson.as<JsonObject>())
+    {
+      if (String(jsonDev.key().c_str()).substring(0, 3) == "EP_")
+      {
+        for (JsonPair jsondat : jsonDev.value().as<JsonObject>())
+        {
+          for (JsonPair jsonVal : jsondat.value().as<JsonObject>())
+          {
+            char msgBuffer1[200];
+            sprintf(msgBuffer1, "%s/%s/%s/%s", _settings.data.mqttTopic, jsonDev.key().c_str(), jsondat.key().c_str(), jsonVal.key().c_str());
+
+            mqttclient.publish(msgBuffer1, jsonVal.value().as<String>().c_str());
+          }
+        }
+      }
+    }
+
+  for (size_t i = 0; i < sizeof haDescriptor / sizeof haDescriptor[0]; i++)
+  {
+    if (liveJson.containsKey(haDescriptor[i][0]))
+    {
+      sprintf(topBuff, "homeassistant/sensor/%s/%s/config", _settings.data.deviceName, liveJson[i][0]); // build the topic
+      mqttContentLength = sprintf(configBuff, "{\"state_topic\": \"%s/LiveData/%s\",\"unique_id\": \"sensor.%s_%s\",\"name\": \"%s\",\"icon\": \"%s\",\"unit_of_measurement\": \"%s\",\"device_class\":\"%s\",\"device\":{\"identifiers\":[\"%s\"], \"configuration_url\":\"http://%s\",\"name\":\"%s\", \"model\":\"%s\",\"manufacturer\":\"SoftWareCrash\",\"sw_version\":\"Solar2MQTT %s\"}}",
+                                  _settings.data.mqttTopic, liveJson[i][0], _settings.data.deviceName, liveJson[i][0], liveJson[i][0], liveJson[i][1], liveJson[i][2], liveJson[i][3], staticData["Serial_number"].as<String>().c_str(), (const char *)(WiFi.localIP().toString()).c_str(), _settings.data.deviceName, staticData["Device_Model"].as<String>().c_str(), SOFTWARE_VERSION);
+      mqttclient.beginPublish(topBuff, mqttContentLength, false);
+      for (size_t i = 0; i < mqttContentLength; i++)
+      {
+        mqttclient.write(configBuff[i]);
+      }
+      mqttclient.endPublish();
+    }
+  }
+  */
+  return true;
 }
