@@ -488,6 +488,7 @@ bool epWorker()
     ReqDevAddr = 1;
   else
     ReqDevAddr++;
+  slowDownTimer = millis();
   return true;
 }
 
