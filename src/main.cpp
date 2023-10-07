@@ -31,6 +31,7 @@ bool haDiscTrigger = false;
 unsigned long mqtttimer = 0;
 unsigned long RestartTimer = 0;
 unsigned long notifyTimer = 0;
+unsigned long slowDownTimer = 0;
 byte ReqDevAddr = 1;
 char mqtt_server[80];
 char mqttClientId[80];
@@ -453,6 +454,11 @@ void loop()
 
 bool epWorker()
 {
+  if (millis() < (slowDownTimer + 500))
+  {
+    return true;
+  }
+  
   if (getEpData(ReqDevAddr)) // if we get valid data from the device?
   {
     getJsonData(ReqDevAddr); // put it in the json document
