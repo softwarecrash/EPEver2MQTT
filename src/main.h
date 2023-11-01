@@ -44,7 +44,7 @@ static const char *const haDescriptor[][4]{
   {"CONNECTION","mdi:connection","",""},
   {"DEVICE_NUM","mdi:numeric","",""},
   {"DEVICE_TIME","mdi:timer-outline","",""},
-  {"DEVICE_TEMP",,"mdi:thermometer-lines","°C","temperature"},
+  {"DEVICE_TEMP","mdi:thermometer-lines","°C","temperature"},
   {"SOLAR_V","mdi:solar-power","V","voltage"},
   {"SOLAR_A","mdi:solar-power","A","current"},
   {"SOLAR_W","mdi:solar-power","W","power"},
