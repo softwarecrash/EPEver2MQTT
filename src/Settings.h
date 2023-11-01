@@ -8,7 +8,7 @@
 class Settings
 {
   // change eeprom config version ONLY when new parameter is added and need reset the parameter
-  unsigned int configVersion = 10;
+  unsigned int configVersion = 11;
 
 public:
   String deviceNameStr;
@@ -26,6 +26,8 @@ public:
     unsigned int deviceQuantity; // Quantity of Devices
     bool mqttJson;               // switch between classic mqtt and json
     bool webUIdarkmode;          // Flag for color mode in webUI
+    char httpUser[40];           // http basic auth username
+    char httpPass[40];           // http basic auth password
   } data;
 
   void load()
@@ -103,6 +105,14 @@ private:
     {
       data.webUIdarkmode = false;
     }
+    if (strlen(data.httpUser) == 0 || strlen(data.httpUser) >= 40)
+    {
+      strcpy(data.httpUser, "");
+    }
+    if (strlen(data.httpPass) == 0 || strlen(data.httpPass) >= 40)
+    {
+      strcpy(data.httpPass, "");
+    }
   }
   void coVersCheck()
   {
@@ -120,6 +130,8 @@ private:
       data.mqttRefresh = 300;
       data.mqttJson = false;
       data.webUIdarkmode = false;
+      strcpy(data.httpUser, "");
+      strcpy(data.httpPass, "");
 
       save();
       load();
