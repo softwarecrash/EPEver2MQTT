@@ -77,11 +77,12 @@
 
   function SendDateString() {
     var today = new Date();
+    var offset = -(new Date().getTimezoneOffset() / 60)
     var dateString;
     dateString = (today.getFullYear().toString().slice(2, 4)) +
       ((today.getMonth() + 1) < 10 ? '0' : '') + (today.getMonth() + 1) +
       (today.getDate() < 10 ? '0' : '') + today.getDate() +
-      (today.getHours() < 10 ? '0' : '') + today.getHours() +
+      ((today.getHours()+ offset) < 10 ? '0' : '') + (today.getHours() + offset) +
       (today.getMinutes() < 10 ? '0' : '') + today.getMinutes() +
       (today.getSeconds() < 10 ? '0' : '') + today.getSeconds();
     var xhr = new XMLHttpRequest();
