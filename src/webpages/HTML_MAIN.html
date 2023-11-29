@@ -56,14 +56,14 @@
 
 <div class="row gx-0 mb-2 row gx-0 mb-2 bg-light rounded bg-opacity-50 px-2">
     <div class="col"> Consumed kWh: </div>
-    <div class="col dF"><span id="consD"></span><span id="consM"></span><span id="consY"></span><span
-                id="consT"></span></div>
+    <div class="col dF"><span id="consD"></span><span id="consM"></span><span id="consY"></span><span id="consT"></span>
+    </div>
 </div>
 
 <div class="row gx-0 mb-2 row gx-0 mb-2 bg-light rounded bg-opacity-50 px-2">
     <div class="col"> Generated kWh: </div>
-    <div class="col dF"><span id="genD"></span><span id="genM"></span><span id="genY"></span><span
-                id="genT"></span></div>
+    <div class="col dF"><span id="genD"></span><span id="genM"></span><span id="genY"></span><span id="genT"></span>
+    </div>
 </div>
 
 <div class="row gx-0 mb-2 row gx-0 mb-2 bg-light rounded bg-opacity-50 px-2">
@@ -227,20 +227,15 @@
             console.log("down");
         }
     }
-
     function unixTimetoDateTime(unixTime) {
         var deviceDate = new Date(unixTime * 1000);
-        var formatedTime = (deviceDate.getFullYear()) + "-" +
-            ((deviceDate.getMonth() + 1) < 10 ? '0' : '') + (deviceDate.getMonth() + 1) + "-" +
-            (deviceDate.getDate() < 10 ? '0' : '') + deviceDate.getDate() + " " +
-            (deviceDate.getHours() < 10 ? '0' : '') + deviceDate.getHours() + ":" +
-            (deviceDate.getMinutes() < 10 ? '0' : '') + deviceDate.getMinutes() + ":" +
-            (deviceDate.getSeconds() < 10 ? '0' : '') + deviceDate.getSeconds();
+        deviceDate.toUTCString();
+        deviceDate.setHours(deviceDate.getUTCHours());
+        var formatedTime = deviceDate.toLocaleDateString(navigator.language) + " " + deviceDate.toLocaleTimeString(navigator.language);
         return formatedTime;
     }
     function checkWS() {
-        if(websocket.readyState !== WebSocket.CLOSED)
-        {
+        if (websocket.readyState !== WebSocket.CLOSED) {
             websocket.send("A9");
         }
     }
