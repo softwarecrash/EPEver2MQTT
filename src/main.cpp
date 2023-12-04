@@ -515,7 +515,6 @@ bool getEpData(int invNum)
 {
   errorcode = 0;
   epnode.setSlaveId(invNum);
-  // epnode.setSlaveId(1); // only for testing
 
   // clear buffers
   memset(rtc.buf, 0, sizeof(rtc.buf));
@@ -698,8 +697,8 @@ bool getEpData(int invNum)
 bool getJsonData(int invNum)
 {
 
-  // for (size_t invNum = 1; invNum <= 6; invNum++) // for testing only
-  // {
+   for (size_t invNum = 1; invNum <= 3; invNum++) // for testing only
+   {
   liveJson["EP_" + String(invNum)]["LiveData"]["CONNECTION"] = errorcode;
 
   liveJson["EP_" + String(invNum)]["LiveData"]["DEVICE_NUM"] = String(invNum); // for testing
@@ -741,8 +740,8 @@ bool getJsonData(int invNum)
   liveJson["EP_" + String(invNum)]["StatsData"]["GEN_TOT"] = stats.s.genEnerTotal / 100.f;
   liveJson["EP_" + String(invNum)]["StatsData"]["CO2_REDUCTION"] = stats.s.c02Reduction / 100.f;
   // device settings data
-  liveJson["EP_" + String(invNum)]["DeviceData"]["BATTERY_TYPE"] = settingParam.s.bTyp;
-  liveJson["EP_" + String(invNum)]["DeviceData"]["BATTERY_CAPACITY"] = settingParam.s.bCapacity / 100.f;
+  liveJson["EP_" + String(invNum)]["DeviceData"]["BATTERY_TYPE"] = batt_type[settingParam.s.bTyp];
+  liveJson["EP_" + String(invNum)]["DeviceData"]["BATTERY_CAPACITY"] = settingParam.s.bCapacity /*/ 100.f*/;
   liveJson["EP_" + String(invNum)]["DeviceData"]["TEMPERATURE_COMPENSATION"] = settingParam.s.tempCompensation / 100.f;
   liveJson["EP_" + String(invNum)]["DeviceData"]["HIGH_VOLT_DISCONNECT"] = settingParam.s.highVDisconnect / 100.f;
   liveJson["EP_" + String(invNum)]["DeviceData"]["CHARGING_LIMIT_VOLTS"] = settingParam.s.chLimitVolt / 100.f;
@@ -756,7 +755,7 @@ bool getJsonData(int invNum)
   liveJson["EP_" + String(invNum)]["DeviceData"]["UNDER_VOLTS_WARNING"] = settingParam.s.underVoltWarning / 100.f;
   liveJson["EP_" + String(invNum)]["DeviceData"]["LOW_VOLTS_DISCONNECT"] = settingParam.s.lowVoltDiscon / 100.f;
   liveJson["EP_" + String(invNum)]["DeviceData"]["DISCHARGING_LIMIT_VOLTS"] = settingParam.s.dischLimitVolt / 100.f;
-  // }
+   }
   liveJson["DEVICE_QUANTITY"] = _settings.data.deviceQuantity;
   liveJson["DEVICE_FREE_HEAP"] = ESP.getFreeHeap();
   liveJson["DEVICE_FREE_JSON"] = (JSON_BUFFER - liveJson.memoryUsage());
@@ -907,7 +906,7 @@ bool sendHaDiscovery()
     if (String(jsonDev.key().c_str()).substring(0, 3) == "EP_")
     {
       String haDeviceDescription = String("\"dev\":") +
-                                   "{\"ids\":[\"" + mqttClientId + "\"]," +
+                                   "{\"ids\":[\"" + mqttClientId + "_" + jsonDev.key().c_str() + "\"]," +
                                    "\"name\":\"" + _settings.data.deviceName + "_" + jsonDev.key().c_str() + "\"," +
                                    "\"cu\":\"http://" + WiFi.localIP().toString() + "\"," +
                                    "\"mdl\":\"EPEver2MQTT" + "_" + jsonDev.key().c_str() + "\"," +
@@ -975,7 +974,6 @@ bool sendHaDiscovery()
       {
         for (JsonPair jsonVal : jsondat.value().as<JsonObject>())
         {
-          //-------------------------------------------------------------------------
           for (size_t i = 0; i < sizeof haDescriptor / sizeof haDescriptor[0]; i++)
           {
             if (strcmp(jsonVal.key().c_str(), haDescriptor[i][0]) == 0)
@@ -1004,7 +1002,5 @@ bool sendHaDiscovery()
       }
     }
   }
-  //-----------------------------------------------------------------------------
-
   return true;
 }

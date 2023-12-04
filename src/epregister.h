@@ -225,13 +225,20 @@ struct
   uint8_t rated_volt; // d15    1-Wrong identification for rated voltage
 } status_batt;
 
-char batt_volt_status[][20] = {
+static const char *const batt_volt_status[] = {
     "Normal",
     "Overvolt",
     "Low Volt Disconnect",
     "Fault"};
 
-char batt_temp_status[][16] = {
+static const char *const batt_type[] = {
+    "User",
+    "Sealed",
+    "GEL",
+    "Flooded",
+    "User"};
+
+static const char *const batt_temp_status[] = {
     "Normal",
     "Over WarnTemp",
     "Below WarnTemp"};
@@ -242,13 +249,13 @@ uint8_t charger_state = 0;
 uint8_t charger_input = 0;
 uint8_t charger_mode = 0;
 
-char charger_input_status[][20] = {
+static const char *const charger_input_status[] = {
     "Normal",
     "No power connected",
     "Higher volt input",
     "Input volt error"};
 
-char charger_charging_status[][12] = {
+static const char *const charger_charging_status[] = {
     "Off",
     "Float",
     "Boost",
