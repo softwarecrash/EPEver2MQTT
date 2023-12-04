@@ -697,8 +697,7 @@ bool getEpData(int invNum)
 bool getJsonData(int invNum)
 {
 
-   for (size_t invNum = 1; invNum <= 3; invNum++) // for testing only
-   {
+ //  for (size_t invNum = 1; invNum <= 3; invNum++) // for testing only{
   liveJson["EP_" + String(invNum)]["LiveData"]["CONNECTION"] = errorcode;
 
   liveJson["EP_" + String(invNum)]["LiveData"]["DEVICE_NUM"] = String(invNum); // for testing
@@ -755,7 +754,7 @@ bool getJsonData(int invNum)
   liveJson["EP_" + String(invNum)]["DeviceData"]["UNDER_VOLTS_WARNING"] = settingParam.s.underVoltWarning / 100.f;
   liveJson["EP_" + String(invNum)]["DeviceData"]["LOW_VOLTS_DISCONNECT"] = settingParam.s.lowVoltDiscon / 100.f;
   liveJson["EP_" + String(invNum)]["DeviceData"]["DISCHARGING_LIMIT_VOLTS"] = settingParam.s.dischLimitVolt / 100.f;
-   }
+  // }
   liveJson["DEVICE_QUANTITY"] = _settings.data.deviceQuantity;
   liveJson["DEVICE_FREE_HEAP"] = ESP.getFreeHeap();
   liveJson["DEVICE_FREE_JSON"] = (JSON_BUFFER - liveJson.memoryUsage());
