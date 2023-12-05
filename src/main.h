@@ -74,7 +74,7 @@ static const char *const haDescriptor[][4]{
   {"GEN_MON","solar-power","kWh","energy"},
   {"GEN_YEAR","solar-power","kWh","energy"},
   {"GEN_TOT","solar-power","kWh","energy"},
-  {"CO2_REDUCTION","molecule-co","",""},
+  {"CO2_REDUCTION","molecule-co","t","weight"},
   // DeviceData
   {"BATTERY_TYPE","fuel-cell","",""},
   {"BATTERY_CAPACITY","car-battery","Ah","energy_storage"},
