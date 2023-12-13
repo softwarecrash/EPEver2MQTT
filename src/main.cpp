@@ -984,8 +984,15 @@ bool sendHaDiscovery()
                                  "\"ic\":\"mdi:" + haDescriptor[i][1] + "\",";
               if (strlen(haDescriptor[i][2]) != 0)
                 haPayLoad += (String) "\"unit_of_meas\":\"" + haDescriptor[i][2] + "\",";
+
+              if (haDescriptor[i][2] == "kWh" || haDescriptor[i][2] == "Wh")
+                haPayLoad += (String) "\"state_class\":\"total_increasing\",";
+              if (haDescriptor[i][2] == "A" || haDescriptor[i][2] == "V" || haDescriptor[i][2] == "W")
+                haPayLoad += (String) "\"state_class\":\"measurement\",";
+
               if (strlen(haDescriptor[i][3]) != 0)
                 haPayLoad += (String) "\"dev_cla\":\"" + haDescriptor[i][3] + "\",";
+
               haPayLoad += haDeviceDescription;
               haPayLoad += "}";
               sprintf(topBuff, "homeassistant/sensor/%s_%s/%s/config", _settings.data.deviceName, jsonDev.key().c_str(), haDescriptor[i][0]); // build the topic
