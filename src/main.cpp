@@ -697,7 +697,7 @@ bool getEpData(int invNum)
 bool getJsonData(int invNum)
 {
 
- //  for (size_t invNum = 1; invNum <= 3; invNum++) // for testing only{
+  //  for (size_t invNum = 1; invNum <= 3; invNum++) // for testing only{
   liveJson["EP_" + String(invNum)]["LiveData"]["CONNECTION"] = errorcode;
 
   liveJson["EP_" + String(invNum)]["LiveData"]["DEVICE_NUM"] = String(invNum); // for testing
@@ -985,9 +985,9 @@ bool sendHaDiscovery()
               if (strlen(haDescriptor[i][2]) != 0)
                 haPayLoad += (String) "\"unit_of_meas\":\"" + haDescriptor[i][2] + "\",";
 
-              if (haDescriptor[i][2] == "kWh" || haDescriptor[i][2] == "Wh")
+              if (strcmp(haDescriptor[i][2], "kWh") == 0 || strcmp(haDescriptor[i][2], "Wh") == 0)
                 haPayLoad += (String) "\"state_class\":\"total_increasing\",";
-              if (haDescriptor[i][2] == "A" || haDescriptor[i][2] == "V" || haDescriptor[i][2] == "W")
+              if (strcmp(haDescriptor[i][2], "A") == 0 || strcmp(haDescriptor[i][2], "V") == 0 || strcmp(haDescriptor[i][2], "W") == 0)
                 haPayLoad += (String) "\"state_class\":\"measurement\",";
 
               if (strlen(haDescriptor[i][3]) != 0)
