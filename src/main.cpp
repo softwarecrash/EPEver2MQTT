@@ -497,7 +497,7 @@ bool epWorker()
   }
 
   // mqtt part, when time is come, fire up the mqtt function to send all data to the broker
-  if (millis() > (mqtttimer + (_settings.data.mqttRefresh * 1000)) && !Update.isRunning())
+  if ((millis() > (mqtttimer + (_settings.data.mqttRefresh * 1000))  || mqtttimer == 0) && !Update.isRunning())
   {
     sendtoMQTT(); // Update data to MQTT server if we should
     mqtttimer = millis();
