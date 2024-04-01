@@ -497,7 +497,7 @@ bool epWorker()
   }
 
   // mqtt part, when time is come, fire up the mqtt function to send all data to the broker
-  if ((millis() > (mqtttimer + (_settings.data.mqttRefresh * 1000))  || mqtttimer == 0) && !Update.isRunning())
+  if ((millis() > (mqtttimer + (_settings.data.mqttRefresh * 1000)) || mqtttimer == 0) && !Update.isRunning())
   {
     sendtoMQTT(); // Update data to MQTT server if we should
     mqtttimer = millis();
@@ -916,9 +916,10 @@ bool sendHaDiscovery()
       String haSwitchPayLoad = String("{") +
                                "\"name\":\"LOAD_STATE\"," +
                                "\"command_topic\":\"" + _settings.data.mqttTopic + "/" + jsonDev.key().c_str() + "/DeviceControl/LOAD_STATE\"," +
-
                                "\"stat_t\":\"" + _settings.data.mqttTopic + "/" + jsonDev.key().c_str() + "/LiveData/LOAD_STATE\"," +
-
+                               "\"avty_t\":\"" + _settings.data.mqttTopic + "/Alive\"," +
+                               "\"pl_avail\": \"true\"," +
+                               "\"pl_not_avail\": \"false\"," +
                                "\"uniq_id\":\"" + mqttClientId + ".LOAD_STATE_" + jsonDev.key().c_str() + "\"," +
                                "\"ic\":\"mdi:toggle-switch-off\"," +
                                "\"pl_on\":\"true\"," +
@@ -940,6 +941,9 @@ bool sendHaDiscovery()
       String haPayLoad = String("{") +
                          "\"name\":\"Wifi_RSSI\"," +
                          "\"stat_t\":\"" + _settings.data.mqttTopic + "/Wifi_RSSI\"," +
+                         "\"avty_t\":\"" + _settings.data.mqttTopic + "/Alive\"," +
+                         "\"pl_avail\": \"true\"," +
+                         "\"pl_not_avail\": \"false\"," +
                          "\"uniq_id\":\"" + mqttClientId + ".Wifi_RSSI_" + jsonDev.key().c_str() + "\"," +
                          "\"ic\":\"mdi:wifi-arrow-up-down\"," +
                          "\"unit_of_meas\":\"dB\"," +
@@ -957,6 +961,9 @@ bool sendHaDiscovery()
       haPayLoad = String("{") +
                   "\"name\":\"IP\"," +
                   "\"stat_t\":\"" + _settings.data.mqttTopic + "/IP\"," +
+                  "\"avty_t\":\"" + _settings.data.mqttTopic + "/Alive\"," +
+                  "\"pl_avail\": \"true\"," +
+                  "\"pl_not_avail\": \"false\"," +
                   "\"uniq_id\":\"" + mqttClientId + ".IP_" + jsonDev.key().c_str() + "\"," +
                   "\"ic\":\"mdi:ip-network\",";
       haPayLoad += haDeviceDescription;
@@ -980,6 +987,9 @@ bool sendHaDiscovery()
               String haPayLoad = String("{") +
                                  "\"name\":\"" + haDescriptor[i][0] + "\"," +
                                  "\"stat_t\":\"" + _settings.data.mqttTopic + "/" + jsonDev.key().c_str() + "/" + jsondat.key().c_str() + "/" + haDescriptor[i][0] + "\"," +
+                                 "\"avty_t\":\"" + _settings.data.mqttTopic + "/Alive\"," +
+                                 "\"pl_avail\": \"true\"," +
+                                 "\"pl_not_avail\": \"false\"," +
                                  "\"uniq_id\":\"" + mqttClientId + "." + haDescriptor[i][0] + "_" + jsonDev.key().c_str() + "\"," +
                                  "\"ic\":\"mdi:" + haDescriptor[i][1] + "\",";
               if (strlen(haDescriptor[i][2]) != 0)
