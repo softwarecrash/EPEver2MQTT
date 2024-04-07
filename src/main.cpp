@@ -929,7 +929,7 @@ bool sendHaDiscovery()
 
       haSwitchPayLoad += haDeviceDescription;
       haSwitchPayLoad += "}";
-      sprintf(topBuff, "homeassistant/switch/%s_%s/LOAD_STATE/config", _settings.data.deviceName, jsonDev.key().c_str()); // build the topic
+      sprintf(topBuff, "homeassistant/switch/%s_%s/LOAD_STATE/config", _settings.data.mqttTopic, jsonDev.key().c_str()); // build the topic
 
       mqttclient.beginPublish(topBuff, haSwitchPayLoad.length(), true);
       for (size_t i = 0; i < haSwitchPayLoad.length(); i++)
@@ -950,7 +950,7 @@ bool sendHaDiscovery()
                          "\"dev_cla\":\"signal_strength\",";
       haPayLoad += haDeviceDescription;
       haPayLoad += "}";
-      sprintf(topBuff, "homeassistant/sensor/%s_%s/%s/config", _settings.data.deviceName, jsonDev.key().c_str(), "Wifi_RSSI"); // build the topic
+      sprintf(topBuff, "homeassistant/sensor/%s_%s/%s/config", _settings.data.mqttTopic, jsonDev.key().c_str(), "Wifi_RSSI"); // build the topic
       mqttclient.beginPublish(topBuff, haPayLoad.length(), true);
       for (size_t i = 0; i < haPayLoad.length(); i++)
       {
@@ -968,7 +968,7 @@ bool sendHaDiscovery()
                   "\"ic\":\"mdi:ip-network\",";
       haPayLoad += haDeviceDescription;
       haPayLoad += "}";
-      sprintf(topBuff, "homeassistant/sensor/%s_%s/%s/config", _settings.data.deviceName, jsonDev.key().c_str(), "IP"); // build the topic
+      sprintf(topBuff, "homeassistant/sensor/%s_%s/%s/config", _settings.data.mqttTopic, jsonDev.key().c_str(), "IP"); // build the topic
       mqttclient.beginPublish(topBuff, haPayLoad.length(), true);
       for (size_t i = 0; i < haPayLoad.length(); i++)
       {
@@ -1005,7 +1005,7 @@ bool sendHaDiscovery()
 
               haPayLoad += haDeviceDescription;
               haPayLoad += "}";
-              sprintf(topBuff, "homeassistant/sensor/%s_%s/%s/config", _settings.data.deviceName, jsonDev.key().c_str(), haDescriptor[i][0]); // build the topic
+              sprintf(topBuff, "homeassistant/sensor/%s_%s/%s/config", _settings.data.mqttTopic, jsonDev.key().c_str(), haDescriptor[i][0]); // build the topic
               mqttclient.beginPublish(topBuff, haPayLoad.length(), true);
               for (size_t i = 0; i < haPayLoad.length(); i++)
               {
