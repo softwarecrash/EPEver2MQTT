@@ -229,6 +229,7 @@ void setup()
   {
     // set the device name
     MDNS.begin(_settings.data.deviceName);
+    MDNS.addService("http", "tcp", 80);
 
     WiFi.hostname(_settings.data.deviceName);
 
@@ -429,8 +430,6 @@ void setup()
     WebSerial.begin(&server);
 
     server.begin();
-    MDNS.addService("http", "tcp", 80);
-    MDNS.update();
   }
   analogWrite(LED_PIN, 255);
   resetCounter(false);
@@ -438,6 +437,7 @@ void setup()
 
 void loop()
 {
+      MDNS.update();
   if (Update.isRunning())
   {
     workerCanRun = false;
@@ -446,7 +446,7 @@ void loop()
   if (WiFi.status() == WL_CONNECTED && workerCanRun)
   {                      // No use going to next step unless WIFI is up and running.
     ws.cleanupClients(); // clean unused client connections
-    MDNS.update();
+
     mqttclient.loop(); // Check if we have something to read from MQTT
     epWorker();        // the loop worker
 
