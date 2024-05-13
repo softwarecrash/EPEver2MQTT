@@ -16,7 +16,6 @@
 #include <WebSerialLite.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
-#include <RTCMemory.h>
 #include "Settings.h"      //settings functions
 #include "html.h"          //the HTML content
 #include "htmlProzessor.h" // The html Prozessor
@@ -851,7 +850,7 @@ bool sendtoMQTT()
       {
         char msgBuffer1[200];
         char valBufffer[8];
-        sprintf(msgBuffer1, "%s/DS18B20_%s", _settings.data.mqttTopic, (i + 1));
+        sprintf(msgBuffer1, "%s/DS18B20_%i", _settings.data.mqttTopic, (i + 1));
         mqttclient.publish(msgBuffer1, dtostrf(tempSens.getTempC(tempDeviceAddress), 4, 2, valBufffer));
       }
     }
