@@ -14,9 +14,9 @@
 #include <UnixTime.h>
 #include <Updater.h> //new
 #include <WebSerialLite.h>
-
-#include "Settings.h" //settings functions
-
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include "Settings.h"      //settings functions
 #include "html.h"          //the HTML content
 #include "htmlProzessor.h" // The html Prozessor
 
@@ -37,6 +37,8 @@ byte ReqDevAddr = 1;
 char mqtt_server[80];
 char mqttClientId[80];
 int errorcode;
+uint8_t numOfTempSens;
+DeviceAddress tempDeviceAddress;
 uint32_t bootcount = 0;
 
 WiFiClient client;
@@ -49,6 +51,8 @@ DNSServer dns;
 ModbusMaster epnode; // instantiate ModbusMaster object
 UnixTime uTime(3);
 DynamicJsonDocument liveJson(JSON_BUFFER);
+OneWire oneWire(TEMPSENS_PIN);
+DallasTemperature tempSens(&oneWire);
 #include "status-LED.h"
 ADC_MODE(ADC_VCC);
 //----------------------------------------------------------------------
@@ -430,6 +434,9 @@ void setup()
     WebSerial.begin(&server);
 
     server.begin();
+
+    tempSens.begin();
+    numOfTempSens = tempSens.getDeviceCount();
   }
   analogWrite(LED_PIN, 255);
   resetCounter(false);
@@ -437,7 +444,7 @@ void setup()
 
 void loop()
 {
-      MDNS.update();
+  MDNS.update();
   if (Update.isRunning())
   {
     workerCanRun = false;
@@ -499,6 +506,7 @@ bool epWorker()
   // mqtt part, when time is come, fire up the mqtt function to send all data to the broker
   if ((millis() > (mqtttimer + (_settings.data.mqttRefresh * 1000)) || mqtttimer == 0) && !Update.isRunning())
   {
+    tempSens.requestTemperatures();
     sendtoMQTT(); // Update data to MQTT server if we should
     mqtttimer = millis();
   }
@@ -761,6 +769,14 @@ bool getJsonData(int invNum)
   liveJson["ESP_VCC"] = (ESP.getVcc() / 1000.0) + 0.3;
   liveJson["Wifi_RSSI"] = WiFi.RSSI();
   liveJson["sw_version"] = SOFTWARE_VERSION;
+
+  for (int i = 0; i < numOfTempSens; i++)
+  {
+    if (tempSens.getAddress(tempDeviceAddress, i))
+    {
+      liveJson["DS18B20_" + String(i + 1)] = tempSens.getTempC(tempDeviceAddress);
+    }
+  }
   return true;
 }
 
@@ -812,7 +828,6 @@ bool sendtoMQTT()
   mqttclient.publish((topic + String("/Wifi_RSSI")).c_str(), String(WiFi.RSSI()).c_str());
   if (!_settings.data.mqttJson)
   {
-
     for (JsonPair jsonDev : liveJson.as<JsonObject>())
     {
       if (String(jsonDev.key().c_str()).substring(0, 3) == "EP_")
@@ -827,6 +842,16 @@ bool sendtoMQTT()
             mqttclient.publish(msgBuffer1, jsonVal.value().as<String>().c_str());
           }
         }
+      }
+    }
+    for (int i = 0; i < numOfTempSens; i++)
+    {
+      if (tempSens.getAddress(tempDeviceAddress, i))
+      {
+        char msgBuffer1[200];
+        char valBufffer[8];
+        sprintf(msgBuffer1, "%s/DS18B20_%i", _settings.data.mqttTopic, (i + 1));
+        mqttclient.publish(msgBuffer1, dtostrf(tempSens.getTempC(tempDeviceAddress), 4, 2, valBufffer));
       }
     }
   }
@@ -1016,6 +1041,42 @@ bool sendHaDiscovery()
           }
         }
       }
+    }
+  }
+  // Ext Temp sensors
+  for (int i = 0; i < numOfTempSens; i++)
+  {
+    if (tempSens.getAddress(tempDeviceAddress, i))
+    {
+      String haDeviceDescription = String("\"dev\":") +
+                                   "{\"ids\":[\"" + mqttClientId + "\"]," +
+                                   "\"name\":\"" + _settings.data.deviceName + "\"," +
+                                   "\"cu\":\"http://" + WiFi.localIP().toString() + "\"," +
+                                   "\"mdl\":\"EPEver2MQTT\"," +
+                                   "\"mf\":\"SoftWareCrash\"," +
+                                   "\"sw\":\"" + SOFTWARE_VERSION + "\"" +
+                                   "}";
+
+      String haPayLoad = String("{") +
+                         "\"name\":\"DS18B20_" + (i + 1) + "\"," +
+                         "\"stat_t\":\"" + _settings.data.mqttTopic + "/DS18B20_" + (i + 1) + "\"," +
+                         "\"avty_t\":\"" + _settings.data.mqttTopic + "/Alive\"," +
+                         "\"pl_avail\": \"true\"," +
+                         "\"pl_not_avail\": \"false\"," +
+                         "\"uniq_id\":\"" + mqttClientId + ".DS18B20_" + (i + 1) + "\"," +
+                         "\"ic\":\"mdi:thermometer-lines\"," +
+                         "\"unit_of_meas\":\"°C\"," +
+                         "\"dev_cla\":\"temperature\",";
+      haPayLoad += haDeviceDescription;
+      haPayLoad += "}";
+      sprintf(topBuff, "homeassistant/sensor/%s/DS18B20_%d/config", _settings.data.mqttTopic, (i + 1)); // build the topic
+
+      mqttclient.beginPublish(topBuff, haPayLoad.length(), true);
+      for (size_t i = 0; i < haPayLoad.length(); i++)
+      {
+        mqttclient.write(haPayLoad[i]);
+      }
+      mqttclient.endPublish();
     }
   }
   return true;
