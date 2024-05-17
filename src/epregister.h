@@ -259,5 +259,5 @@ static const char *const charger_charging_status[] = {
     "Off",
     "Float",
     "Boost",
-    "Equlization"};
+    "Equalization"};
 bool loadState;
