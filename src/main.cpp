@@ -16,6 +16,9 @@
 #include <WebSerialLite.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
+
+#include <StreamUtils.h>
+
 #include "Settings.h"      //settings functions
 #include "html.h"          //the HTML content
 #include "htmlProzessor.h" // The html Prozessor
@@ -53,6 +56,8 @@ UnixTime uTime(3);
 DynamicJsonDocument liveJson(JSON_BUFFER);
 OneWire oneWire(TEMPSENS_PIN);
 DallasTemperature tempSens(&oneWire);
+
+
 #include "status-LED.h"
 ADC_MODE(ADC_VCC);
 //----------------------------------------------------------------------
@@ -767,6 +772,7 @@ bool getJsonData(int invNum)
   liveJson["DEVICE_FREE_HEAP"] = ESP.getFreeHeap();
   liveJson["DEVICE_FREE_JSON"] = (JSON_BUFFER - liveJson.memoryUsage());
   liveJson["ESP_VCC"] = (ESP.getVcc() / 1000.0) + 0.3;
+  liveJson["Runtime"] = millis() / 1000;
   liveJson["Wifi_RSSI"] = WiFi.RSSI();
   liveJson["sw_version"] = SOFTWARE_VERSION;
 
@@ -857,9 +863,20 @@ bool sendtoMQTT()
   }
   else
   {
-    mqttclient.beginPublish((topic + String("/DATA")).c_str(), measureJson(liveJson), false);
+/*     mqttclient.beginPublish((topic + String("/DATA")).c_str(), measureJson(liveJson), false);
     serializeJson(liveJson, mqttclient);
-    mqttclient.endPublish();
+    mqttclient.endPublish(); */
+
+
+
+
+
+mqttclient.beginPublish((topic + String("/DATA")).c_str(), measureJson(liveJson), false);
+BufferingPrint bufferedClient(mqttclient, 32);
+serializeJson(liveJson, bufferedClient);
+bufferedClient.flush();
+mqttclient.endPublish();
+
   }
   return true;
 }
