@@ -28,7 +28,7 @@
 #ifdef  TEMPLATE_PLACEHOLDER       //if the macro TEMPLATE_PLACEHOLDER is defined
    #undef  TEMPLATE_PLACEHOLDER    //un-define it
 #endif
-#define TEMPLATE_PLACEHOLDER '⌂'   // define it with the new value
+#define TEMPLATE_PLACEHOLDER '`'   // define it with the new value
 /*
 https://github.com/me-no-dev/ESPAsyncWebServer/issues/644
 https://github.com/me-no-dev/ESPAsyncWebServer/issues/333

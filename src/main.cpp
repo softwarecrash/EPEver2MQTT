@@ -161,6 +161,14 @@ bool resetCounter(bool count)
   return true;
 }
 
+
+#ifdef  TEMPLATE_PLACEHOLDER       //if the macro TEMPLATE_PLACEHOLDER is defined
+   #undef  TEMPLATE_PLACEHOLDER    //un-define it
+#endif
+#define TEMPLATE_PLACEHOLDER '§'   // define it with the new value
+
+
+
 void setup()
 {
   pinMode(EPEVER_DE_RE, OUTPUT);
