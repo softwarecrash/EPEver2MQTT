@@ -25,7 +25,17 @@
 #define SOFTWARE_VERSION SWVERSION
 #define FlashSize ESP.getFreeSketchSpace()
 
-#define TEMPLATE_PLACEHOLDER '⌂'
+#ifdef  TEMPLATE_PLACEHOLDER       //if the macro TEMPLATE_PLACEHOLDER is defined
+   #undef  TEMPLATE_PLACEHOLDER    //un-define it
+#endif
+#define TEMPLATE_PLACEHOLDER '⌂'   // define it with the new value
+/*
+https://github.com/me-no-dev/ESPAsyncWebServer/issues/644
+https://github.com/me-no-dev/ESPAsyncWebServer/issues/333
+https://github.com/me-no-dev/ESPAsyncWebServer/pull/366
+https://www.freecodecamp.org/news/alt-codes-special-characters-keyboard-symbols-windows-list/
+
+*/
 
 #define DEBUG_WEB(...) WebSerial.print(__VA_ARGS__)
 #define DEBUG_WEBLN(...) WebSerial.println(__VA_ARGS__)
