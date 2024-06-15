@@ -25,6 +25,8 @@
 #define SOFTWARE_VERSION SWVERSION
 #define FlashSize ESP.getFreeSketchSpace()
 
+#define TEMPLATE_PLACEHOLDER '⌂'
+
 #define DEBUG_WEB(...) WebSerial.print(__VA_ARGS__)
 #define DEBUG_WEBLN(...) WebSerial.println(__VA_ARGS__)
 #define DEBUG_WEBF(...) WebSerial.printf(__VA_ARGS__)
