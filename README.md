@@ -27,6 +27,9 @@ ESP82XX to MQTT based connector for EPEver Solar tracker, support multiple track
 - surf to 192.168.4.1 and set up your wifi, amount of inverters and optional mqtt
 - that's it :)
 
+# Known issues:
+- Input field doesn´t like %
+
 ### How-To video by Jarnsen
 
 <a href="http://www.youtube.com/watch?feature=player_embedded&v=Gx0PdaDmH3k" target="_blank">
