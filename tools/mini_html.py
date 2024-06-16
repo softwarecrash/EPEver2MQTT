@@ -32,11 +32,8 @@ try:
    print(Path(x).stem)
    cpp_output += "static const char "+Path(x).stem+"[] PROGMEM = R\"rawliteral("
    f = open(x, "r")
-   if env.GetProjectOption("build_type") == "debug":
-        cpp_output += f.read()  
-   else:
-      #cpp_output += f.read()  # disable compressor removes %VARIABLE%
-      cpp_output += minify_html.minify(f.read(), minify_js=True)
+   cpp_output += f.read()  
+   #cpp_output += minify_html.minify(f.read(), minify_js=True)
 
    f.close()
    cpp_output += ")rawliteral\";\n"

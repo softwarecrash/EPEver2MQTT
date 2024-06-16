@@ -1,4 +1,4 @@
-%pre_head_template%
+`pre_head_template`
 <div class="row gx-0 mb-2" id="vcc_alert" style="display: none;">
     <div class="alert alert-danger" role="alert" style="text-align: center;">
         <span><b>WARNING ESP VOLTAGE TO LOW</b></span>
@@ -93,7 +93,7 @@
 </div>
 
 <script>
-    var gateway = `ws://${window.location.hostname}/ws`;
+    var gateway = "ws://window.location.hostname}/ws";
     var websocket;
     var deviceQuantity = 0;
     var shDevNum = 1;
@@ -146,7 +146,7 @@
             }
             document.getElementById("devtime").innerHTML = unixTimetoDateTime(data[devPrA + shDevNum].LiveData.DEVICE_TIME);
 
-            document.getElementById("SOCbar").innerHTML = data[devPrA + shDevNum].LiveData.BATT_SOC + '%%';
+            document.getElementById("SOCbar").innerHTML = data[devPrA + shDevNum].LiveData.BATT_SOC + '%';
             $('#SOCbar').width(data[devPrA + shDevNum].LiveData.BATT_SOC + "%").attr('aria-valuenow', data[devPrA + shDevNum].LiveData.BATT_SOC);
 
             document.getElementById("solarV").innerHTML = data[devPrA + shDevNum].LiveData.SOLAR_V + 'V ';
@@ -240,5 +240,5 @@
         }
     }
 </script>
-%pre_foot_template%
+`pre_foot_template`
 <p hidden></p>
