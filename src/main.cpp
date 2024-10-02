@@ -57,7 +57,6 @@ DynamicJsonDocument liveJson(JSON_BUFFER);
 OneWire oneWire(TEMPSENS_PIN);
 DallasTemperature tempSens(&oneWire);
 
-
 #include "status-LED.h"
 ADC_MODE(ADC_VCC);
 //----------------------------------------------------------------------
@@ -318,16 +317,16 @@ void setup()
     server.on("/set", HTTP_GET, [](AsyncWebServerRequest *request)
               {
                 if(strlen(_settings.data.httpUser) > 0 && !request->authenticate(_settings.data.httpUser, _settings.data.httpPass)) return request->requestAuthentication();
-      AsyncWebParameter *p = request->getParam(0);
-      String resultMsg = "message received";
-      if (p->name() == "datetime")
-      {
-        uint8_t rtcSetY  = atoi (request->getParam("datetime")->value().substring(0, 2).c_str ());
-        uint8_t rtcSetM  = atoi (request->getParam("datetime")->value().substring(2, 4).c_str ());
-        uint8_t rtcSetD  = atoi (request->getParam("datetime")->value().substring(4, 6).c_str ());
-        uint8_t rtcSeth  = atoi (request->getParam("datetime")->value().substring(6, 8).c_str ());
-        uint8_t rtcSetm  = atoi (request->getParam("datetime")->value().substring(8, 10).c_str ());
-        uint8_t rtcSets  = atoi (request->getParam("datetime")->value().substring(10, 12).c_str ());
+          String message;
+          String resultMsg = "message received";
+    if (request->hasParam("datetime")) {
+      message = request->getParam("datetime")->value();
+        uint8_t rtcSetY  = atoi (message.substring(0, 2).c_str ());
+        uint8_t rtcSetM  = atoi (message.substring(2, 4).c_str ());
+        uint8_t rtcSetD  = atoi (message.substring(4, 6).c_str ());
+        uint8_t rtcSeth  = atoi (message.substring(6, 8).c_str ());
+        uint8_t rtcSetm  = atoi (message.substring(8, 10).c_str ());
+        uint8_t rtcSets  = atoi (message.substring(10, 12).c_str ());
 
         for (size_t i = 1; i <= ((size_t)_settings.data.deviceQuantity); i++)
         {
@@ -338,9 +337,9 @@ void setup()
           epnode.writeMultipleRegisters(0x9013, 3); //write registers
           delay(50);
         }
-      }
-      if (p->name() == "devid")
-      {
+    }
+     if (request->hasParam("devid")) {
+      message = request->getParam("devid")->value();
         digitalWrite(EPEVER_DE_RE, 1);
           delay(50);
 
@@ -350,7 +349,7 @@ void setup()
           u8TransmitRaw[2] = 0x00;
           u8TransmitRaw[3] = 0x01;
           u8TransmitRaw[4] = 0x01;
-          u8TransmitRaw[5] = p->value().toInt();
+          u8TransmitRaw[5] = message.toInt();
 
         uint16_t crcBuff = 0xFFFF;
           for (i = 0; i < 6; i++)
@@ -366,16 +365,15 @@ void setup()
           char result[4];
           EPEVER_SERIAL.readBytes(result, 4);
 
-          if(result[2] == p->value().toInt()){
+          if(result[2] == message.toInt()){
             resultMsg = "ID " + String(result[2], HEX) + " Successfull Set";
           } else {
             resultMsg = "ID set Fail... Actual id is: " + String(result[2], HEX);
           }
-      }
-      if (p->name() == "ha")
-        {
-          haDiscTrigger = true;
-        }
+    }     
+      if (request->hasParam("ha")) {
+      haDiscTrigger = true;
+    }      
      request->send(200, "text/plain", resultMsg.c_str()); });
 
     server.on(
@@ -863,20 +861,15 @@ bool sendtoMQTT()
   }
   else
   {
-/*     mqttclient.beginPublish((topic + String("/DATA")).c_str(), measureJson(liveJson), false);
-    serializeJson(liveJson, mqttclient);
-    mqttclient.endPublish(); */
+    /*     mqttclient.beginPublish((topic + String("/DATA")).c_str(), measureJson(liveJson), false);
+        serializeJson(liveJson, mqttclient);
+        mqttclient.endPublish(); */
 
-
-
-
-
-mqttclient.beginPublish((topic + String("/DATA")).c_str(), measureJson(liveJson), false);
-BufferingPrint bufferedClient(mqttclient, 32);
-serializeJson(liveJson, bufferedClient);
-bufferedClient.flush();
-mqttclient.endPublish();
-
+    mqttclient.beginPublish((topic + String("/DATA")).c_str(), measureJson(liveJson), false);
+    BufferingPrint bufferedClient(mqttclient, 32);
+    serializeJson(liveJson, bufferedClient);
+    bufferedClient.flush();
+    mqttclient.endPublish();
   }
   return true;
 }
