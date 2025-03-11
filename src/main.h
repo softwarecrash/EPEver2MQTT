@@ -21,6 +21,8 @@
 #define MAX_DEVICES 6
 #define EPEVER_SERIAL Serial
 
+#define MY_NTP_SERVER "pool.ntp.org"
+
 // DON'T edit version here, place version number in platformio.ini (custom_prog_version) !!!
 #define SOFTWARE_VERSION SWVERSION
 #define FlashSize ESP.getFreeSketchSpace()

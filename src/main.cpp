@@ -22,6 +22,8 @@
 #include "Settings.h"      //settings functions
 #include "html.h"          //the HTML content
 #include "htmlProzessor.h" // The html Prozessor
+#include <time.h>
+#include <coredecls.h>
 
 String topic = "";           // Default first part of topic. We will add device ID in setup
 String devicePrefix = "EP_"; // prefix for datapath for every device
@@ -31,6 +33,7 @@ bool shouldSaveConfig = false;
 bool restartNow = false;
 bool workerCanRun = true;
 bool haDiscTrigger = false;
+bool setNTPTimeToDevice = false;
 unsigned int jsonSize = 0;
 unsigned long mqtttimer = 0;
 unsigned long RestartTimer = 0;
@@ -57,8 +60,25 @@ DynamicJsonDocument liveJson(JSON_BUFFER);
 OneWire oneWire(TEMPSENS_PIN);
 DallasTemperature tempSens(&oneWire);
 
+time_t timeNow;
+tm tm;
+
 #include "status-LED.h"
 ADC_MODE(ADC_VCC);
+
+//remove after testing!!
+uint32_t sntp_update_delay_MS_rfc_not_less_than_15000 () {
+  return 900000UL;
+}
+
+
+
+void time_is_set() {     // no parameter until 2.7.4
+  //Serial.println(F("time was sent!"));
+  setNTPTimeToDevice = true;
+}
+
+
 //----------------------------------------------------------------------
 void saveConfigCallback()
 {
@@ -182,6 +202,13 @@ void setup()
   epnode.postTransmission(postTransmission);
 
   wm.setSaveConfigCallback(saveConfigCallback);
+
+
+  //https://werner.rothschopf.net/202011_arduino_esp8266_ntp_en.htm
+  if(strlen(_settings.data.NTPTimezone) != 0){
+    configTime(_settings.data.NTPTimezone, MY_NTP_SERVER);
+    settimeofday_cb(time_is_set);
+  }
 
   sprintf(mqttClientId, "%s-%06X", _settings.data.deviceName, ESP.getChipId());
 
@@ -311,6 +338,7 @@ void setup()
                 strncpy(_settings.data.httpUser, request->arg("post_httpUser").c_str(), 40);
                 strncpy(_settings.data.httpPass, request->arg("post_httpPass").c_str(), 40);
                 _settings.data.haDiscovery = (request->arg("post_hadiscovery") == "true") ? true : false;
+                strncpy(_settings.data.NTPTimezone, request->arg("post_ntptimezone").c_str(), 40);
                 _settings.save();
                 request->redirect("/reboot"); });
 
@@ -487,6 +515,25 @@ bool epWorker()
   {
     return true;
   }
+
+
+
+  if(strlen(_settings.data.NTPTimezone) != 0 && setNTPTimeToDevice == true){
+    time(&timeNow);
+    localtime_r(&timeNow, &tm); 
+    for (size_t i = 1; i <= ((size_t)_settings.data.deviceQuantity); i++)
+    {
+      epnode.setSlaveId(i);
+      epnode.setTransmitBuffer(0, ((uint16_t)tm.tm_min << 8) | tm.tm_sec); // minute | secund
+      epnode.setTransmitBuffer(1, ((uint16_t)tm.tm_mday << 8) | tm.tm_hour); // day | hour
+      epnode.setTransmitBuffer(2, ((uint16_t)(tm.tm_year - 100) << 8) | (tm.tm_mon + 1)); // year | month
+      epnode.writeMultipleRegisters(0x9013, 3); //write registers
+      delay(50);
+    }
+   DEBUG_WEBLN((String) tm.tm_mday+"."+(tm.tm_mon + 1)+"."+(tm.tm_year + 1900 )+" "+tm.tm_hour+":"+tm.tm_min+":"+tm.tm_sec);
+   setNTPTimeToDevice = false;
+  }
+
 
   if (getEpData(ReqDevAddr)) // if we get valid data from the device?
   {
