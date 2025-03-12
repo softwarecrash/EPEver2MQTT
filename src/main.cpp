@@ -537,10 +537,10 @@ bool epWorker()
    DEBUG_WEBLN((String) NTPTime.tm_mday+"."+(NTPTime.tm_mon + 1)+"."+(NTPTime.tm_year + 1900 )+" "+NTPTime.tm_hour+":"+NTPTime.tm_min+":"+NTPTime.tm_sec);
    setNTPTimeToDevice = false;
   }
-  //for testing
+/*   //for testing
   time(&timeNow);
   localtime_r(&timeNow, &NTPTime); 
-  DEBUG_WEBLN((String) NTPTime.tm_mday+"."+(NTPTime.tm_mon + 1)+"."+(NTPTime.tm_year + 1900 )+" "+NTPTime.tm_hour+":"+NTPTime.tm_min+":"+NTPTime.tm_sec);
+  DEBUG_WEBLN((String) NTPTime.tm_mday+"."+(NTPTime.tm_mon + 1)+"."+(NTPTime.tm_year + 1900 )+" "+NTPTime.tm_hour+":"+NTPTime.tm_min+":"+NTPTime.tm_sec); */
 
 
   if (getEpData(ReqDevAddr)) // if we get valid data from the device?
