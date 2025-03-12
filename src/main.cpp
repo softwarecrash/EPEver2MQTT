@@ -70,10 +70,10 @@ struct tm NTPTime;
 #include "status-LED.h"
 ADC_MODE(ADC_VCC);
 
-//remove after testing!!
+/* //remove after testing!!
 uint32_t sntp_update_delay_MS_rfc_not_less_than_15000 () {
   return 900000UL;
-}
+} */
 
 
 //----------------------------------------------------------------------
