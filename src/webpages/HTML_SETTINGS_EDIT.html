@@ -73,17 +73,22 @@
     <div class="input-group mb-2">
         <span class="input-group-text w-50" id="httpUserdesc">HTTP Username</span>
         <input type="text" class="form-control" aria-describedby="httpUserdesc" id="httpUser" name="post_httpUser"
-            maxlength="40" maxlength="35" value="%pre_http_user%">
+            maxlength="40"  value="%pre_http_user%">
     </div>
     <div class="input-group mb-2">
         <span class="input-group-text w-50" id="httpPassdesc">HTTP Password</span>
         <input type="password" class="form-control" aria-describedby="httpPassdesc" id="httpPass" name="post_httpPass"
-            maxlength="40" maxlength="35" value="%pre_http_pass%">
+            maxlength="40"  value="%pre_http_pass%">
     </div>
     <div class="input-group mb-2">
         <span class="input-group-text w-50" id="ntptimezonedesc"><a href="https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv" target="_blank">NTP Timezone</a></span>
         <input type="text" class="form-control" aria-describedby="ntptimezonedesc" id="ntptimezone" name="post_ntptimezone"
-            maxlength="40" maxlength="35" value="%pre_ntptimezone%" placeholder="Leave empty to disable Sync">
+            maxlength="40"  value="%pre_ntptimezone%" placeholder="e.g GMT0 - empty to disable Sync">
+    </div>
+    <div class="input-group mb-2">
+        <span class="input-group-text w-50" id="ntptimeservdesc">NTP Server</span>
+        <input type="text" class="form-control" aria-describedby="ntptimeservdesc" id="ntptimeserv" name="post_ntptimeserv"
+            maxlength="40"  value="%pre_ntptimeserv%" placeholder="pool.ntp.org">
     </div>
 
     <div class="d-grid gap-2">

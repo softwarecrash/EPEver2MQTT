@@ -46,5 +46,7 @@ String htmlProcessor(const String &var)
         return (_settings.data.haDiscovery ? "checked" : "");
     if (var == F("pre_ntptimezone"))
         return (_settings.data.NTPTimezone);
+    if (var == F("pre_ntptimeserv"))
+        return (_settings.data.NTPServer);
     return String();
 }

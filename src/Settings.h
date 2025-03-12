@@ -29,7 +29,8 @@ public:
     char httpUser[40];           // http basic auth username
     char httpPass[40];           // http basic auth password
     bool haDiscovery;            // HomeAssistant Discovery switch
-    char NTPTimezone[40];        //time zone code for NTP get it from here: https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
+    char NTPTimezone[40];        // Time zone code for NTP get it from here: https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
+    char NTPServer[40];          // NTP timepool Server
   } data;
 
   void load()
@@ -122,6 +123,10 @@ private:
     if (strlen(data.NTPTimezone) == 0 || strlen(data.NTPTimezone) >= 40)
     {
       strcpy(data.NTPTimezone, "");
+    }
+    if (strlen(data.NTPServer) == 0 || strlen(data.NTPServer) >= 40)
+    {
+      strcpy(data.NTPServer, "pool.ntp.org");
     }
   }
   void coVersCheck()

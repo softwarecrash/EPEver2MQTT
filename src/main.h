@@ -16,7 +16,7 @@
 #endif 
 #endif
 
-#define JSON_BUFFER 8192
+//#define JSON_BUFFER 8192
 #define MQTT_BUFFER 512
 #define MAX_DEVICES 6
 #define EPEVER_SERIAL Serial
@@ -27,9 +27,9 @@
 #define SOFTWARE_VERSION SWVERSION
 #define FlashSize ESP.getFreeSketchSpace()
 
-#define DEBUG_WEB(...) WebSerial.print(__VA_ARGS__)
-#define DEBUG_WEBLN(...) WebSerial.println(__VA_ARGS__)
-#define DEBUG_WEBF(...) WebSerial.printf(__VA_ARGS__)
+#define DEBUG_WEB(...) webSerial.print(__VA_ARGS__)
+#define DEBUG_WEBLN(...) webSerial.println(__VA_ARGS__)
+#define DEBUG_WEBF(...) webSerial.printf(__VA_ARGS__)
 
 bool getEpData(int invNum);
 

@@ -13,7 +13,8 @@
 #include <ESPAsyncWebServer.h>
 #include <UnixTime.h>
 #include <Updater.h> //new
-#include <WebSerialLite.h>
+//#include <WebSerialLite.h>
+#include <MycilaWebSerial.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
@@ -47,6 +48,7 @@ uint8_t numOfTempSens;
 DeviceAddress tempDeviceAddress;
 uint32_t bootcount = 0;
 
+WebSerial webSerial;
 WiFiClient client;
 Settings _settings;
 PubSubClient mqttclient(client);
@@ -56,12 +58,14 @@ AsyncWebSocketClient *wsClient;
 DNSServer dns;
 ModbusMaster epnode; // instantiate ModbusMaster object
 UnixTime uTime(3);
-DynamicJsonDocument liveJson(JSON_BUFFER);
+
+JsonDocument liveJson;
+
 OneWire oneWire(TEMPSENS_PIN);
 DallasTemperature tempSens(&oneWire);
 
 time_t timeNow;
-tm tm;
+struct tm NTPTime;
 
 #include "status-LED.h"
 ADC_MODE(ADC_VCC);
@@ -72,14 +76,11 @@ uint32_t sntp_update_delay_MS_rfc_not_less_than_15000 () {
 }
 
 
-
-void time_is_set() {     // no parameter until 2.7.4
-  //Serial.println(F("time was sent!"));
+//----------------------------------------------------------------------
+void NTPTimeSetCB() {
   setNTPTimeToDevice = true;
 }
 
-
-//----------------------------------------------------------------------
 void saveConfigCallback()
 {
   DEBUG_WEBLN(F("Should save config"));
@@ -143,6 +144,7 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
     handleWebSocketMessage(arg, data, len);
     break;
   case WS_EVT_PONG:
+  case WS_EVT_PING:
   case WS_EVT_ERROR:
     break;
   }
@@ -205,9 +207,9 @@ void setup()
 
 
   //https://werner.rothschopf.net/202011_arduino_esp8266_ntp_en.htm
-  if(strlen(_settings.data.NTPTimezone) != 0){
-    configTime(_settings.data.NTPTimezone, MY_NTP_SERVER);
-    settimeofday_cb(time_is_set);
+  if(strlen(_settings.data.NTPTimezone) != 0 && strlen(_settings.data.NTPServer) != 0){
+    configTime(_settings.data.NTPTimezone, _settings.data.NTPServer);
+    settimeofday_cb(NTPTimeSetCB);
   }
 
   sprintf(mqttClientId, "%s-%06X", _settings.data.deviceName, ESP.getChipId());
@@ -339,6 +341,7 @@ void setup()
                 strncpy(_settings.data.httpPass, request->arg("post_httpPass").c_str(), 40);
                 _settings.data.haDiscovery = (request->arg("post_hadiscovery") == "true") ? true : false;
                 strncpy(_settings.data.NTPTimezone, request->arg("post_ntptimezone").c_str(), 40);
+                strncpy(_settings.data.NTPServer, request->arg("post_ntptimeserv").c_str(), 40);
                 _settings.save();
                 request->redirect("/reboot"); });
 
@@ -462,7 +465,8 @@ void setup()
     server.addHandler(&ws);
 
     // WebSerial is accessible at "<IP Address>/webserial" in browser
-    WebSerial.begin(&server);
+    webSerial.begin(&server);
+    //webSerial.onMessage(recvMsg);
 
     server.begin();
 
@@ -520,19 +524,23 @@ bool epWorker()
 
   if(strlen(_settings.data.NTPTimezone) != 0 && setNTPTimeToDevice == true){
     time(&timeNow);
-    localtime_r(&timeNow, &tm); 
+    localtime_r(&timeNow, &NTPTime); 
     for (size_t i = 1; i <= ((size_t)_settings.data.deviceQuantity); i++)
     {
       epnode.setSlaveId(i);
-      epnode.setTransmitBuffer(0, ((uint16_t)tm.tm_min << 8) | tm.tm_sec); // minute | secund
-      epnode.setTransmitBuffer(1, ((uint16_t)tm.tm_mday << 8) | tm.tm_hour); // day | hour
-      epnode.setTransmitBuffer(2, ((uint16_t)(tm.tm_year - 100) << 8) | (tm.tm_mon + 1)); // year | month
+      epnode.setTransmitBuffer(0, ((uint16_t)NTPTime.tm_min << 8) | NTPTime.tm_sec); // minute | secund
+      epnode.setTransmitBuffer(1, ((uint16_t)NTPTime.tm_mday << 8) | NTPTime.tm_hour); // day | hour
+      epnode.setTransmitBuffer(2, ((uint16_t)(NTPTime.tm_year - 100) << 8) | (NTPTime.tm_mon + 1)); // year | month
       epnode.writeMultipleRegisters(0x9013, 3); //write registers
       delay(50);
     }
-   DEBUG_WEBLN((String) tm.tm_mday+"."+(tm.tm_mon + 1)+"."+(tm.tm_year + 1900 )+" "+tm.tm_hour+":"+tm.tm_min+":"+tm.tm_sec);
+   DEBUG_WEBLN((String) NTPTime.tm_mday+"."+(NTPTime.tm_mon + 1)+"."+(NTPTime.tm_year + 1900 )+" "+NTPTime.tm_hour+":"+NTPTime.tm_min+":"+NTPTime.tm_sec);
    setNTPTimeToDevice = false;
   }
+  //for testing
+  time(&timeNow);
+  localtime_r(&timeNow, &NTPTime); 
+  DEBUG_WEBLN((String) NTPTime.tm_mday+"."+(NTPTime.tm_mon + 1)+"."+(NTPTime.tm_year + 1900 )+" "+NTPTime.tm_hour+":"+NTPTime.tm_min+":"+NTPTime.tm_sec);
 
 
   if (getEpData(ReqDevAddr)) // if we get valid data from the device?
@@ -815,7 +823,7 @@ bool getJsonData(int invNum)
   // }
   liveJson["DEVICE_QUANTITY"] = _settings.data.deviceQuantity;
   liveJson["DEVICE_FREE_HEAP"] = ESP.getFreeHeap();
-  liveJson["DEVICE_FREE_JSON"] = (JSON_BUFFER - liveJson.memoryUsage());
+  //liveJson["DEVICE_FREE_JSON"] = (JSON_BUFFER - liveJson.memoryUsage());
   liveJson["ESP_VCC"] = (ESP.getVcc() / 1000.0) + 0.3;
   liveJson["Runtime"] = millis() / 1000;
   liveJson["Wifi_RSSI"] = WiFi.RSSI();
@@ -947,12 +955,13 @@ void callback(char *top, byte *payload, unsigned int length)
   }
   else
   {
-    StaticJsonDocument<1024> mqttJsonAnswer;
+    JsonDocument mqttJsonAnswer;
     deserializeJson(mqttJsonAnswer, (const byte *)payload, length);
 
     for (size_t k = 1; k < ((size_t)_settings.data.deviceQuantity + 1); k++)
     {
-      if (mqttJsonAnswer.containsKey(devicePrefix + k))
+    // if (mqttJsonAnswer.containsKey(devicePrefix + k))
+      if (mqttJsonAnswer[devicePrefix + k].is<const char*>())
       {
         epnode.setSlaveId(k);
         mqtttimer = 0;
