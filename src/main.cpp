@@ -326,7 +326,7 @@ void setup()
     server.on("/settingssave", HTTP_POST, [](AsyncWebServerRequest *request)
               {
                 if(strlen(_settings.data.httpUser) > 0 && !request->authenticate(_settings.data.httpUser, _settings.data.httpPass)) return request->requestAuthentication();
-                strncpy(_settings.data.mqttServer, request->arg("post_mqttServer").c_str(), 40);
+                strncpy(_settings.data.mqttServer, request->arg("post_mqttServer").c_str(), 128);
                 _settings.data.mqttPort = request->arg("post_mqttPort").toInt();
                 strncpy(_settings.data.mqttUser, request->arg("post_mqttUser").c_str(), 40);
                 strncpy(_settings.data.mqttPassword, request->arg("post_mqttPassword").c_str(), 40);
