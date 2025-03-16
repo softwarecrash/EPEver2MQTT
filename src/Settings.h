@@ -68,7 +68,7 @@ private:
     {
       strcpy(data.deviceName, "EPEver2MQTT");
     }
-    if (strlen(data.mqttServer) == 0 || strlen(data.mqttServer) >= 40)
+    if (strlen(data.mqttServer) == 0 || strlen(data.mqttServer) >= 128)
     {
       strcpy(data.mqttServer, "");
     }
