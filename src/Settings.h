@@ -16,7 +16,7 @@ public:
   {                              // do not re-sort this struct
     unsigned int coVers;         // config version, if changed, previus config will erased
     char deviceName[40];         // device name
-    char mqttServer[128];         // mqtt Server adress
+    char mqttServer[40];         // mqtt Server adress
     char mqttUser[40];           // mqtt Username
     char mqttPassword[40];       // mqtt Password
     char mqttTopic[40];          // mqtt publish topic
@@ -68,7 +68,7 @@ private:
     {
       strcpy(data.deviceName, "EPEver2MQTT");
     }
-    if (strlen(data.mqttServer) == 0 || strlen(data.mqttServer) >= 128)
+    if (strlen(data.mqttServer) == 0 || strlen(data.mqttServer) >= 40)
     {
       strcpy(data.mqttServer, "");
     }
