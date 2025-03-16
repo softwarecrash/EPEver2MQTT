@@ -214,7 +214,7 @@ void setup()
 
   sprintf(mqttClientId, "%s-%06X", _settings.data.deviceName, ESP.getChipId());
 
-  AsyncWiFiManagerParameter custom_mqtt_server("mqtt_server", "MQTT server", NULL, 32);
+  AsyncWiFiManagerParameter custom_mqtt_server("mqtt_server", "MQTT server", NULL, 128);
   AsyncWiFiManagerParameter custom_mqtt_user("mqtt_user", "MQTT User", NULL, 32);
   AsyncWiFiManagerParameter custom_mqtt_pass("mqtt_pass", "MQTT Password", NULL, 32);
   AsyncWiFiManagerParameter custom_mqtt_topic("mqtt_topic", "MQTT Topic", "EPEver", 32);
@@ -242,7 +242,7 @@ void setup()
   // save settings if wifi setup is fire up
   if (shouldSaveConfig)
   {
-    strncpy(_settings.data.mqttServer, custom_mqtt_server.getValue(), 40);
+    strncpy(_settings.data.mqttServer, custom_mqtt_server.getValue(), 128);
     strncpy(_settings.data.mqttUser, custom_mqtt_user.getValue(), 40);
     strncpy(_settings.data.mqttPassword, custom_mqtt_pass.getValue(), 40);
     _settings.data.mqttPort = atoi(custom_mqtt_port.getValue());
