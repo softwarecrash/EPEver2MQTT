@@ -518,7 +518,7 @@ bool epWorker()
   {
     return true;
   }
-
+  liveJson["Wifi_RSSI"] = WiFi.RSSI();
 
 
   if(strlen(_settings.data.NTPTimezone) != 0 && setNTPTimeToDevice == true){
