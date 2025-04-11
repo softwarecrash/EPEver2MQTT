@@ -233,10 +233,14 @@ void setup()
   wm.addParameter(&custom_device_name);
   wm.addParameter(&custom_device_quantity);
 
-  bool res = wm.autoConnect("EPEver2MQTT-AP");
 
-  // wm.setConnectTimeout(30);       // how long to try to connect for before continuing
-  wm.setConfigPortalTimeout(120); // auto close configportal after n seconds
+
+  wm.setDebugOutput(false);       // disable wifimanager debug output
+  wm.setMinimumSignalQuality(25); // filter weak wifi signals
+  wm.setConnectTimeout(10);       // how long to try to connect for before continuing
+  wm.setConfigPortalTimeout(300); // auto close configportal after n seconds
+  wm.setSaveConfigCallback(saveConfigCallback);
+  bool res = wm.autoConnect("EPEver2MQTT-AP");
 
   // save settings if wifi setup is fire up
   if (shouldSaveConfig)
