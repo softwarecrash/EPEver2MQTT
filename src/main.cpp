@@ -74,9 +74,9 @@ uint32_t sntp_update_delay_MS_rfc_not_less_than_15000 () {
   return 900000UL;
 } */
 
-
 //----------------------------------------------------------------------
-void NTPTimeSetCB() {
+void NTPTimeSetCB()
+{
   setNTPTimeToDevice = true;
 }
 
@@ -138,13 +138,18 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
   case WS_EVT_DISCONNECT:
     DEBUG_WEBF("WebSocket client #%u disconnected\n", client->id());
     wsClient = nullptr;
+    ws.cleanupClients();
     break;
   case WS_EVT_DATA:
     handleWebSocketMessage(arg, data, len);
     break;
   case WS_EVT_PONG:
+    break;
   case WS_EVT_PING:
+    break;
   case WS_EVT_ERROR:
+    wsClient = nullptr;
+    ws.cleanupClients();
     break;
   }
 }
@@ -190,7 +195,7 @@ void setup()
 {
   pinMode(EPEVER_DE_RE, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
-  analogWrite(LED_PIN, 255-_settings.data.LEDBrightness);
+  analogWrite(LED_PIN, 255 - _settings.data.LEDBrightness);
   resetCounter(true);
   _settings.load();
   WiFi.persistent(true);              // fix wifi save bug
@@ -204,9 +209,9 @@ void setup()
 
   wm.setSaveConfigCallback(saveConfigCallback);
 
-
-  //https://werner.rothschopf.net/202011_arduino_esp8266_ntp_en.htm
-  if(strlen(_settings.data.NTPTimezone) != 0 && strlen(_settings.data.NTPServer) != 0){
+  // https://werner.rothschopf.net/202011_arduino_esp8266_ntp_en.htm
+  if (strlen(_settings.data.NTPTimezone) != 0 && strlen(_settings.data.NTPServer) != 0)
+  {
     configTime(_settings.data.NTPTimezone, _settings.data.NTPServer);
     settimeofday_cb(NTPTimeSetCB);
   }
@@ -232,8 +237,6 @@ void setup()
   wm.addParameter(&custom_mqtt_triggerpath);
   wm.addParameter(&custom_device_name);
   wm.addParameter(&custom_device_quantity);
-
-
 
   wm.setDebugOutput(false);       // disable wifimanager debug output
   wm.setMinimumSignalQuality(25); // filter weak wifi signals
@@ -470,7 +473,7 @@ void setup()
 
     // WebSerial is accessible at "<IP Address>/webserial" in browser
     webSerial.begin(&server);
-    //webSerial.onMessage(recvMsg);
+    // webSerial.onMessage(recvMsg);
 
     server.begin();
 
@@ -490,8 +493,8 @@ void loop()
   }
   // Make sure wifi is in the right mode
   if (WiFi.status() == WL_CONNECTED && workerCanRun)
-  {                      // No use going to next step unless WIFI is up and running.
-    ws.cleanupClients(); // clean unused client connections
+  { // No use going to next step unless WIFI is up and running.
+    // ws.cleanupClients(); // clean unused client connections
 
     mqttclient.loop(); // Check if we have something to read from MQTT
     epWorker();        // the loop worker
@@ -525,27 +528,26 @@ bool epWorker()
   }
   liveJson["Wifi_RSSI"] = WiFi.RSSI();
 
-
-  if(strlen(_settings.data.NTPTimezone) != 0 && setNTPTimeToDevice == true){
+  if (strlen(_settings.data.NTPTimezone) != 0 && setNTPTimeToDevice == true)
+  {
     time(&timeNow);
-    localtime_r(&timeNow, &NTPTime); 
+    localtime_r(&timeNow, &NTPTime);
     for (size_t i = 1; i <= ((size_t)_settings.data.deviceQuantity); i++)
     {
       epnode.setSlaveId(i);
-      epnode.setTransmitBuffer(0, ((uint16_t)NTPTime.tm_min << 8) | NTPTime.tm_sec); // minute | secund
-      epnode.setTransmitBuffer(1, ((uint16_t)NTPTime.tm_mday << 8) | NTPTime.tm_hour); // day | hour
+      epnode.setTransmitBuffer(0, ((uint16_t)NTPTime.tm_min << 8) | NTPTime.tm_sec);                // minute | secund
+      epnode.setTransmitBuffer(1, ((uint16_t)NTPTime.tm_mday << 8) | NTPTime.tm_hour);              // day | hour
       epnode.setTransmitBuffer(2, ((uint16_t)(NTPTime.tm_year - 100) << 8) | (NTPTime.tm_mon + 1)); // year | month
-      epnode.writeMultipleRegisters(0x9013, 3); //write registers
+      epnode.writeMultipleRegisters(0x9013, 3);                                                     // write registers
       delay(50);
     }
-   DEBUG_WEBLN((String) NTPTime.tm_mday+"."+(NTPTime.tm_mon + 1)+"."+(NTPTime.tm_year + 1900 )+" "+NTPTime.tm_hour+":"+NTPTime.tm_min+":"+NTPTime.tm_sec);
-   setNTPTimeToDevice = false;
+    DEBUG_WEBLN((String)NTPTime.tm_mday + "." + (NTPTime.tm_mon + 1) + "." + (NTPTime.tm_year + 1900) + " " + NTPTime.tm_hour + ":" + NTPTime.tm_min + ":" + NTPTime.tm_sec);
+    setNTPTimeToDevice = false;
   }
-/*   //for testing
-  time(&timeNow);
-  localtime_r(&timeNow, &NTPTime); 
-  DEBUG_WEBLN((String) NTPTime.tm_mday+"."+(NTPTime.tm_mon + 1)+"."+(NTPTime.tm_year + 1900 )+" "+NTPTime.tm_hour+":"+NTPTime.tm_min+":"+NTPTime.tm_sec); */
-
+  /*   //for testing
+    time(&timeNow);
+    localtime_r(&timeNow, &NTPTime);
+    DEBUG_WEBLN((String) NTPTime.tm_mday+"."+(NTPTime.tm_mon + 1)+"."+(NTPTime.tm_year + 1900 )+" "+NTPTime.tm_hour+":"+NTPTime.tm_min+":"+NTPTime.tm_sec); */
 
   if (getEpData(ReqDevAddr)) // if we get valid data from the device?
   {
@@ -827,7 +829,7 @@ bool getJsonData(int invNum)
   // }
   liveJson["DEVICE_QUANTITY"] = _settings.data.deviceQuantity;
   liveJson["DEVICE_FREE_HEAP"] = ESP.getFreeHeap();
-  //liveJson["DEVICE_FREE_JSON"] = (JSON_BUFFER - liveJson.memoryUsage());
+  // liveJson["DEVICE_FREE_JSON"] = (JSON_BUFFER - liveJson.memoryUsage());
   liveJson["ESP_VCC"] = (ESP.getVcc() / 1000.0) + 0.3;
   liveJson["Runtime"] = millis() / 1000;
   liveJson["Wifi_RSSI"] = WiFi.RSSI();
@@ -964,8 +966,8 @@ void callback(char *top, byte *payload, unsigned int length)
 
     for (size_t k = 1; k < ((size_t)_settings.data.deviceQuantity + 1); k++)
     {
-    // if (mqttJsonAnswer.containsKey(devicePrefix + k))
-      if (mqttJsonAnswer[devicePrefix + k].is<const char*>())
+      // if (mqttJsonAnswer.containsKey(devicePrefix + k))
+      if (mqttJsonAnswer[devicePrefix + k].is<const char *>())
       {
         epnode.setSlaveId(k);
         mqtttimer = 0;
