@@ -69,10 +69,16 @@
         <span class="input-group-text w-50" id="webuicolormode">WebUI Dark Mode</span>
         <div class="form-switch form-control" style="width:50%%; text-align: center;">
             <input type="checkbox" class="form-check-input form control" aria-describedby="webuicolormode" role="switch"
-                id="mqttjson" name="post_webuicolormode" value="true" %pre_webuidarkmode%>
+                id="post_webuicolormode" name="post_webuicolormode" value="true" %pre_webuidarkmode%>
         </div>
     </div>
-
+    <div class="input-group mb-2">
+        <span class="input-group-text w-50" id="led">LED brightness</span>
+        <div class="form-switch form-control" style="width:50%%; text-align: center;">
+            <input type="range" class="form-range" aria-describedby="led"
+                id="post_led" name="post_led" value="%pre_led%" min="0" max="255">
+        </div>
+    </div>
     <div class="input-group mb-2">
         <span class="input-group-text w-50" id="httpUserdesc">HTTP Username</span>
         <input type="text" class="form-control no-percent" aria-describedby="httpUserdesc" id="httpUser"

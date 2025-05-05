@@ -31,6 +31,7 @@ public:
     bool haDiscovery;            // HomeAssistant Discovery switch
     char NTPTimezone[40];        // Time zone code for NTP get it from here: https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
     char NTPServer[40];          // NTP timepool Server
+    byte LEDBrightness;         // brigthness of led
   } data;
 
   void load()
@@ -128,6 +129,10 @@ private:
     {
       strcpy(data.NTPServer, "pool.ntp.org");
     }
+    if (data.LEDBrightness && !data.LEDBrightness)
+    {
+      data.LEDBrightness = 127;
+    }
   }
   void coVersCheck()
   {
@@ -148,6 +153,7 @@ private:
       strcpy(data.httpUser, "");
       strcpy(data.httpPass, "");
       data.haDiscovery = false;
+      data.LEDBrightness = 127;
       save();
       load();
     }

@@ -190,7 +190,7 @@ void setup()
 {
   pinMode(EPEVER_DE_RE, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
-  analogWrite(LED_PIN, 0);
+  analogWrite(LED_PIN, 255-_settings.data.LEDBrightness);
   resetCounter(true);
   _settings.load();
   WiFi.persistent(true);              // fix wifi save bug
@@ -345,6 +345,7 @@ void setup()
                 _settings.data.haDiscovery = (request->arg("post_hadiscovery") == "true") ? true : false;
                 strncpy(_settings.data.NTPTimezone, request->arg("post_ntptimezone").c_str(), 40);
                 strncpy(_settings.data.NTPServer, request->arg("post_ntptimeserv").c_str(), 40);
+                _settings.data.LEDBrightness = request->arg("post_led").toInt();
                 _settings.save();
                 request->redirect("/reboot"); });
 
