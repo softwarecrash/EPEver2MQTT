@@ -193,11 +193,11 @@ bool resetCounter(bool count)
 
 void setup()
 {
+  _settings.load();
   pinMode(EPEVER_DE_RE, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
   analogWrite(LED_PIN, 255 - _settings.data.LEDBrightness);
   resetCounter(true);
-  _settings.load();
   WiFi.persistent(true);              // fix wifi save bug
   AsyncWiFiManager wm(&server, &dns); // create wifimanager instance
 
