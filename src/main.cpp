@@ -935,7 +935,7 @@ bool sendtoMQTT()
   return true;
 }
 
-void callback(char *top, byte *payload, unsigned int length)
+/* void callback(char *top, byte *payload, unsigned int length)
 {
   // updateProgress = true; // stop servicing data
   if (!_settings.data.mqttJson)
@@ -985,7 +985,71 @@ void callback(char *top, byte *payload, unsigned int length)
     mqtttimer = 0;
   }
   // updateProgress = false; // start data servicing again
+} */
+
+void callback(char *top, byte *payload, unsigned int length)
+{
+  // updateProgress = true; // stop servicing data
+
+  JsonDocument mqttJsonAnswer;
+
+  if (_settings.data.mqttJson)
+  {
+    DeserializationError err = deserializeJson(mqttJsonAnswer, (const byte *)payload, length);
+    if (err)
+    {
+      Serial.print(F("MQTT JSON Parse Error: "));
+      Serial.println(err.c_str());
+      return;
+    }
+
+    for (size_t k = 1; k <= _settings.data.deviceQuantity; k++)
+    {
+      JsonVariant ep = mqttJsonAnswer[devicePrefix + k];
+      if (!ep.isNull())
+      {
+        JsonVariant liveData = ep["LiveData"];
+        if (!liveData.isNull() && !liveData["LOAD_STATE"].isNull())
+        {
+          epnode.setSlaveId(k);
+          mqtttimer = 0;
+          bool loadState = liveData["LOAD_STATE"].as<bool>();
+          epnode.writeSingleCoil(0x0002, loadState ? 1 : 0);
+        }
+      }
+    }
+  }
+  else
+  {
+    String messageTemp;
+    for (unsigned int i = 0; i < length; i++)
+    {
+      messageTemp += (char)payload[i];
+    }
+
+    for (size_t k = 1; k <= _settings.data.deviceQuantity; k++)
+    {
+      if (strcmp(top, (topic + "/" + devicePrefix + k + "/DeviceControl/LOAD_STATE").c_str()) == 0)
+      {
+        epnode.setSlaveId(k);
+        mqtttimer = 0;
+        if (messageTemp == "true")
+          epnode.writeSingleCoil(0x0002, 1);
+        else if (messageTemp == "false")
+          epnode.writeSingleCoil(0x0002, 0);
+      }
+    }
+  }
+
+  if (strlen(_settings.data.mqttTriggerPath) > 0 && strcmp(top, _settings.data.mqttTriggerPath) == 0)
+  {
+    DEBUG_WEBLN("MQTT Data Trigger Firered Up");
+    mqtttimer = 0;
+  }
+
+  // updateProgress = false; // start data servicing again
 }
+
 
 bool sendHaDiscovery()
 {
