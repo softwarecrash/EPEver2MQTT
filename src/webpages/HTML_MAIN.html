@@ -67,11 +67,6 @@
 </div>
 
 <div class="row gx-0 mb-2 row gx-0 mb-2 bg-light rounded bg-opacity-50 px-2">
-    <div class="col"> CO2 Reduction: </div>
-    <div class="col dF"><span id="cored"></span></div>
-</div>
-
-<div class="row gx-0 mb-2 row gx-0 mb-2 bg-light rounded bg-opacity-50 px-2">
     <div class="col"> Input State: </div>
     <div class="col dF"><span id="inputstate"></span></div>
 </div>
@@ -175,8 +170,6 @@
             document.getElementById("genM").innerHTML = 'M:' + data[devPrA + shDevNum].StatsData.GEN_MON + '  ';
             document.getElementById("genY").innerHTML = 'Y:' + data[devPrA + shDevNum].StatsData.GEN_YEAR + '  ';
             document.getElementById("genT").innerHTML = 'T:' + data[devPrA + shDevNum].StatsData.GEN_TOT;
-
-            document.getElementById("cored").innerHTML = data[devPrA + shDevNum].StatsData.CO2_REDUCTION + 't ';
 
             document.getElementById("inputstate").innerHTML = data[devPrA + shDevNum].LiveData.CHARGER_STATE;
             document.getElementById("chrgmode").innerHTML = data[devPrA + shDevNum].LiveData.CHARGER_MODE;

@@ -35,8 +35,8 @@
 #define DEVICE_SETTINGS 0x9000 // Start Device Settings
 #define DEVICE_SETTINGS_CNT 15 // amount of registers
 
-#define STATISTICS 0x3300 // start of statistical data
-#define STATISTICS_CNT 22 // 22 regs
+#define STATISTICS 0x3300 // 0x3300 start of statistical data
+#define STATISTICS_CNT 20 // 22 regs
 
 // just for reference, not used in code
 #define PV_MAX 0x00   // Maximum input volt (PV) today
@@ -146,8 +146,8 @@ union
 } live;
 */
 
-    // statistics 0x3300
-    union
+// statistics 0x3300
+union
 {
   struct
   {
@@ -171,10 +171,10 @@ union
     uint32_t genEnerTotal;
 
     // 1*2 = 2
-    uint32_t c02Reduction;
+//    uint32_t c02Reduction;
 
   } s;
-  uint16_t buf[22];
+  uint16_t buf[20];
 } stats;
 
 // Device Settings Read
