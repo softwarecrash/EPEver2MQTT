@@ -80,7 +80,7 @@ static const char *const haDescriptor[][4]{
   {"CO2_REDUCTION","molecule-co","t","weight"},
   // DeviceData
   {"BATTERY_TYPE","fuel-cell","",""},
-  {"BATTERY_CAPACITY","car-battery","Ah","energy_storage"},
+  {"BATTERY_CAPACITY","car-battery","Ah",""},
   {"TEMPERATURE_COMPENSATION","thermometer-lines","mV","voltage"},
   {"HIGH_VOLT_DISCONNECT","flash-triangle-outline","V","voltage"},
   {"CHARGING_LIMIT_VOLTS","battery-minus-outline","V","voltage"},
