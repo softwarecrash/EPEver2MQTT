@@ -227,6 +227,10 @@ void setup()
   AsyncWiFiManagerParameter custom_mqtt_triggerpath("mqtt_triggerpath", "MQTT Data Trigger Path", NULL, 80);
   AsyncWiFiManagerParameter custom_device_name("device_name", "Device Name", "EPEver2MQTT", 32);
   AsyncWiFiManagerParameter custom_device_quantity("device_quantity", "Device Quantity", "1", 2);
+  AsyncWiFiManagerParameter custom_static_ip("static_ip", "Static IP (empty for DHCP)", _settings.data.staticIP, 16);
+  AsyncWiFiManagerParameter custom_static_gw("static_gw", "Static Gateway (empty for DHCP)", _settings.data.staticGW, 16);
+  AsyncWiFiManagerParameter custom_static_sn("static_sn", "Static Subnet (empty for DHCP)", _settings.data.staticSN, 16);
+  AsyncWiFiManagerParameter custom_static_dns("static_dns", "Static DNS (empty for DHCP)", _settings.data.staticDNS, 16);
 
   wm.addParameter(&custom_mqtt_server);
   wm.addParameter(&custom_mqtt_user);
@@ -237,12 +241,24 @@ void setup()
   wm.addParameter(&custom_mqtt_triggerpath);
   wm.addParameter(&custom_device_name);
   wm.addParameter(&custom_device_quantity);
+  wm.addParameter(&custom_static_ip);
+  wm.addParameter(&custom_static_gw);
+  wm.addParameter(&custom_static_sn);
+  wm.addParameter(&custom_static_dns);
 
   wm.setDebugOutput(false);       // disable wifimanager debug output
   wm.setMinimumSignalQuality(25); // filter weak wifi signals
   wm.setConnectTimeout(10);       // how long to try to connect for before continuing
   wm.setConfigPortalTimeout(300); // auto close configportal after n seconds
   wm.setSaveConfigCallback(saveConfigCallback);
+
+  IPAddress ip, gw, sn, dns;
+  if (ip.fromString(_settings.data.staticIP) && gw.fromString(_settings.data.staticGW) && sn.fromString(_settings.data.staticSN))
+  {
+    dns.fromString(_settings.data.staticDNS);
+    wm.setSTAStaticIPConfig(ip, gw, sn, dns);
+  }
+
   bool res = wm.autoConnect("EPEver2MQTT-AP");
 
   // save settings if wifi setup is fire up
@@ -257,6 +273,10 @@ void setup()
     _settings.data.mqttRefresh = atoi(custom_mqtt_refresh.getValue());
     strncpy(_settings.data.mqttTriggerPath, custom_mqtt_triggerpath.getValue(), 80);
     _settings.data.deviceQuantity = atoi(custom_device_quantity.getValue()) <= 0 ? 1 : atoi(custom_device_quantity.getValue());
+    strncpy(_settings.data.staticIP, custom_static_ip.getValue(), 16);
+    strncpy(_settings.data.staticGW, custom_static_gw.getValue(), 16);
+    strncpy(_settings.data.staticSN, custom_static_sn.getValue(), 16);
+    strncpy(_settings.data.staticDNS, custom_static_dns.getValue(), 16);
 
     _settings.save();
     ESP.restart();
@@ -339,7 +359,11 @@ void setup()
                 strncpy(_settings.data.mqttTopic, request->arg("post_mqttTopic").c_str(), 40);
                 _settings.data.mqttRefresh = request->arg("post_mqttRefresh").toInt() < 1 ? 1 : request->arg("post_mqttRefresh").toInt(); // prevent lower numbers
                 strncpy(_settings.data.deviceName, request->arg("post_deviceName").c_str(), 40);
-                _settings.data.deviceQuantity = request->arg("post_deviceQuanttity").toInt() <= 0 ? 1 : request->arg("post_deviceQuanttity").toInt();
+                strncpy(_settings.data.staticIP, request->arg("post_staticIP").c_str(), 16);
+                strncpy(_settings.data.staticGW, request->arg("post_staticGW").c_str(), 16);
+                strncpy(_settings.data.staticSN, request->arg("post_staticSN").c_str(), 16);
+                strncpy(_settings.data.staticDNS, request->arg("post_staticDNS").c_str(), 16);
+                 _settings.data.deviceQuantity = request->arg("post_deviceQuanttity").toInt() <= 0 ? 1 : request->arg("post_deviceQuanttity").toInt();
                 _settings.data.mqttJson = (request->arg("post_mqttjson") == "true") ? true : false;
                 strncpy(_settings.data.mqttTriggerPath, request->arg("post_mqtttrigger").c_str(), 80);
                 _settings.data.webUIdarkmode = (request->arg("post_webuicolormode") == "true") ? true : false;
