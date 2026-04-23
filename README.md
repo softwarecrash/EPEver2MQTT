@@ -21,7 +21,7 @@ ESP82XX to MQTT based connector for EPEver Solar tracker, support multiple track
 
 
 # How to use:
-- flash your ESP8266 (recommended Wemos D1 Mini) with our [Flash2MQTT-Tool](https://all-solutions.github.io/Flash2MQTT/?get=EPEver2MQTT) or with our desktop [2MQTT-Flasher](https://github.com/all-solutions/2MQTT-Flasher)
+- flash your ESP8266 (recommended Wemos D1 Mini) with our [Flash2MQTT-Tool]([https://flash.2mqtt.de/?get=Epever2MQTT) or our desktop [2MQTT-Flasher](https://github.com/all-solutions/2MQTT-Flasher)
 - connect the esp like the [wiring diagram](https://github.com/softwarecrash/EPEver2MQTT/wiki/Wireing)
 - search the wifi ap EPEver2MQTT-AP and connect
 - surf to 192.168.4.1 and set up your wifi, amount of inverters and optional mqtt
