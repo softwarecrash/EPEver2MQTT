@@ -191,6 +191,134 @@ bool resetCounter(bool count)
   return true;
 }
 
+bool validMpptDevice(uint8_t device)
+{
+  return device >= 1 && device <= _settings.data.deviceQuantity;
+}
+
+uint8_t readMpptSettings(uint8_t device, uint16_t *values)
+{
+  epnode.setSlaveId(device);
+  epnode.clearResponseBuffer();
+  uint8_t status = epnode.readHoldingRegisters(DEVICE_SETTINGS, DEVICE_SETTINGS_CNT);
+  if (status == epnode.ku8MBSuccess)
+  {
+    for (uint8_t index = 0; index < DEVICE_SETTINGS_CNT; index++)
+      values[index] = epnode.getResponseBuffer(index);
+  }
+  return status;
+}
+
+bool mpptSettingsMatch(const uint16_t *expected, const uint16_t *actual)
+{
+  for (uint8_t index = 0; index < DEVICE_SETTINGS_CNT; index++)
+  {
+    if (expected[index] != actual[index])
+      return false;
+  }
+  return true;
+}
+
+uint8_t writeMpptSettings(uint8_t device, const uint16_t *values)
+{
+  epnode.setSlaveId(device);
+  epnode.clearTransmitBuffer();
+  for (uint8_t index = 0; index < DEVICE_SETTINGS_CNT; index++)
+    epnode.setTransmitBuffer(index, values[index]);
+  return epnode.writeMultipleRegisters(DEVICE_SETTINGS, DEVICE_SETTINGS_CNT);
+}
+
+uint8_t writeAndVerifyMpptSettings(uint8_t device, const uint16_t *values, uint16_t *readBack,
+                                   uint8_t &writeStatus, uint8_t &readStatus)
+{
+  uint16_t previousTimeout = epnode.getResponseTimeout();
+  epnode.setResponseTimeout(500);
+  writeStatus = writeMpptSettings(device, values);
+  delay(200);
+  readStatus = readMpptSettings(device, readBack);
+
+  if (readStatus == epnode.ku8MBSuccess && mpptSettingsMatch(values, readBack))
+  {
+    epnode.setResponseTimeout(previousTimeout);
+    return 0;
+  }
+
+  if (writeStatus == epnode.ku8MBResponseTimedOut || writeStatus == epnode.ku8MBInvalidCRC)
+  {
+    delay(250);
+    writeStatus = writeMpptSettings(device, values);
+    delay(200);
+    readStatus = readMpptSettings(device, readBack);
+  }
+
+  epnode.setResponseTimeout(previousTimeout);
+  if (readStatus != epnode.ku8MBSuccess)
+    return 1;
+  return mpptSettingsMatch(values, readBack) ? 0 : 2;
+}
+
+void updateMpptSettingsJson(uint8_t device, const uint16_t *values)
+{
+  JsonObject deviceData = liveJson["EP_" + String(device)]["DeviceData"];
+  deviceData["BATTERY_TYPE"] = values[0] < (sizeof batt_type / sizeof batt_type[0]) ? batt_type[values[0]] : "Unknown";
+  deviceData["BATTERY_CAPACITY"] = values[1];
+  deviceData["TEMPERATURE_COMPENSATION"] = values[2] / 100.f;
+  deviceData["HIGH_VOLT_DISCONNECT"] = values[3] / 100.f;
+  deviceData["CHARGING_LIMIT_VOLTS"] = values[4] / 100.f;
+  deviceData["OVER_VOLTS_RECONNECT"] = values[5] / 100.f;
+  deviceData["EQUALIZATION_VOLTS"] = values[6] / 100.f;
+  deviceData["BOOST_VOLTS"] = values[7] / 100.f;
+  deviceData["FLOAT_VOLTS"] = values[8] / 100.f;
+  deviceData["BOOST_RECONNECT_VOLTS"] = values[9] / 100.f;
+  deviceData["LOW_VOLTS_RECONNECT"] = values[10] / 100.f;
+  deviceData["UNDER_VOLTS_RECOVER"] = values[11] / 100.f;
+  deviceData["UNDER_VOLTS_WARNING"] = values[12] / 100.f;
+  deviceData["LOW_VOLTS_DISCONNECT"] = values[13] / 100.f;
+  deviceData["DISCHARGING_LIMIT_VOLTS"] = values[14] / 100.f;
+}
+
+void sendMpptSettingsResponse(AsyncWebServerRequest *request, uint16_t statusCode, uint8_t device,
+                              const uint16_t *values, const String &message)
+{
+  JsonDocument document;
+  document["ok"] = statusCode == 200;
+  document["device"] = device;
+  document["deviceQuantity"] = _settings.data.deviceQuantity;
+  document["message"] = message;
+  if (values != nullptr)
+  {
+    JsonArray registerValues = document["values"].to<JsonArray>();
+    for (uint8_t index = 0; index < DEVICE_SETTINGS_CNT; index++)
+      registerValues.add(values[index]);
+  }
+
+  String body;
+  serializeJson(document, body);
+  request->send(statusCode, "application/json", body);
+}
+
+bool parseMpptSetting(AsyncWebServerRequest *request, uint8_t index, uint16_t scale, uint16_t maximum,
+                      uint16_t &value)
+{
+  String parameterName = "e" + String(index + 1);
+  if (!request->hasParam(parameterName, true))
+    return false;
+
+  String input = request->getParam(parameterName, true)->value();
+  char *end = nullptr;
+  double parsed = strtod(input.c_str(), &end);
+  if (input.length() == 0 || end == input.c_str() || *end != '\0' || !isfinite(parsed) || parsed < 0)
+    return false;
+
+  double scaled = parsed * scale;
+  double rounded = round(scaled);
+  if (scaled > maximum || fabs(scaled - rounded) > 0.001)
+    return false;
+
+  value = (uint16_t)rounded;
+  return true;
+}
+
 void setup()
 {
   _settings.load();
@@ -348,6 +476,220 @@ void setup()
                 if(strlen(_settings.data.httpUser) > 0 && !request->authenticate(_settings.data.httpUser, _settings.data.httpPass)) return request->requestAuthentication();
       AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", HTML_SETTINGS_EDIT, htmlProcessor);
       request->send(response); });
+
+    server.on("/mpptsettings", HTTP_GET, [](AsyncWebServerRequest *request)
+              {
+                if(strlen(_settings.data.httpUser) > 0 && !request->authenticate(_settings.data.httpUser, _settings.data.httpPass)) return request->requestAuthentication();
+                AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", HTML_MPPT_SETTINGS, htmlProcessor);
+                request->send(response); });
+
+    server.on("/mpptsettingsjson", HTTP_GET, [](AsyncWebServerRequest *request)
+              {
+                if(strlen(_settings.data.httpUser) > 0 && !request->authenticate(_settings.data.httpUser, _settings.data.httpPass)) return request->requestAuthentication();
+                uint8_t device = request->hasParam("device") ? request->getParam("device")->value().toInt() : 1;
+                if (!validMpptDevice(device))
+                {
+                  sendMpptSettingsResponse(request, 400, device, nullptr, "Invalid MPPT device number");
+                  return;
+                }
+
+                uint16_t values[DEVICE_SETTINGS_CNT];
+                workerCanRun = false;
+                uint8_t status = readMpptSettings(device, values);
+                workerCanRun = true;
+                if (status != epnode.ku8MBSuccess)
+                {
+                  sendMpptSettingsResponse(request, 502, device, nullptr, "Modbus read failed (code " + String(status) + ")");
+                  return;
+                }
+
+                updateMpptSettingsJson(device, values);
+                sendMpptSettingsResponse(request, 200, device, values, "Settings read successfully");
+              });
+
+    server.on("/mpptsettingsapply", HTTP_POST, [](AsyncWebServerRequest *request)
+              {
+                if(strlen(_settings.data.httpUser) > 0 && !request->authenticate(_settings.data.httpUser, _settings.data.httpPass)) return request->requestAuthentication();
+                uint8_t device = request->hasParam("device", true) ? request->getParam("device", true)->value().toInt() : 0;
+                if (!validMpptDevice(device))
+                {
+                  sendMpptSettingsResponse(request, 400, device, nullptr, "Invalid MPPT device number");
+                  return;
+                }
+
+                uint16_t values[DEVICE_SETTINGS_CNT];
+                if (!parseMpptSetting(request, 0, 1, 3, values[0]) ||
+                    !parseMpptSetting(request, 1, 1, UINT16_MAX, values[1]))
+                {
+                  sendMpptSettingsResponse(request, 400, device, nullptr, "E1 or E2 contains an invalid value");
+                  return;
+                }
+                for (uint8_t index = 2; index < DEVICE_SETTINGS_CNT; index++)
+                {
+                  uint16_t maximum = index == 2 ? 900 : UINT16_MAX;
+                  if (!parseMpptSetting(request, index, 100, maximum, values[index]))
+                  {
+                    sendMpptSettingsResponse(request, 400, device, nullptr, "E" + String(index + 1) + " contains an invalid value");
+                    return;
+                  }
+                }
+                if (!(values[3] > values[4] && values[4] > values[6] && values[6] > values[7] &&
+                      values[7] > values[8] && values[8] > values[9]))
+                {
+                  sendMpptSettingsResponse(request, 400, device, nullptr,
+                                           "Required: E4 > E5 > E7 > E8 > E9 > E10");
+                  return;
+                }
+                if (!(values[11] > values[12] && values[12] > values[13] && values[13] > values[14]))
+                {
+                  sendMpptSettingsResponse(request, 400, device, nullptr,
+                                           "Required: E12 > E13 > E14 > E15");
+                  return;
+                }
+                if (values[3] <= values[5])
+                {
+                  sendMpptSettingsResponse(request, 400, device, nullptr, "Required: E4 > E6");
+                  return;
+                }
+                if (values[10] <= values[13])
+                {
+                  sendMpptSettingsResponse(request, 400, device, nullptr, "Required: E11 > E14");
+                  return;
+                }
+                workerCanRun = false;
+                uint16_t readBack[DEVICE_SETTINGS_CNT];
+                uint8_t writeStatus;
+                uint8_t readStatus;
+                uint8_t verifyStatus = writeAndVerifyMpptSettings(device, values, readBack, writeStatus, readStatus);
+                workerCanRun = true;
+                if (verifyStatus == 1)
+                {
+                  sendMpptSettingsResponse(request, 502, device, nullptr,
+                                           "Modbus write acknowledgement code " + String(writeStatus) +
+                                               "; read-back failed with code " + String(readStatus));
+                  return;
+                }
+
+                updateMpptSettingsJson(device, readBack);
+                if (verifyStatus == 2)
+                {
+                  sendMpptSettingsResponse(request, 409, device, readBack,
+                                           "The controller rejected or changed one or more values; actual values were reloaded (write code " +
+                                               String(writeStatus) + ")");
+                  return;
+                }
+
+                mqtttimer = 0;
+                String message = writeStatus == epnode.ku8MBSuccess
+                                     ? "MPPT settings applied and verified"
+                                     : "MPPT settings applied and verified despite write acknowledgement error " + String(writeStatus);
+                sendMpptSettingsResponse(request, 200, device, readBack, message);
+              });
+
+    server.on("/mpptsettingsclone", HTTP_POST, [](AsyncWebServerRequest *request)
+              {
+                if(strlen(_settings.data.httpUser) > 0 && !request->authenticate(_settings.data.httpUser, _settings.data.httpPass)) return request->requestAuthentication();
+                uint8_t source = request->hasParam("source", true) ? request->getParam("source", true)->value().toInt() : 0;
+                String targetList = request->hasParam("targets", true) ? request->getParam("targets", true)->value() : "";
+                if (!validMpptDevice(source))
+                {
+                  sendMpptSettingsResponse(request, 400, source, nullptr, "Invalid source MPPT device number");
+                  return;
+                }
+
+                bool selected[10] = {false};
+                uint8_t targetCount = 0;
+                unsigned int start = 0;
+                while (start < targetList.length())
+                {
+                  int comma = targetList.indexOf(',', start);
+                  String token = comma < 0 ? targetList.substring(start) : targetList.substring(start, comma);
+                  token.trim();
+                  uint8_t target = token.toInt();
+                  if (token.length() == 0 || !validMpptDevice(target) || target >= (sizeof selected / sizeof selected[0]) || target == source)
+                  {
+                    sendMpptSettingsResponse(request, 400, source, nullptr, "Invalid clone target list");
+                    return;
+                  }
+                  if (!selected[target])
+                  {
+                    selected[target] = true;
+                    targetCount++;
+                  }
+                  if (comma < 0)
+                    break;
+                  start = comma + 1;
+                }
+                if (targetCount == 0)
+                {
+                  sendMpptSettingsResponse(request, 400, source, nullptr, "Select at least one other MPPT device");
+                  return;
+                }
+
+                workerCanRun = false;
+                uint16_t sourceValues[DEVICE_SETTINGS_CNT];
+                uint16_t previousTimeout = epnode.getResponseTimeout();
+                epnode.setResponseTimeout(500);
+                uint8_t sourceReadStatus = readMpptSettings(source, sourceValues);
+                epnode.setResponseTimeout(previousTimeout);
+                if (sourceReadStatus != epnode.ku8MBSuccess)
+                {
+                  workerCanRun = true;
+                  sendMpptSettingsResponse(request, 502, source, nullptr,
+                                           "Could not read source MPPT settings (code " + String(sourceReadStatus) + ")");
+                  return;
+                }
+                updateMpptSettingsJson(source, sourceValues);
+
+                JsonDocument document;
+                document["source"] = source;
+                document["deviceQuantity"] = _settings.data.deviceQuantity;
+                JsonArray results = document["results"].to<JsonArray>();
+                uint8_t successCount = 0;
+
+                for (uint8_t target = 1; target <= _settings.data.deviceQuantity && target < (sizeof selected / sizeof selected[0]); target++)
+                {
+                  if (!selected[target])
+                    continue;
+
+                  uint16_t readBack[DEVICE_SETTINGS_CNT];
+                  uint8_t writeStatus;
+                  uint8_t readStatus;
+                  uint8_t verifyStatus = writeAndVerifyMpptSettings(target, sourceValues, readBack, writeStatus, readStatus);
+                  JsonObject targetResult = results.add<JsonObject>();
+                  targetResult["device"] = target;
+                  targetResult["writeCode"] = writeStatus;
+                  targetResult["readCode"] = readStatus;
+                  targetResult["ok"] = verifyStatus == 0;
+
+                  if (verifyStatus == 0)
+                  {
+                    successCount++;
+                    updateMpptSettingsJson(target, readBack);
+                    targetResult["message"] = writeStatus == epnode.ku8MBSuccess
+                                                  ? "Cloned and verified"
+                                                  : "Cloned and verified despite acknowledgement error";
+                  }
+                  else if (verifyStatus == 1)
+                  {
+                    targetResult["message"] = "Read-back failed";
+                  }
+                  else
+                  {
+                    updateMpptSettingsJson(target, readBack);
+                    targetResult["message"] = "Controller rejected or changed values";
+                  }
+                  delay(100);
+                }
+
+                workerCanRun = true;
+                mqtttimer = 0;
+                document["ok"] = successCount == targetCount;
+                document["message"] = String(successCount) + " of " + String(targetCount) + " target devices cloned successfully";
+                String body;
+                serializeJson(document, body);
+                request->send(200, "application/json", body);
+              });
 
     server.on("/settingssave", HTTP_POST, [](AsyncWebServerRequest *request)
               {

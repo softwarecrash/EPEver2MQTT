@@ -1,0 +1,246 @@
+%pre_head_template%
+<figure class="text-center">
+  <h1>MPPT Settings</h1>
+  <p class="text-body-secondary">Registers E1-E15</p>
+</figure>
+
+<div id="status" class="alert alert-info" role="alert">Reading settings from the controller...</div>
+
+<form id="mpptForm">
+  <div class="input-group mb-3">
+    <span class="input-group-text w-50">MPPT device</span>
+    <select class="form-select" id="device" name="device"></select>
+    <button class="btn btn-outline-secondary" type="button" id="reloadButton">Reload</button>
+  </div>
+
+  <div id="fields"></div>
+
+  <div class="alert alert-warning small" role="alert">
+    Changing charge voltages can damage a battery. Check the battery manufacturer's limits first.
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <h5 class="card-title">Clone current hardware settings</h5>
+      <p class="card-text small">Copy the selected source device's actual E1-E15 values to these devices:</p>
+      <div id="cloneTargets" class="mb-3"></div>
+      <button class="btn btn-warning w-100" id="cloneButton" type="button" disabled>Clone to selected devices</button>
+    </div>
+  </div>
+
+  <div class="d-grid gap-2">
+    <button class="btn btn-primary" id="applyButton" type="submit" disabled>Apply and verify</button>
+    <a class="btn btn-primary" href="/settings" role="button">Back</a>
+  </div>
+</form>
+
+<script>
+  const definitions = [
+    { label: 'E1 Battery type', unit: '', type: 'select' },
+    { label: 'E2 Battery capacity', unit: 'Ah', step: '1' },
+    { label: 'E3 Temperature compensation', unit: 'mV/C/2V', step: '0.01', max: '9' },
+    { label: 'E4 High voltage disconnect', unit: 'V', step: '0.01' },
+    { label: 'E5 Charging limit voltage', unit: 'V', step: '0.01' },
+    { label: 'E6 Over voltage reconnect', unit: 'V', step: '0.01' },
+    { label: 'E7 Equalization voltage', unit: 'V', step: '0.01' },
+    { label: 'E8 Boost voltage', unit: 'V', step: '0.01' },
+    { label: 'E9 Float voltage', unit: 'V', step: '0.01' },
+    { label: 'E10 Boost reconnect voltage', unit: 'V', step: '0.01' },
+    { label: 'E11 Low voltage reconnect', unit: 'V', step: '0.01' },
+    { label: 'E12 Under voltage recover', unit: 'V', step: '0.01' },
+    { label: 'E13 Under voltage warning', unit: 'V', step: '0.01' },
+    { label: 'E14 Low voltage disconnect', unit: 'V', step: '0.01' },
+    { label: 'E15 Discharging limit voltage', unit: 'V', step: '0.01' }
+  ];
+
+  const fields = document.getElementById('fields');
+  const form = document.getElementById('mpptForm');
+  const deviceSelect = document.getElementById('device');
+  const applyButton = document.getElementById('applyButton');
+  const reloadButton = document.getElementById('reloadButton');
+  const cloneButton = document.getElementById('cloneButton');
+  const cloneTargets = document.getElementById('cloneTargets');
+  const statusBox = document.getElementById('status');
+  let settingsLoaded = false;
+  let deviceQuantity = 1;
+
+  definitions.forEach((definition, index) => {
+    const group = document.createElement('div');
+    group.className = 'input-group mb-2';
+
+    const label = document.createElement('label');
+    label.className = 'input-group-text w-50';
+    label.htmlFor = 'e' + (index + 1);
+    label.textContent = definition.label;
+    group.appendChild(label);
+
+    let input;
+    if (definition.type === 'select') {
+      input = document.createElement('select');
+      ['User', 'Sealed', 'GEL', 'Flooded'].forEach((name, value) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = value + ' - ' + name;
+        input.appendChild(option);
+      });
+    } else {
+      input = document.createElement('input');
+      input.type = 'number';
+      input.min = '0';
+      input.max = definition.max || (definition.step === '1' ? '65535' : '655.35');
+      input.step = definition.step;
+      input.required = true;
+    }
+    input.className = 'form-control';
+    input.id = 'e' + (index + 1);
+    input.name = input.id;
+    group.appendChild(input);
+
+    if (definition.unit) {
+      const unit = document.createElement('span');
+      unit.className = 'input-group-text';
+      unit.textContent = definition.unit;
+      group.appendChild(unit);
+    }
+    fields.appendChild(group);
+  });
+
+  function showStatus(message, style) {
+    statusBox.className = 'alert alert-' + style;
+    statusBox.textContent = message;
+  }
+
+  function setBusy(busy) {
+    applyButton.disabled = busy || !settingsLoaded;
+    reloadButton.disabled = busy;
+    deviceSelect.disabled = busy;
+    cloneButton.disabled = busy || !settingsLoaded || selectedCloneTargets().length === 0;
+    cloneTargets.querySelectorAll('input').forEach(input => input.disabled = busy);
+  }
+
+  function selectedCloneTargets() {
+    return Array.from(cloneTargets.querySelectorAll('input:checked')).map(input => input.value);
+  }
+
+  function renderCloneTargets() {
+    cloneTargets.innerHTML = '';
+    for (let number = 1; number <= deviceQuantity; number++) {
+      if (String(number) === String(deviceSelect.value)) continue;
+      const wrapper = document.createElement('div');
+      wrapper.className = 'form-check';
+      const input = document.createElement('input');
+      input.className = 'form-check-input';
+      input.type = 'checkbox';
+      input.value = number;
+      input.id = 'cloneTarget' + number;
+      input.addEventListener('change', () => setBusy(false));
+      const label = document.createElement('label');
+      label.className = 'form-check-label';
+      label.htmlFor = input.id;
+      label.textContent = 'Device ' + number;
+      wrapper.appendChild(input);
+      wrapper.appendChild(label);
+      cloneTargets.appendChild(wrapper);
+    }
+    if (!cloneTargets.children.length) {
+      cloneTargets.textContent = 'No other configured devices are available.';
+    }
+    setBusy(false);
+  }
+
+  function populateValues(values) {
+    values.forEach((raw, index) => {
+      document.getElementById('e' + (index + 1)).value = index < 2 ? raw : (raw / 100).toFixed(2);
+    });
+  }
+
+  async function loadSettings() {
+    settingsLoaded = false;
+    setBusy(true);
+    showStatus('Reading settings from MPPT device ' + deviceSelect.value + '...', 'info');
+    try {
+      const response = await fetch('/mpptsettingsjson?device=' + encodeURIComponent(deviceSelect.value), { cache: 'no-store' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Unable to read MPPT settings');
+
+      deviceQuantity = data.deviceQuantity;
+      while (deviceSelect.options.length < deviceQuantity) {
+        const number = deviceSelect.options.length + 1;
+        deviceSelect.add(new Option('Device ' + number, number));
+      }
+      while (deviceSelect.options.length > deviceQuantity) {
+        deviceSelect.remove(deviceSelect.options.length - 1);
+      }
+      populateValues(data.values);
+      settingsLoaded = true;
+      renderCloneTargets();
+      showStatus(data.message, 'success');
+    } catch (error) {
+      showStatus(error.message, 'danger');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!form.reportValidity()) return;
+    if (!window.confirm('Write all E1-E15 settings to MPPT device ' + deviceSelect.value + '?')) return;
+
+    const formData = new FormData(form);
+    setBusy(true);
+    showStatus('Writing and verifying MPPT settings...', 'warning');
+    try {
+      const response = await fetch('/mpptsettingsapply', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await response.json();
+      if (data.values) populateValues(data.values);
+      if (!response.ok) throw new Error(data.message || 'Unable to apply MPPT settings');
+      settingsLoaded = true;
+      showStatus(data.message, 'success');
+    } catch (error) {
+      showStatus(error.message, 'danger');
+    } finally {
+      setBusy(false);
+    }
+  });
+
+  cloneButton.addEventListener('click', async () => {
+    const targets = selectedCloneTargets();
+    if (!targets.length) return;
+    const source = deviceSelect.value;
+    if (!window.confirm('Clone the actual E1-E15 settings from device ' + source + ' to device(s) ' + targets.join(', ') + '?')) return;
+
+    const formData = new FormData();
+    formData.append('source', source);
+    formData.append('targets', targets.join(','));
+    setBusy(true);
+    showStatus('Cloning settings from device ' + source + '...', 'warning');
+    try {
+      const response = await fetch('/mpptsettingsclone', { method: 'POST', body: formData });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Unable to clone MPPT settings');
+      const details = (data.results || []).map(result =>
+        'Device ' + result.device + ': ' + result.message +
+        ' (write ' + result.writeCode + ', read ' + result.readCode + ')'
+      ).join(' | ');
+      showStatus(data.message + (details ? ' — ' + details : ''), data.ok ? 'success' : 'warning');
+    } catch (error) {
+      showStatus(error.message, 'danger');
+    } finally {
+      setBusy(false);
+    }
+  });
+
+  reloadButton.addEventListener('click', loadSettings);
+  deviceSelect.addEventListener('change', () => {
+    renderCloneTargets();
+    loadSettings();
+  });
+  deviceSelect.add(new Option('Device 1', 1));
+  loadSettings();
+</script>
+%pre_foot_template%
+<p hidden></p>
