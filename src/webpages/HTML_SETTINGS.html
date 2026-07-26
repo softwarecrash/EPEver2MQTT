@@ -23,7 +23,7 @@
   </div>
   <a class="btn btn-primary" href="/settingsedit" role="button">Configure</a>
   <a class="btn btn-primary" href="/mpptsettings" role="button">MPPT Settings</a>
-  <a class="btn btn-primary" onclick='SendDateString();' role="button">Set device time from computer</a>
+  <button class="btn btn-primary" type="button" onclick="sendComputerTime()">Set device time from computer</button>
   <button class="btn btn-warning" type="button" onclick="rebootDevice()">Reboot</button>
   <a class="btn btn-primary" href="/confirmreset" role="button">Reset ESP</a>
   <a class="btn btn-primary" href="/webserial" role="button" target="_blank">WebSerial</a>
@@ -83,21 +83,19 @@
     request.send(formdata);
   }
 
-  function SendDateString() {
-    var today = new Date();
-    var dateString = (today.getFullYear().toString().slice(2, 4)) +
-      ((today.getMonth() + 1) < 10 ? '0' : '') + (today.getMonth() + 1) +
-      (today.getDate() < 10 ? '0' : '') + today.getDate() +
-      (today.getHours() < 10 ? '0' : '') + today.getHours() +
-      (today.getMinutes() < 10 ? '0' : '') + today.getMinutes() +
-      (today.getSeconds() < 10 ? '0' : '') + today.getSeconds();
-
-    console.log(dateString);
-    console.log(today);
+  function sendComputerTime() {
+    const today = new Date();
     fetch("/api/device-time", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ datetime: dateString })
+      body: JSON.stringify({
+        year: today.getFullYear(),
+        month: today.getMonth() + 1,
+        day: today.getDate(),
+        hour: today.getHours(),
+        minute: today.getMinutes(),
+        second: today.getSeconds()
+      })
     })
       .then(async response => {
         const result = await response.json();

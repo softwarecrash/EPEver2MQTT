@@ -8,6 +8,13 @@
 namespace
 {
 constexpr uint16_t MqttBufferSize = 512;
+
+String mqttValue(JsonVariantConst value)
+{
+  if (value.is<float>())
+    return String(value.as<float>(), 2);
+  return value.as<String>();
+}
 }
 
 MqttService::MqttService(
@@ -118,16 +125,19 @@ bool MqttService::publish()
         const String valueTopic =
             root + "/" + device.key().c_str() + "/" +
             group.key().c_str() + "/" + value.key().c_str();
-        _client.publish(valueTopic.c_str(),
-                        value.value().as<String>().c_str());
+        const String payload = mqttValue(value.value());
+        _client.publish(valueTopic.c_str(), payload.c_str());
       }
   }
 
   for (JsonPairConst value : _liveJson.as<JsonObjectConst>())
   {
     if (strncmp(value.key().c_str(), "DS18B20_", 8) == 0)
+    {
+      const String payload = mqttValue(value.value());
       _client.publish((root + "/" + value.key().c_str()).c_str(),
-                      value.value().as<String>().c_str());
+                      payload.c_str());
+    }
   }
   return true;
 }

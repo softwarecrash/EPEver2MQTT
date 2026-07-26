@@ -4,6 +4,8 @@
 #include <Updater.h>
 #include <time.h>
 
+#include "JsonValueNormalizer.h"
+
 PollingService::PollingService(
     Settings &settings, JsonDocument &liveJson, EpeverController &controller,
     DeviceClockService &deviceClock, WebSocketController &webSocket,
@@ -39,6 +41,7 @@ bool PollingService::run()
   if (_controller.read(_requestedDevice))
   {
     _controller.updateJson(_requestedDevice);
+    normalizeJsonNumbers(_liveJson, 2);
     _webSocket.notify();
   }
   else if (_errorCode == 0 || millis() > _notifyTimer + 1000)

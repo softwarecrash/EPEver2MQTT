@@ -58,7 +58,9 @@ AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 DNSServer dns;
 ModbusMaster epnode; // instantiate ModbusMaster object
-UnixTime uTime(3);
+// Controller RTC values are local wall-clock values. GMT 0 creates a stable
+// transport timestamp without applying a hard-coded timezone offset.
+UnixTime uTime(0);
 OneWire oneWire(TEMPSENS_PIN);
 DallasTemperature tempSens(&oneWire);
 

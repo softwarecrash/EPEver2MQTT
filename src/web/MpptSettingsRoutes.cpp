@@ -3,6 +3,7 @@
 #include <AsyncJson.h>
 #include <math.h>
 
+#include "../app/JsonValueNormalizer.h"
 #include "../html.h"
 
 namespace
@@ -59,6 +60,8 @@ void MpptSettingsRoutes::registerRoutes()
                  return;
                AsyncWebServerResponse *response = request->beginResponse_P(
                    200, "text/html", HTML_MPPT_SETTINGS);
+               response->addHeader("Cache-Control",
+                                   "no-store, no-cache, must-revalidate");
                request->send(response);
              });
 
@@ -440,6 +443,7 @@ void MpptSettingsRoutes::updateJson(
   deviceData["UNDER_VOLTS_WARNING"] = values[12] / 100.f;
   deviceData["LOW_VOLTS_DISCONNECT"] = values[13] / 100.f;
   deviceData["DISCHARGING_LIMIT_VOLTS"] = values[14] / 100.f;
+  normalizeJsonNumbers(_liveJson, 2);
 }
 
 void MpptSettingsRoutes::sendResponse(

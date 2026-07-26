@@ -348,7 +348,8 @@ bool EpeverController::readLegacy(uint8_t invNum)
     rtc.buf[0] = _modbus.getResponseBuffer(0);
     rtc.buf[1] = _modbus.getResponseBuffer(1);
     rtc.buf[2] = _modbus.getResponseBuffer(2);
-    _unixTime.setDateTime((2000 + rtc.r.y), rtc.r.M, rtc.r.d, (rtc.r.h + 3), rtc.r.m, rtc.r.s);
+    _unixTime.setDateTime(2000 + rtc.r.y, rtc.r.M, rtc.r.d,
+                          rtc.r.h, rtc.r.m, rtc.r.s);
 
     _errorCode = result;
   }

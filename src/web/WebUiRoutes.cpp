@@ -44,6 +44,15 @@ void addSettings(JsonObject object, const Settings::Data &settings)
   object["staticSubnet"] = settings.staticSN;
   object["staticDns"] = settings.staticDNS;
 }
+
+void sendHtml(AsyncWebServerRequest *request, const char *content)
+{
+  AsyncWebServerResponse *response =
+      request->beginResponse_P(200, "text/html", content);
+  response->addHeader("Cache-Control",
+                      "no-store, no-cache, must-revalidate");
+  request->send(response);
+}
 }
 
 WebUiRoutes::WebUiRoutes(AsyncWebServer &server, Settings &settings,
@@ -68,35 +77,35 @@ void WebUiRoutes::registerRoutes()
              {
                if (!authorize(request))
                  return;
-               request->send_P(200, "text/html", HTML_MAIN);
+               sendHtml(request, HTML_MAIN);
              });
 
   _server.on("/settings", HTTP_GET, [this](AsyncWebServerRequest *request)
              {
                if (!authorize(request))
                  return;
-               request->send_P(200, "text/html", HTML_SETTINGS);
+               sendHtml(request, HTML_SETTINGS);
              });
 
   _server.on("/settingsedit", HTTP_GET, [this](AsyncWebServerRequest *request)
              {
                if (!authorize(request))
                  return;
-               request->send_P(200, "text/html", HTML_SETTINGS_EDIT);
+               sendHtml(request, HTML_SETTINGS_EDIT);
              });
 
   _server.on("/confirmreset", HTTP_GET, [this](AsyncWebServerRequest *request)
              {
                if (!authorize(request))
                  return;
-               request->send_P(200, "text/html", HTML_CONFIRM_RESET);
+               sendHtml(request, HTML_CONFIRM_RESET);
              });
 
   _server.on("/reboot", HTTP_GET, [this](AsyncWebServerRequest *request)
              {
                if (!authorize(request))
                  return;
-               request->send_P(200, "text/html", HTML_REBOOT);
+               sendHtml(request, HTML_REBOOT);
              });
 
   _server.on("/api/reboot", HTTP_POST,
@@ -279,10 +288,36 @@ void WebUiRoutes::sendJsonStatus(AsyncWebServerRequest *request,
 void WebUiRoutes::setDeviceTime(AsyncWebServerRequest *request,
                                 JsonVariant &json)
 {
-  const char *dateTime = json["datetime"] | nullptr;
+  const char *dateTime = json["datetime"].as<const char *>();
+  char dateTimeBuffer[13];
+
+  // Numeric components avoid browser-specific date-string handling.
+  if (dateTime == nullptr && json.is<JsonObject>())
+  {
+    const int year = json["year"] | -1;
+    const int month = json["month"] | -1;
+    const int day = json["day"] | -1;
+    const int hour = json["hour"] | -1;
+    const int minute = json["minute"] | -1;
+    const int second = json["second"] | -1;
+    if (year >= 2000 && year <= 2099 &&
+        month >= 1 && month <= 12 &&
+        day >= 1 && day <= 31 &&
+        hour >= 0 && hour <= 23 &&
+        minute >= 0 && minute <= 59 &&
+        second >= 0 && second <= 59)
+    {
+      snprintf(dateTimeBuffer, sizeof(dateTimeBuffer),
+               "%02d%02d%02d%02d%02d%02d", year % 100, month, day,
+               hour, minute, second);
+      dateTime = dateTimeBuffer;
+    }
+  }
+
   if (dateTime == nullptr)
   {
-    sendJsonStatus(request, 400, false, "datetime is required");
+    sendJsonStatus(request, 400, false,
+                   "Valid year, month, day, hour, minute and second are required");
     return;
   }
 
