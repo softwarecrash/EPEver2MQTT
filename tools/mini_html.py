@@ -36,21 +36,31 @@ try:
   cpp_output = "#pragma once\n\n#include <Arduino.h>  // PROGMEM\n\n"
   print("  -insert html")
 
-  for x in glob.glob(filePath+"*.html"):
+  html_files = sorted(glob.glob(filePath+"*.html"))
+  with open(filePath+"HTML_HEAD.html", "r", encoding="utf-8") as head_file:
+    head_template = head_file.read()
+  with open(filePath+"HTML_FOOT.html", "r", encoding="utf-8") as foot_file:
+    foot_template = foot_file.read()
+
+  for x in html_files:
+   if Path(x).stem in ("HTML_HEAD", "HTML_FOOT"):
+    continue
    print("prozessing file:" + Path(x).stem)
    print(Path(x).stem)
    cpp_output += "static const char "+Path(x).stem+"[] PROGMEM = R\"rawliteral("
-   f = open(x, "r")
+   f = open(x, "r", encoding="utf-8")
+   page = f.read()
+   page = page.replace("%pre_head_template%", head_template)
+   page = page.replace("%pre_foot_template%", foot_template)
    if env.GetProjectOption("build_type") == "debug":
-        cpp_output += f.read()  
+        cpp_output += page
    else:
-      #cpp_output += f.read()  # disable compressor removes %VARIABLE%
-      cpp_output += minify_html.minify(f.read(), minify_js=True)
+      cpp_output += minify_html.minify(page, minify_js=True)
 
    f.close()
    cpp_output += ")rawliteral\";\n"
 
-   f = open ("./src/html.h", "w")
+   f = open ("./src/html.h", "w", encoding="utf-8")
    f.write(cpp_output)
    f.close()
    print("==========================\n")

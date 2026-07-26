@@ -1,4 +1,6 @@
-// Settings: Stores persistant settings, loads and saves to EEPROM
+// Stores persistent settings in EEPROM.
+
+#pragma once
 
 #include <Arduino.h>
 #include <EEPROM.h>
@@ -14,7 +16,7 @@ public:
   String deviceNameStr;
   struct Data
   {                              // do not re-sort this struct
-    unsigned int coVers;         // config version, if changed, previus config will erased
+    unsigned int coVers;         // config version; changes reset stored config
     char deviceName[40];         // device name
     char mqttServer[40];         // mqtt Server adress
     char mqttUser[40];           // mqtt Username
@@ -31,7 +33,7 @@ public:
     bool haDiscovery;            // HomeAssistant Discovery switch
     char NTPTimezone[40];        // Time zone code for NTP get it from here: https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
     char NTPServer[40];          // NTP timepool Server
-    byte LEDBrightness;         // brigthness of led
+    byte LEDBrightness;         // brightness of LED
     char staticIP[16];        // static IP address
     char staticGW[16];        // static gateway
     char staticSN[16];        // static subnet mask
@@ -40,7 +42,7 @@ public:
 
   void load()
   {
-    data = {}; // clear bevor load data
+    data = {};
     EEPROM.begin(EEPROM_SIZE);
     EEPROM.get(0, data);
     EEPROM.end();
@@ -97,10 +99,6 @@ private:
     {
       data.mqttRefresh = 0;
     }
-    if (data.mqttJson && !data.mqttJson)
-    {
-      data.mqttJson = false;
-    }
     if (data.deviceQuantity < 1 || data.deviceQuantity >= 10)
     {
       data.deviceQuantity = 1;
@@ -108,10 +106,6 @@ private:
     if (strlen(data.mqttTriggerPath) == 0 || strlen(data.mqttTriggerPath) >= 80)
     {
       strcpy(data.mqttTriggerPath, "");
-    }
-    if (data.webUIdarkmode && !data.webUIdarkmode)
-    {
-      data.webUIdarkmode = false;
     }
     if (strlen(data.httpUser) == 0 || strlen(data.httpUser) >= 40)
     {
@@ -121,10 +115,6 @@ private:
     {
       strcpy(data.httpPass, "");
     }
-    if (data.haDiscovery && !data.haDiscovery)
-    {
-      data.haDiscovery = false;
-    }
     if (strlen(data.NTPTimezone) == 0 || strlen(data.NTPTimezone) >= 40)
     {
       strcpy(data.NTPTimezone, "");
@@ -132,10 +122,6 @@ private:
     if (strlen(data.NTPServer) == 0 || strlen(data.NTPServer) >= 40)
     {
       strcpy(data.NTPServer, "pool.ntp.org");
-    }
-    if (data.LEDBrightness && !data.LEDBrightness)
-    {
-      data.LEDBrightness = 127;
     }
     if (strlen(data.staticIP) == 0 || strlen(data.staticIP) >= 16)
     {

@@ -142,7 +142,7 @@
             }
             document.getElementById("devtime").innerHTML = unixTimetoDateTime(data[devPrA + shDevNum].LiveData.DEVICE_TIME);
 
-            document.getElementById("SOCbar").innerHTML = data[devPrA + shDevNum].LiveData.BATT_SOC + '%%';
+            document.getElementById("SOCbar").innerHTML = data[devPrA + shDevNum].LiveData.BATT_SOC + '%';
             $('#SOCbar').width(data[devPrA + shDevNum].LiveData.BATT_SOC + "%").attr('aria-valuenow', data[devPrA + shDevNum].LiveData.BATT_SOC);
 
             document.getElementById("solarV").innerHTML = data[devPrA + shDevNum].LiveData.SOLAR_V + 'V ';
@@ -211,7 +211,11 @@
         let loadSwitch;
         if (document.getElementById('loadState').checked) { loadSwitch = 1 }
         else { loadSwitch = 0 }
-        websocket.send('loadSwitch_' + shDevNum + '_' + loadSwitch);
+        websocket.send(JSON.stringify({
+            type: 'setLoad',
+            device: shDevNum,
+            state: loadSwitch === 1
+        }));
     }
 
     function selDev(dir) {
@@ -242,7 +246,7 @@
     }
     function checkWS() {
         if (websocket.readyState !== WebSocket.CLOSED) {
-            websocket.send("A9");
+            websocket.send(JSON.stringify({ type: 'ping' }));
         }
     }
     const minRSSI = -85, maxRSSI = -60;
@@ -256,7 +260,7 @@
     const svg = document.querySelector(".wifi-symbol");
     if (svg) {
       const title = svg.querySelector("title");
-      if (title) title.textContent = p + "%% Strength";
+      if (title) title.textContent = p + "% Strength";
     }
 
     lv.forEach((id, i) => {

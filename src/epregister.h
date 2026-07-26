@@ -1,3 +1,7 @@
+#pragma once
+
+#include "epever/ControllerTypes.h"
+
 // ModBus Register Locations
 //
 #define LIVE_DATA 0x3100 // start of live-data
@@ -243,9 +247,6 @@ static const char *const batt_temp_status[] = {
     "Over WarnTemp",
     "Below WarnTemp"};
 
-// charging equipment status (not fully impl. yet)
-uint8_t charger_operation = 0;
-uint8_t charger_state = 0;
 uint8_t charger_input = 0;
 uint8_t charger_mode = 0;
 
@@ -266,14 +267,6 @@ bool loadState;
 // protocol. The model id at input register 0x3000 identifies the layout:
 // 0..11 = IT-NC G3, 12..23 = ET-NC G3. Older devices return their rated PV
 // voltage at 0x3000 and therefore do not collide with these ids.
-enum class EpeverProfile : uint8_t
-{
-  Unknown,
-  Legacy,
-  ItNcG3,
-  EtNcG3
-};
-
 #define NC_G3_MODEL 0x3000
 #define NC_G3_PV_COUNT 0x300F
 #define NC_G3_RATED_CHARGE_CURRENT 0x3007
