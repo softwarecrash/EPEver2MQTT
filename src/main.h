@@ -27,6 +27,8 @@
 #define SOFTWARE_VERSION SWVERSION
 #define FlashSize ESP.getFreeSketchSpace()
 
+enum class EpeverProfile : uint8_t;
+
 #define DEBUG_WEB(...) webSerial.print(__VA_ARGS__)
 #define DEBUG_WEBLN(...) webSerial.println(__VA_ARGS__)
 #define DEBUG_WEBF(...) webSerial.printf(__VA_ARGS__)
@@ -34,6 +36,12 @@
 bool getEpData(int invNum);
 
 bool getJsonData(int invNum);
+
+EpeverProfile detectEpeverProfile(uint8_t device, bool force = false);
+
+bool writeEpeverLoadState(uint8_t device, bool state);
+
+bool writeNcG3ChargeCurrentLimit(uint8_t device, float amps);
 
 void callback(char *top, byte *payload, unsigned int length);
 
@@ -51,6 +59,12 @@ static const char *const haDescriptor[][4]{
   {"SOLAR_V","solar-power","V","voltage"},
   {"SOLAR_A","solar-power","A","current"},
   {"SOLAR_W","solar-power","W","power"},
+  {"SOLAR_2_V","solar-power","V","voltage"},
+  {"SOLAR_2_A","solar-power","A","current"},
+  {"SOLAR_2_W","solar-power","W","power"},
+  {"SOLAR_TOTAL_A","solar-power","A","current"},
+  {"SOLAR_TOTAL_W","solar-power","W","power"},
+  {"PV_HIGHEST_V","sun-wireless","V","voltage"},
   {"BATT_SOC","car-battery","%","battery"},
   {"BATT_V","battery","V","voltage"},
   {"BATT_A","battery","A","current"},
@@ -61,9 +75,9 @@ static const char *const haDescriptor[][4]{
   {"LOAD_V","battery-charging-medium","V","voltage"},
   {"LOAD_A","battery-charging-medium","A","current"},
   {"LOAD_W","battery-charging-medium","W","power"},
-  {"LOAD_STATE","power-socket-us","",""},
   {"CHARGER_STATE","ev-station","",""},
   {"CHARGER_MODE","ev-station","",""},
+  {"SYSTEM_V","battery-high","V","voltage"},
   // StatsData
   {"SOLAR_MAX","sun-angle","V","voltage"},
   {"SOLAR_MIN","sun-angle-outline","V","voltage"},
@@ -94,6 +108,8 @@ static const char *const haDescriptor[][4]{
   {"UNDER_VOLTS_WARNING","flash-triangle-outline","V","voltage"},
   {"LOW_VOLTS_DISCONNECT","flash-triangle-outline","V","voltage"},
   {"DISCHARGING_LIMIT_VOLTS","flash-triangle-outline","V","voltage"},
+  {"RATED_CHARGE_A","current-dc","A","current"},
+  {"RATED_CHARGE_POWER","solar-power","W","power"},
   // ESP Data
   //{"DEVICE_QUANTITY","chip","",""},
   //{"DEVICE_FREE_HEAP","chip","",""},

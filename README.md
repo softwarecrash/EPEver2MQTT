@@ -1,9 +1,13 @@
 # EPEver2MQTT  [![GitHub release](https://img.shields.io/github/release/softwarecrash/EPEver2MQTT?include_prereleases=&sort=semver&color=blue)](https://github.com/softwarecrash/EPEver2MQTT/releases/latest) [![Discord](https://img.shields.io/discord/1007020337482973254?logo=discord&label=Discord)](https://discord.gg/Hup3gg4YsN)
 ESP82XX to MQTT based connector for EPEver Solar tracker, support multiple trackers
 
+The register map and integration notes for IT-NC G3 and ET-NC G3 controllers
+are in [Protocol/IT-ET-NC-G3.md](Protocol/IT-ET-NC-G3.md).
+
 # Features:
 - set up over captive portal
 - Config in webinterface
+- Read, write, verify, and clone MPPT battery settings from the web interface
 - [Multiple Device Support](https://github.com/softwarecrash/EPEver2MQTT/wiki/Multi-Device-Tutorial)
 - Firmware update via webinterface
 - MQTT Datapoints or Json String over MQTT

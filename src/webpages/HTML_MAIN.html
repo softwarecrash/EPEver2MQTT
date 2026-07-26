@@ -44,7 +44,7 @@
             id="battSOC"></span></div>
 </div>
 
-<div class="row gx-0 mb-2 row gx-0 mb-2 bg-light rounded bg-opacity-50 px-2">
+<div id="loadDataRow" class="row gx-0 mb-2 row gx-0 mb-2 bg-light rounded bg-opacity-50 px-2">
     <div class="col"> Load: </div>
     <div class="col dF"><span id="loadV"></span><span id="loadA"></span><span id="loadW"></span></div>
 </div>
@@ -54,7 +54,7 @@
     <div class="col dF"><span id="deviceTemp"></span><span id="battTemp"></span></div>
 </div>
 
-<div class="row gx-0 mb-2 row gx-0 mb-2 bg-light rounded bg-opacity-50 px-2">
+<div id="consumptionRow" class="row gx-0 mb-2 row gx-0 mb-2 bg-light rounded bg-opacity-50 px-2">
     <div class="col"> Consumed kWh: </div>
     <div class="col dF"><span id="consD"></span><span id="consM"></span><span id="consY"></span><span id="consT"></span>
     </div>
@@ -76,7 +76,7 @@
     <div class="col dF"><span id="chrgmode"></span></div>
 </div>
 
-<div class="row gx-0 mb-2 row gx-0 mb-2 bg-light rounded bg-opacity-50 px-2">
+<div id="loadStateRow" class="row gx-0 mb-2 row gx-0 mb-2 bg-light rounded bg-opacity-50 px-2">
     <div class="col"> Load State: </div>
     <div class="col dF">
         <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch"
@@ -153,18 +153,27 @@
             document.getElementById("battA").innerHTML = data[devPrA + shDevNum].LiveData.BATT_A + 'A  ';
             document.getElementById("battW").innerHTML = data[devPrA + shDevNum].LiveData.BATT_W + 'W  ';
 
-            document.getElementById("loadV").innerHTML = data[devPrA + shDevNum].LiveData.LOAD_V + 'V ';
-            document.getElementById("loadA").innerHTML = data[devPrA + shDevNum].LiveData.LOAD_A + 'A  ';
-            document.getElementById("loadW").innerHTML = data[devPrA + shDevNum].LiveData.LOAD_W + 'W  ';
+            var loadAvailable = data[devPrA + shDevNum].LiveData.LOAD_AVAILABLE !== false;
+            document.getElementById("loadDataRow").style.display = loadAvailable ? '' : 'none';
+            document.getElementById("loadStateRow").style.display = loadAvailable ? '' : 'none';
+            if (loadAvailable) {
+                document.getElementById("loadV").innerHTML = data[devPrA + shDevNum].LiveData.LOAD_V + 'V ';
+                document.getElementById("loadA").innerHTML = data[devPrA + shDevNum].LiveData.LOAD_A + 'A  ';
+                document.getElementById("loadW").innerHTML = data[devPrA + shDevNum].LiveData.LOAD_W + 'W  ';
+            }
 
             document.getElementById("deviceTemp").innerHTML = data[devPrA + shDevNum].LiveData.DEVICE_TEMP + '°C  ';
-            if (data[devPrA + shDevNum].LiveData.BATTERY_TEMP != 25) {
+            if (data[devPrA + shDevNum].LiveData.BATT_TEMP != 25) {
                 document.getElementById("battTemp").innerHTML = ' | ' + data[devPrA + shDevNum].LiveData.BATT_TEMP + '°C  ';
             }
-            document.getElementById("consD").innerHTML = 'D:' + data[devPrA + shDevNum].StatsData.CONS_DAY + '  ';
-            document.getElementById("consM").innerHTML = 'M:' + data[devPrA + shDevNum].StatsData.CONS_MON + '  ';
-            document.getElementById("consY").innerHTML = 'Y:' + data[devPrA + shDevNum].StatsData.CONS_YEAR + '  ';
-            document.getElementById("consT").innerHTML = 'T:' + data[devPrA + shDevNum].StatsData.CONS_TOT;
+            var consumptionAvailable = data[devPrA + shDevNum].StatsData.CONSUMPTION_AVAILABLE !== false;
+            document.getElementById("consumptionRow").style.display = consumptionAvailable ? '' : 'none';
+            if (consumptionAvailable) {
+                document.getElementById("consD").innerHTML = 'D:' + data[devPrA + shDevNum].StatsData.CONS_DAY + '  ';
+                document.getElementById("consM").innerHTML = 'M:' + data[devPrA + shDevNum].StatsData.CONS_MON + '  ';
+                document.getElementById("consY").innerHTML = 'Y:' + data[devPrA + shDevNum].StatsData.CONS_YEAR + '  ';
+                document.getElementById("consT").innerHTML = 'T:' + data[devPrA + shDevNum].StatsData.CONS_TOT;
+            }
 
             document.getElementById("genD").innerHTML = 'D:' + data[devPrA + shDevNum].StatsData.GEN_DAY + '  ';
             document.getElementById("genM").innerHTML = 'M:' + data[devPrA + shDevNum].StatsData.GEN_MON + '  ';
@@ -174,7 +183,9 @@
             document.getElementById("inputstate").innerHTML = data[devPrA + shDevNum].LiveData.CHARGER_STATE;
             document.getElementById("chrgmode").innerHTML = data[devPrA + shDevNum].LiveData.CHARGER_MODE;
 
-            document.getElementById("loadState").checked = data[devPrA + shDevNum].LiveData.LOAD_STATE;
+            if (loadAvailable) {
+                document.getElementById("loadState").checked = data[devPrA + shDevNum].LiveData.LOAD_STATE;
+            }
         }
 
         if (data.ESP_VCC < 2.8) {

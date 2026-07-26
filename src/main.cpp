@@ -118,8 +118,11 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len)
     data[len] = 0;
     if (String((char *)data).substring(0, 11) == "loadSwitch_") // get switch data from web loadSwitch_1_1
     {
-      epnode.setSlaveId(String((char *)data).substring(11, 12).toInt());
-      epnode.writeSingleCoil(0x0002, String((char *)data).substring(13, 14).toInt());
+      uint8_t device = String((char *)data).substring(11, 12).toInt();
+      bool state = String((char *)data).substring(13, 14).toInt() != 0;
+      workerCanRun = false;
+      writeEpeverLoadState(device, state);
+      workerCanRun = true;
       mqtttimer = 0;
     }
   }
@@ -189,6 +192,210 @@ bool resetCounter(bool count)
     ESP.rtcUserMemoryWrite(16, &bootcount, sizeof(bootcount));
   }
   return true;
+}
+
+static bool isNcG3Profile(EpeverProfile profile)
+{
+  return profile == EpeverProfile::ItNcG3 || profile == EpeverProfile::EtNcG3;
+}
+
+static const char *epeverProfileName(EpeverProfile profile)
+{
+  switch (profile)
+  {
+  case EpeverProfile::Legacy:
+    return "Legacy";
+  case EpeverProfile::ItNcG3:
+    return "IT-NC G3";
+  case EpeverProfile::EtNcG3:
+    return "ET-NC G3";
+  default:
+    return "Unknown";
+  }
+}
+
+static uint8_t mpptDeviceQuantity()
+{
+  return _settings.data.deviceQuantity > MAX_DEVICES
+             ? MAX_DEVICES
+             : _settings.data.deviceQuantity;
+}
+
+static bool validMpptDevice(uint8_t device)
+{
+  return device >= 1 && device <= mpptDeviceQuantity();
+}
+
+static uint8_t readHoldingSettingsBlock(uint16_t address, uint8_t count, uint16_t *values)
+{
+  epnode.clearResponseBuffer();
+  uint8_t status = epnode.readHoldingRegisters(address, count);
+  if (status == epnode.ku8MBSuccess)
+  {
+    for (uint8_t index = 0; index < count; index++)
+      values[index] = epnode.getResponseBuffer(index);
+  }
+  return status;
+}
+
+static uint8_t writeHoldingSettingsBlock(uint16_t address, uint8_t count, const uint16_t *values)
+{
+  epnode.clearTransmitBuffer();
+  for (uint8_t index = 0; index < count; index++)
+    epnode.setTransmitBuffer(index, values[index]);
+  return epnode.writeMultipleRegisters(address, count);
+}
+
+static uint8_t readMpptSettings(uint8_t device, uint16_t *values)
+{
+  static_assert(DEVICE_SETTINGS_CNT == 15, "Web settings mapping requires 15 logical values");
+  epnode.setSlaveId(device);
+  EpeverProfile profile = detectEpeverProfile(device);
+  if (profile == EpeverProfile::Unknown)
+    return epnode.ku8MBInvalidSlaveID;
+
+  if (!isNcG3Profile(profile))
+    return readHoldingSettingsBlock(DEVICE_SETTINGS, DEVICE_SETTINGS_CNT, values);
+
+  // NC G3 keeps the first three logical settings at 0x9000..0x9002 and
+  // moves the twelve voltage thresholds to 0x9007..0x9012.
+  uint8_t status = readHoldingSettingsBlock(0x9000, 3, values);
+  if (status != epnode.ku8MBSuccess)
+    return status;
+  return readHoldingSettingsBlock(0x9007, 12, values + 3);
+}
+
+static bool mpptSettingsMatch(const uint16_t *expected, const uint16_t *actual)
+{
+  for (uint8_t index = 0; index < DEVICE_SETTINGS_CNT; index++)
+  {
+    if (expected[index] != actual[index])
+      return false;
+  }
+  return true;
+}
+
+static uint8_t writeMpptSettings(uint8_t device, const uint16_t *values)
+{
+  epnode.setSlaveId(device);
+  EpeverProfile profile = detectEpeverProfile(device);
+  if (profile == EpeverProfile::Unknown)
+    return epnode.ku8MBInvalidSlaveID;
+
+  if (!isNcG3Profile(profile))
+    return writeHoldingSettingsBlock(DEVICE_SETTINGS, DEVICE_SETTINGS_CNT, values);
+
+  // Write the safety-relevant voltage block first. Never write the NC G3 gap
+  // at 0x9003..0x9006 as part of a legacy-style contiguous transfer.
+  uint8_t status = writeHoldingSettingsBlock(0x9007, 12, values + 3);
+  if (status != epnode.ku8MBSuccess)
+    return status;
+  return writeHoldingSettingsBlock(0x9000, 3, values);
+}
+
+// 0 = verified, 1 = read-back failed, 2 = controller changed/rejected values.
+static uint8_t writeAndVerifyMpptSettings(uint8_t device, const uint16_t *values, uint16_t *readBack,
+                                          uint8_t &writeStatus, uint8_t &readStatus)
+{
+  uint16_t previousTimeout = epnode.getResponseTimeout();
+  epnode.setResponseTimeout(500);
+  writeStatus = writeMpptSettings(device, values);
+  delay(200);
+  readStatus = readMpptSettings(device, readBack);
+
+  if (readStatus == epnode.ku8MBSuccess && mpptSettingsMatch(values, readBack))
+  {
+    epnode.setResponseTimeout(previousTimeout);
+    return 0;
+  }
+
+  if (writeStatus == epnode.ku8MBResponseTimedOut || writeStatus == epnode.ku8MBInvalidCRC)
+  {
+    delay(250);
+    writeStatus = writeMpptSettings(device, values);
+    delay(200);
+    readStatus = readMpptSettings(device, readBack);
+  }
+
+  epnode.setResponseTimeout(previousTimeout);
+  if (readStatus != epnode.ku8MBSuccess)
+    return 1;
+  return mpptSettingsMatch(values, readBack) ? 0 : 2;
+}
+
+static void updateMpptSettingsJson(uint8_t device, EpeverProfile profile, const uint16_t *values)
+{
+  JsonObject deviceData = liveJson["EP_" + String(device)]["DeviceData"];
+  if (isNcG3Profile(profile))
+    deviceData["BATTERY_TYPE"] = values[0] < 13 ? nc_g3_battery_types[values[0]] : "Unknown";
+  else
+    deviceData["BATTERY_TYPE"] =
+        values[0] < (sizeof batt_type / sizeof batt_type[0]) ? batt_type[values[0]] : "Unknown";
+  deviceData["BATTERY_CAPACITY"] = values[1];
+  deviceData["TEMPERATURE_COMPENSATION"] = values[2] / (isNcG3Profile(profile) ? -100.f : 100.f);
+  deviceData["HIGH_VOLT_DISCONNECT"] = values[3] / 100.f;
+  deviceData["CHARGING_LIMIT_VOLTS"] = values[4] / 100.f;
+  deviceData["OVER_VOLTS_RECONNECT"] = values[5] / 100.f;
+  deviceData["EQUALIZATION_VOLTS"] = values[6] / 100.f;
+  deviceData["BOOST_VOLTS"] = values[7] / 100.f;
+  deviceData["FLOAT_VOLTS"] = values[8] / 100.f;
+  deviceData["BOOST_RECONNECT_VOLTS"] = values[9] / 100.f;
+  deviceData["LOW_VOLTS_RECONNECT"] = values[10] / 100.f;
+  deviceData["UNDER_VOLTS_RECOVER"] = values[11] / 100.f;
+  deviceData["UNDER_VOLTS_WARNING"] = values[12] / 100.f;
+  deviceData["LOW_VOLTS_DISCONNECT"] = values[13] / 100.f;
+  deviceData["DISCHARGING_LIMIT_VOLTS"] = values[14] / 100.f;
+}
+
+static void sendMpptSettingsResponse(AsyncWebServerRequest *request, uint16_t statusCode, uint8_t device,
+                                     EpeverProfile profile, const uint16_t *values, const String &message)
+{
+  JsonDocument document;
+  document["ok"] = statusCode == 200;
+  document["device"] = device;
+  document["deviceQuantity"] = mpptDeviceQuantity();
+  document["profile"] = epeverProfileName(profile);
+  document["maxBatteryType"] = isNcG3Profile(profile) ? 12 : 3;
+  document["message"] = message;
+  if (values != nullptr)
+  {
+    JsonArray registerValues = document["values"].to<JsonArray>();
+    for (uint8_t index = 0; index < DEVICE_SETTINGS_CNT; index++)
+      registerValues.add(values[index]);
+  }
+
+  String body;
+  serializeJson(document, body);
+  request->send(statusCode, "application/json", body);
+}
+
+static bool parseMpptSetting(AsyncWebServerRequest *request, uint8_t index, uint16_t scale,
+                             uint16_t maximum, uint16_t &value)
+{
+  String parameterName = "e" + String(index + 1);
+  if (!request->hasParam(parameterName, true))
+    return false;
+
+  String input = request->getParam(parameterName, true)->value();
+  char *end = nullptr;
+  double parsed = strtod(input.c_str(), &end);
+  if (input.length() == 0 || end == input.c_str() || *end != '\0' ||
+      !isfinite(parsed) || parsed < 0)
+    return false;
+
+  double scaled = parsed * scale;
+  double rounded = round(scaled);
+  if (scaled > maximum || fabs(scaled - rounded) > 0.001)
+    return false;
+
+  value = (uint16_t)rounded;
+  return true;
+}
+
+static bool compatibleMpptSettingsProfiles(EpeverProfile source, EpeverProfile target)
+{
+  return (source == EpeverProfile::Legacy && target == EpeverProfile::Legacy) ||
+         (isNcG3Profile(source) && isNcG3Profile(target));
 }
 
 void setup()
@@ -349,6 +556,251 @@ void setup()
       AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", HTML_SETTINGS_EDIT, htmlProcessor);
       request->send(response); });
 
+    server.on("/mpptsettings", HTTP_GET, [](AsyncWebServerRequest *request)
+              {
+                if(strlen(_settings.data.httpUser) > 0 && !request->authenticate(_settings.data.httpUser, _settings.data.httpPass)) return request->requestAuthentication();
+                AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", HTML_MPPT_SETTINGS, htmlProcessor);
+                request->send(response); });
+
+    server.on("/mpptsettingsjson", HTTP_GET, [](AsyncWebServerRequest *request)
+              {
+                if(strlen(_settings.data.httpUser) > 0 && !request->authenticate(_settings.data.httpUser, _settings.data.httpPass)) return request->requestAuthentication();
+                uint8_t device = request->hasParam("device") ? request->getParam("device")->value().toInt() : 1;
+                if (!validMpptDevice(device))
+                {
+                  sendMpptSettingsResponse(request, 400, device, EpeverProfile::Unknown, nullptr,
+                                           "Invalid MPPT device number");
+                  return;
+                }
+
+                uint16_t values[DEVICE_SETTINGS_CNT];
+                workerCanRun = false;
+                EpeverProfile profile = detectEpeverProfile(device);
+                uint8_t status = readMpptSettings(device, values);
+                workerCanRun = true;
+                if (status != epnode.ku8MBSuccess)
+                {
+                  sendMpptSettingsResponse(request, 502, device, profile, nullptr,
+                                           "Modbus read failed (code " + String(status) + ")");
+                  return;
+                }
+
+                updateMpptSettingsJson(device, profile, values);
+                sendMpptSettingsResponse(request, 200, device, profile, values,
+                                         "Settings read successfully");
+              });
+
+    server.on("/mpptsettingsapply", HTTP_POST, [](AsyncWebServerRequest *request)
+              {
+                if(strlen(_settings.data.httpUser) > 0 && !request->authenticate(_settings.data.httpUser, _settings.data.httpPass)) return request->requestAuthentication();
+                uint8_t device = request->hasParam("device", true) ? request->getParam("device", true)->value().toInt() : 0;
+                if (!validMpptDevice(device))
+                {
+                  sendMpptSettingsResponse(request, 400, device, EpeverProfile::Unknown, nullptr,
+                                           "Invalid MPPT device number");
+                  return;
+                }
+
+                workerCanRun = false;
+                EpeverProfile profile = detectEpeverProfile(device);
+                workerCanRun = true;
+                if (profile == EpeverProfile::Unknown)
+                {
+                  sendMpptSettingsResponse(request, 502, device, profile, nullptr,
+                                           "Unable to detect the controller profile");
+                  return;
+                }
+
+                uint16_t values[DEVICE_SETTINGS_CNT];
+                uint16_t maximumBatteryType = isNcG3Profile(profile) ? 12 : 3;
+                if (!parseMpptSetting(request, 0, 1, maximumBatteryType, values[0]) ||
+                    !parseMpptSetting(request, 1, 1, UINT16_MAX, values[1]) ||
+                    !parseMpptSetting(request, 2, 100, 900, values[2]))
+                {
+                  sendMpptSettingsResponse(request, 400, device, profile, nullptr,
+                                           "Battery type, capacity, or temperature compensation is invalid");
+                  return;
+                }
+                for (uint8_t index = 3; index < DEVICE_SETTINGS_CNT; index++)
+                {
+                  if (!parseMpptSetting(request, index, 100, UINT16_MAX, values[index]))
+                  {
+                    sendMpptSettingsResponse(request, 400, device, profile, nullptr,
+                                             "E" + String(index + 1) + " contains an invalid value");
+                    return;
+                  }
+                }
+
+                // Permit equal charge-stage voltages (common for lithium
+                // profiles), while retaining the controller's safety ordering.
+                if (!(values[3] > values[4] && values[4] >= values[6] &&
+                      values[6] >= values[7] && values[7] >= values[8] &&
+                      values[8] > values[9]))
+                {
+                  sendMpptSettingsResponse(request, 400, device, profile, nullptr,
+                                           "Required: E4 > E5 >= E7 >= E8 >= E9 > E10");
+                  return;
+                }
+                if (!(values[11] > values[12] && values[12] > values[13] &&
+                      values[13] > values[14]))
+                {
+                  sendMpptSettingsResponse(request, 400, device, profile, nullptr,
+                                           "Required: E12 > E13 > E14 > E15");
+                  return;
+                }
+                if (values[3] <= values[5] || values[10] <= values[13])
+                {
+                  sendMpptSettingsResponse(request, 400, device, profile, nullptr,
+                                           "Required: E4 > E6 and E11 > E14");
+                  return;
+                }
+
+                workerCanRun = false;
+                uint16_t readBack[DEVICE_SETTINGS_CNT];
+                uint8_t writeStatus;
+                uint8_t readStatus;
+                uint8_t verifyStatus =
+                    writeAndVerifyMpptSettings(device, values, readBack, writeStatus, readStatus);
+                workerCanRun = true;
+                if (verifyStatus == 1)
+                {
+                  sendMpptSettingsResponse(request, 502, device, profile, nullptr,
+                                           "Write code " + String(writeStatus) +
+                                               "; read-back failed with code " + String(readStatus));
+                  return;
+                }
+
+                updateMpptSettingsJson(device, profile, readBack);
+                if (verifyStatus == 2)
+                {
+                  sendMpptSettingsResponse(request, 409, device, profile, readBack,
+                                           "Controller rejected or changed values; actual values were reloaded");
+                  return;
+                }
+
+                mqtttimer = 0;
+                sendMpptSettingsResponse(
+                    request, 200, device, profile, readBack,
+                    writeStatus == epnode.ku8MBSuccess
+                        ? "MPPT settings applied and verified"
+                        : "Settings verified despite write acknowledgement code " + String(writeStatus));
+              });
+
+    server.on("/mpptsettingsclone", HTTP_POST, [](AsyncWebServerRequest *request)
+              {
+                if(strlen(_settings.data.httpUser) > 0 && !request->authenticate(_settings.data.httpUser, _settings.data.httpPass)) return request->requestAuthentication();
+                uint8_t source = request->hasParam("source", true) ? request->getParam("source", true)->value().toInt() : 0;
+                String targetList = request->hasParam("targets", true) ? request->getParam("targets", true)->value() : "";
+                if (!validMpptDevice(source))
+                {
+                  sendMpptSettingsResponse(request, 400, source, EpeverProfile::Unknown, nullptr,
+                                           "Invalid source MPPT device number");
+                  return;
+                }
+
+                bool selected[MAX_DEVICES + 1] = {};
+                uint8_t targetCount = 0;
+                unsigned int start = 0;
+                while (start < targetList.length())
+                {
+                  int comma = targetList.indexOf(',', start);
+                  String token = comma < 0 ? targetList.substring(start) : targetList.substring(start, comma);
+                  token.trim();
+                  uint8_t target = token.toInt();
+                  if (token.length() == 0 || !validMpptDevice(target) || target == source)
+                  {
+                    sendMpptSettingsResponse(request, 400, source, EpeverProfile::Unknown, nullptr,
+                                             "Invalid clone target list");
+                    return;
+                  }
+                  if (!selected[target])
+                  {
+                    selected[target] = true;
+                    targetCount++;
+                  }
+                  if (comma < 0)
+                    break;
+                  start = comma + 1;
+                }
+                if (targetCount == 0)
+                {
+                  sendMpptSettingsResponse(request, 400, source, EpeverProfile::Unknown, nullptr,
+                                           "Select at least one other MPPT device");
+                  return;
+                }
+
+                workerCanRun = false;
+                EpeverProfile sourceProfile = detectEpeverProfile(source);
+                uint16_t sourceValues[DEVICE_SETTINGS_CNT];
+                uint8_t sourceStatus = readMpptSettings(source, sourceValues);
+                if (sourceStatus != epnode.ku8MBSuccess)
+                {
+                  workerCanRun = true;
+                  sendMpptSettingsResponse(request, 502, source, sourceProfile, nullptr,
+                                           "Could not read source settings (code " + String(sourceStatus) + ")");
+                  return;
+                }
+                updateMpptSettingsJson(source, sourceProfile, sourceValues);
+
+                JsonDocument document;
+                document["source"] = source;
+                document["sourceProfile"] = epeverProfileName(sourceProfile);
+                document["deviceQuantity"] = mpptDeviceQuantity();
+                JsonArray results = document["results"].to<JsonArray>();
+                uint8_t successCount = 0;
+
+                for (uint8_t target = 1; target <= mpptDeviceQuantity(); target++)
+                {
+                  if (!selected[target])
+                    continue;
+
+                  JsonObject targetResult = results.add<JsonObject>();
+                  targetResult["device"] = target;
+                  EpeverProfile targetProfile = detectEpeverProfile(target);
+                  targetResult["profile"] = epeverProfileName(targetProfile);
+                  if (!compatibleMpptSettingsProfiles(sourceProfile, targetProfile))
+                  {
+                    targetResult["ok"] = false;
+                    targetResult["message"] = "Skipped: incompatible Legacy/NC-G3 settings layout";
+                    continue;
+                  }
+
+                  uint16_t readBack[DEVICE_SETTINGS_CNT];
+                  uint8_t writeStatus;
+                  uint8_t readStatus;
+                  uint8_t verifyStatus =
+                      writeAndVerifyMpptSettings(target, sourceValues, readBack, writeStatus, readStatus);
+                  targetResult["writeCode"] = writeStatus;
+                  targetResult["readCode"] = readStatus;
+                  targetResult["ok"] = verifyStatus == 0;
+                  if (verifyStatus == 0)
+                  {
+                    successCount++;
+                    updateMpptSettingsJson(target, targetProfile, readBack);
+                    targetResult["message"] = "Cloned and verified";
+                  }
+                  else if (verifyStatus == 1)
+                  {
+                    targetResult["message"] = "Read-back failed";
+                  }
+                  else
+                  {
+                    updateMpptSettingsJson(target, targetProfile, readBack);
+                    targetResult["message"] = "Controller rejected or changed values";
+                  }
+                  delay(100);
+                }
+
+                workerCanRun = true;
+                mqtttimer = 0;
+                document["ok"] = successCount == targetCount;
+                document["message"] = String(successCount) + " of " + String(targetCount) +
+                                      " target devices cloned successfully";
+                String body;
+                serializeJson(document, body);
+                request->send(200, "application/json", body);
+              });
+
     server.on("/settingssave", HTTP_POST, [](AsyncWebServerRequest *request)
               {
                 if(strlen(_settings.data.httpUser) > 0 && !request->authenticate(_settings.data.httpUser, _settings.data.httpPass)) return request->requestAuthentication();
@@ -393,10 +845,17 @@ void setup()
         for (size_t i = 1; i <= ((size_t)_settings.data.deviceQuantity); i++)
         {
           epnode.setSlaveId(i);
+          EpeverProfile profile = detectEpeverProfile(i);
+          if (profile == EpeverProfile::Unknown)
+            continue;
           epnode.setTransmitBuffer(0, ((uint16_t)rtcSetm << 8) | rtcSets); // minute | secund
           epnode.setTransmitBuffer(1, ((uint16_t)rtcSetD << 8) | rtcSeth); // day | hour
           epnode.setTransmitBuffer(2, ((uint16_t)rtcSetY << 8) | rtcSetM); // year | month
-          epnode.writeMultipleRegisters(0x9013, 3); //write registers
+          uint16_t clockRegister =
+              (profile == EpeverProfile::ItNcG3 || profile == EpeverProfile::EtNcG3)
+                  ? NC_G3_RTC_CLOCK
+                  : RTC_CLOCK;
+          epnode.writeMultipleRegisters(clockRegister, 3);
           delay(50);
         }
     }
@@ -559,10 +1018,20 @@ bool epWorker()
     for (size_t i = 1; i <= ((size_t)_settings.data.deviceQuantity); i++)
     {
       epnode.setSlaveId(i);
+      EpeverProfile profile = detectEpeverProfile(i);
+      if (profile == EpeverProfile::Unknown)
+      {
+        DEBUG_WEBLN("[" + String(i) + "] Device profile unknown; clock write skipped");
+        continue;
+      }
       epnode.setTransmitBuffer(0, ((uint16_t)NTPTime.tm_min << 8) | NTPTime.tm_sec);                // minute | secund
       epnode.setTransmitBuffer(1, ((uint16_t)NTPTime.tm_mday << 8) | NTPTime.tm_hour);              // day | hour
       epnode.setTransmitBuffer(2, ((uint16_t)(NTPTime.tm_year - 100) << 8) | (NTPTime.tm_mon + 1)); // year | month
-      epnode.writeMultipleRegisters(0x9013, 3);                                                     // write registers
+      uint16_t clockRegister =
+          (profile == EpeverProfile::ItNcG3 || profile == EpeverProfile::EtNcG3)
+              ? NC_G3_RTC_CLOCK
+              : RTC_CLOCK;
+      epnode.writeMultipleRegisters(clockRegister, 3);
       delay(50);
     }
     DEBUG_WEBLN((String)NTPTime.tm_mday + "." + (NTPTime.tm_mon + 1) + "." + (NTPTime.tm_year + 1900) + " " + NTPTime.tm_hour + ":" + NTPTime.tm_min + ":" + NTPTime.tm_sec);
@@ -607,7 +1076,276 @@ bool epWorker()
   return true;
 }
 
+static uint32_t wordsToUint32(uint16_t lowWord, uint16_t highWord)
+{
+  return (uint32_t)lowWord | ((uint32_t)highWord << 16);
+}
+
+static bool readInputBlock(uint16_t address, uint8_t count, uint16_t *values)
+{
+  epnode.clearResponseBuffer();
+  result = epnode.readInputRegisters(address, count);
+  if (result != epnode.ku8MBSuccess)
+    return false;
+
+  for (uint8_t index = 0; index < count; index++)
+    values[index] = epnode.getResponseBuffer(index);
+  return true;
+}
+
+static bool readHoldingBlock(uint16_t address, uint8_t count, uint16_t *values)
+{
+  epnode.clearResponseBuffer();
+  result = epnode.readHoldingRegisters(address, count);
+  if (result != epnode.ku8MBSuccess)
+    return false;
+
+  for (uint8_t index = 0; index < count; index++)
+    values[index] = epnode.getResponseBuffer(index);
+  return true;
+}
+
+EpeverProfile detectEpeverProfile(uint8_t device, bool force)
+{
+  if (device == 0 || device > MAX_DEVICES)
+    return EpeverProfile::Unknown;
+  if (!force && deviceProfiles[device] != EpeverProfile::Unknown)
+    return deviceProfiles[device];
+
+  epnode.setSlaveId(device);
+  uint16_t model;
+  if (!readInputBlock(NC_G3_MODEL, 1, &model))
+    return EpeverProfile::Unknown;
+
+  if (model <= 11)
+    deviceProfiles[device] = EpeverProfile::ItNcG3;
+  else if (model <= 23)
+    deviceProfiles[device] = EpeverProfile::EtNcG3;
+  else
+    deviceProfiles[device] = EpeverProfile::Legacy;
+
+  if (model <= 23)
+    deviceModelIds[device] = model;
+  return deviceProfiles[device];
+}
+
+static bool getLegacyEpData(int invNum);
+
+static bool getNcG3EpData(int invNum, EpeverProfile profile)
+{
+  memset(&ncG3, 0, sizeof(ncG3));
+  memset(rtc.buf, 0, sizeof(rtc.buf));
+  uTime.setDateTime(0, 0, 0, 0, 0, 0);
+  loadState = false;
+
+  uint16_t values[20];
+  ncG3.modelId = deviceModelIds[invNum];
+
+  // Rated data. Only the model and charge-current rating are required for
+  // profile selection and safe current-limit writes; other ratings are
+  // optional because firmware revisions expose slightly different subsets.
+  if (readInputBlock(0x3002, 1, values))
+    ncG3.pvMaxVoltage = values[0];
+  if (readInputBlock(0x3004, 4, values))
+  {
+    ncG3.ratedChargePower = wordsToUint32(values[0], values[1]);
+    ncG3.ratedBatteryVoltage = values[2];
+    ncG3.ratedChargeCurrent = values[3];
+    deviceRatedChargeCurrent[invNum] = values[3];
+  }
+  if (profile == EpeverProfile::ItNcG3 && readInputBlock(0x300B, 1, values))
+    ncG3.ratedLoadCurrent = values[0];
+  if (readInputBlock(0x300E, 2, values))
+  {
+    ncG3.dspFirmware = values[0];
+    ncG3.pvCount = values[1];
+  }
+  if (readInputBlock(0x3011, 1, values))
+    ncG3.armFirmware = values[0];
+  if (ncG3.pvCount < 1 || ncG3.pvCount > 2)
+    ncG3.pvCount = 1;
+
+  // Core live data.
+  if (!readInputBlock(0x3100, 4, values))
+    goto read_failed;
+  ncG3.pv1Voltage = values[0];
+  ncG3.pv1Current = values[1];
+  ncG3.pv1Power = wordsToUint32(values[2], values[3]);
+
+  if (ncG3.pvCount > 1 && readInputBlock(0x3108, 4, values))
+  {
+    ncG3.pv2Voltage = values[0];
+    ncG3.pv2Current = values[1];
+    ncG3.pv2Power = wordsToUint32(values[2], values[3]);
+  }
+
+  if (profile == EpeverProfile::ItNcG3)
+  {
+    if (!readInputBlock(0x3110, 4, values))
+      goto read_failed;
+    ncG3.loadVoltage = values[0];
+    ncG3.loadCurrent = values[1];
+    ncG3.loadPower = wordsToUint32(values[2], values[3]);
+  }
+
+  if (!readInputBlock(0x3114, 1, values))
+    goto read_failed;
+  ncG3.batteryVoltage = values[0];
+  if (!readInputBlock(0x3117, 4, values))
+    goto read_failed;
+  ncG3.batteryCurrent = (int16_t)values[0];
+  ncG3.batteryTemperature = (int16_t)values[1];
+  ncG3.batterySoc = values[2];
+  ncG3.deviceTemperature = (int16_t)values[3];
+  if (!readInputBlock(0x311D, 5, values))
+    goto read_failed;
+  ncG3.systemVoltage = values[0];
+  ncG3.highestPvVoltage = values[1];
+  ncG3.totalPvCurrent = values[2];
+  ncG3.totalPvPower = wordsToUint32(values[3], values[4]);
+
+  if (!readInputBlock(0x3200, 4, values))
+    goto read_failed;
+  for (uint8_t index = 0; index < 4; index++)
+    ncG3.status[index] = values[index];
+  if (readInputBlock(0x3205, 1, values))
+    ncG3.status[5] = values[0];
+
+  if (!readInputBlock(0x3301, 2, values))
+    goto read_failed;
+  ncG3.batteryMaxToday = values[0];
+  ncG3.batteryMinToday = values[1];
+
+  if (profile == EpeverProfile::ItNcG3)
+  {
+    if (!readInputBlock(0x3303, 16, values))
+      goto read_failed;
+    ncG3.consumedDay = wordsToUint32(values[0], values[1]);
+    ncG3.consumedMonth = wordsToUint32(values[2], values[3]);
+    ncG3.consumedYear = wordsToUint32(values[4], values[5]);
+    ncG3.consumedTotal = wordsToUint32(values[6], values[7]);
+    ncG3.generatedDay = wordsToUint32(values[8], values[9]);
+    ncG3.generatedMonth = wordsToUint32(values[10], values[11]);
+    ncG3.generatedYear = wordsToUint32(values[12], values[13]);
+    ncG3.generatedTotal = wordsToUint32(values[14], values[15]);
+  }
+  else
+  {
+    if (!readInputBlock(0x330B, 8, values))
+      goto read_failed;
+    ncG3.generatedDay = wordsToUint32(values[0], values[1]);
+    ncG3.generatedMonth = wordsToUint32(values[2], values[3]);
+    ncG3.generatedYear = wordsToUint32(values[4], values[5]);
+    ncG3.generatedTotal = wordsToUint32(values[6], values[7]);
+  }
+
+  // Main battery settings, split around gaps in the G3 map.
+  if (!readHoldingBlock(0x9000, 3, values))
+    goto read_failed;
+  ncG3.batteryType = values[0];
+  ncG3.batteryCapacity = values[1];
+  ncG3.temperatureCompensation = values[2];
+  if (!readHoldingBlock(0x9007, 13, values))
+    goto read_failed;
+  ncG3.highVoltageDisconnect = values[0];
+  ncG3.chargingLimitVoltage = values[1];
+  ncG3.overVoltageReconnect = values[2];
+  ncG3.equalizationVoltage = values[3];
+  ncG3.boostVoltage = values[4];
+  ncG3.floatVoltage = values[5];
+  ncG3.boostReconnectVoltage = values[6];
+  ncG3.lowVoltageReconnect = values[7];
+  ncG3.underVoltageRecover = values[8];
+  ncG3.underVoltageWarning = values[9];
+  ncG3.lowVoltageDisconnect = values[10];
+  ncG3.dischargingLimitVoltage = values[11];
+  ncG3.chargingCurrentLimit = values[12];
+
+  // Optional settings and the G3 RTC. Not all firmware exposes every group.
+  if (readHoldingBlock(0x9014, 9, values))
+  {
+    ncG3.equalizationTime = values[0];
+    ncG3.boostTime = values[1];
+    ncG3.lithiumProtection = values[2];
+    ncG3.lowTemperatureChargeLimit = (int16_t)values[3];
+    ncG3.lowTemperatureDischargeLimit = (int16_t)values[4];
+    rtc.buf[0] = values[5];
+    rtc.buf[1] = values[6];
+    rtc.buf[2] = values[7];
+    ncG3.maximumBatteryTemperature = (int16_t)values[8];
+    uTime.setDateTime(2000 + rtc.r.y, rtc.r.M, rtc.r.d, rtc.r.h, rtc.r.m, rtc.r.s);
+  }
+  if (readHoldingBlock(0x901D, 3, values))
+  {
+    ncG3.minimumBatteryTemperature = (int16_t)values[0];
+    ncG3.maximumDeviceTemperature = (int16_t)values[1];
+    ncG3.deviceTemperatureRecover = (int16_t)values[2];
+  }
+  if (readHoldingBlock(0x9038, 16, values))
+  {
+    ncG3.chargingMode = values[0];
+    ncG3.fullSoc = values[1];
+    ncG3.fullSocRecover = values[2];
+    ncG3.dischargeRecoverSoc = values[3];
+    ncG3.lowPowerRecoverSoc = values[4];
+    ncG3.lowPowerAlarmSoc = values[5];
+    ncG3.dischargeSoc = values[6];
+    ncG3.recordPeriod = values[7];
+    ncG3.bmsProtocol = values[8];
+    ncG3.bmsEnabled = values[9];
+    ncG3.pvInputMode = values[10];
+    ncG3.modbusAddress = values[13];
+    ncG3.baudRateCode = values[14];
+    ncG3.parallelChargeCurrentLimit = values[15];
+  }
+
+  // The IT profile exposes detailed BMS telemetry. Keep this optional so a
+  // controller without an active BMS still publishes its normal live data.
+  if (profile == EpeverProfile::ItNcG3 && readInputBlock(0x3400, 10, values))
+  {
+    ncG3.bmsCellCount = values[0];
+    ncG3.bmsPackVoltage = values[1];
+    ncG3.bmsCurrent = (int16_t)values[2];
+    ncG3.bmsFullCapacity = values[5];
+    ncG3.bmsRemainingCapacity = values[6];
+    ncG3.bmsRemainingMinutes = values[7];
+    ncG3.bmsMaximumCellTemperature = (int16_t)values[8];
+    ncG3.bmsMinimumCellTemperature = (int16_t)values[9];
+    ncG3.bmsDataValid = true;
+  }
+
+  if (profile == EpeverProfile::ItNcG3)
+  {
+    epnode.clearResponseBuffer();
+    result = epnode.readCoils(NC_G3_LOAD_STATE, 1);
+    loadState = result == epnode.ku8MBSuccess
+                    ? epnode.getResponseBuffer(0) != 0
+                    : (ncG3.status[1] & 0x0001) != 0;
+  }
+
+  errorcode = 0;
+  DEBUG_WEBLN("[" + String(invNum) + "] NC G3 transmission OK.");
+  return true;
+
+read_failed:
+  errorcode = result;
+  DEBUG_WEBLN("[" + String(invNum) + "] " + String(result) + " NC G3 register read failed");
+  return false;
+}
+
 bool getEpData(int invNum)
+{
+  errorcode = 0;
+  epnode.setSlaveId(invNum);
+  EpeverProfile profile = detectEpeverProfile(invNum);
+
+  if (profile == EpeverProfile::ItNcG3 || profile == EpeverProfile::EtNcG3)
+    return getNcG3EpData(invNum, profile);
+
+  return getLegacyEpData(invNum);
+}
+
+static bool getLegacyEpData(int invNum)
 {
   errorcode = 0;
   epnode.setSlaveId(invNum);
@@ -790,10 +1528,246 @@ bool getEpData(int invNum)
   return true;
 }
 
+bool writeEpeverLoadState(uint8_t device, bool state)
+{
+  EpeverProfile profile = detectEpeverProfile(device);
+  if (profile == EpeverProfile::Unknown || profile == EpeverProfile::EtNcG3)
+    return false;
+
+  epnode.setSlaveId(device);
+  uint16_t coil = profile == EpeverProfile::ItNcG3 ? NC_G3_LOAD_STATE : LOAD_STATE;
+  uint8_t writeStatus = epnode.writeSingleCoil(coil, state ? 1 : 0);
+  delay(50);
+  epnode.clearResponseBuffer();
+  uint8_t readStatus = epnode.readCoils(coil, 1);
+  return writeStatus == epnode.ku8MBSuccess &&
+         readStatus == epnode.ku8MBSuccess &&
+         (epnode.getResponseBuffer(0) != 0) == state;
+}
+
+bool writeNcG3ChargeCurrentLimit(uint8_t device, float amps)
+{
+  if (!isfinite(amps) || amps <= 0)
+    return false;
+
+  EpeverProfile profile = detectEpeverProfile(device);
+  if (profile != EpeverProfile::ItNcG3 && profile != EpeverProfile::EtNcG3)
+    return false;
+
+  epnode.setSlaveId(device);
+  uint16_t ratedRaw = deviceRatedChargeCurrent[device];
+  if (ratedRaw == 0 && !readInputBlock(NC_G3_RATED_CHARGE_CURRENT, 1, &ratedRaw))
+    return false;
+  deviceRatedChargeCurrent[device] = ratedRaw;
+
+  float scaled = amps * 100.0f;
+  uint32_t requestedRaw = (uint32_t)roundf(scaled);
+  if (requestedRaw == 0 || requestedRaw > ratedRaw || requestedRaw > UINT16_MAX ||
+      fabsf(scaled - requestedRaw) > 0.01f)
+    return false;
+
+  uint8_t writeStatus = epnode.writeSingleRegister(NC_G3_CHARGE_CURRENT_LIMIT, (uint16_t)requestedRaw);
+  delay(100);
+  uint16_t readBack;
+  bool verified = readHoldingBlock(NC_G3_CHARGE_CURRENT_LIMIT, 1, &readBack) &&
+                  readBack == requestedRaw;
+  if (verified)
+    ncG3.chargingCurrentLimit = readBack;
+  return writeStatus == epnode.ku8MBSuccess && verified;
+}
+
+static const char *ncG3BatteryVoltageState(uint8_t value)
+{
+  switch (value)
+  {
+  case 0:
+    return "Normal";
+  case 1:
+    return "Overvoltage";
+  case 2:
+    return "Undervoltage";
+  case 3:
+    return "Low voltage disconnect";
+  default:
+    return "Fault";
+  }
+}
+
+static const char *ncG3BatteryTemperatureState(uint8_t value)
+{
+  if (value == 0)
+    return "Normal";
+  if (value == 1)
+    return "Over temperature";
+  if (value == 2)
+    return "Low temperature";
+  return "Fault";
+}
+
+static bool getNcG3JsonData(int invNum, EpeverProfile profile)
+{
+  String deviceKey = "EP_" + String(invNum);
+  JsonObject device = liveJson[deviceKey].to<JsonObject>();
+  device.clear();
+  JsonObject liveData = device["LiveData"].to<JsonObject>();
+  JsonObject statsData = device["StatsData"].to<JsonObject>();
+  JsonObject deviceData = device["DeviceData"].to<JsonObject>();
+
+  liveData["CONNECTION"] = errorcode;
+  liveData["DEVICE_NUM"] = String(invNum);
+  liveData["DEVICE_TIME"] = uTime.getUnix();
+  liveData["DEVICE_TEMP"] = ncG3.deviceTemperature / 100.f;
+  liveData["SOLAR_V"] = ncG3.pv1Voltage / 100.f;
+  liveData["SOLAR_A"] = ncG3.pv1Current / 100.f;
+  liveData["SOLAR_W"] = ncG3.pv1Power / 100.f;
+  if (ncG3.pvCount > 1)
+  {
+    liveData["SOLAR_2_V"] = ncG3.pv2Voltage / 100.f;
+    liveData["SOLAR_2_A"] = ncG3.pv2Current / 100.f;
+    liveData["SOLAR_2_W"] = ncG3.pv2Power / 100.f;
+  }
+  liveData["SOLAR_TOTAL_A"] = ncG3.totalPvCurrent / 100.f;
+  liveData["SOLAR_TOTAL_W"] = ncG3.totalPvPower / 100.f;
+  liveData["PV_HIGHEST_V"] = ncG3.highestPvVoltage / 100.f;
+
+  liveData["BATT_SOC"] = ncG3.batterySoc;
+  liveData["BATT_V"] = ncG3.batteryVoltage / 100.f;
+  liveData["BATT_A"] = ncG3.batteryCurrent / 100.f;
+  liveData["BATT_W"] = (ncG3.batteryVoltage / 100.f) * (ncG3.batteryCurrent / 100.f);
+  liveData["BATT_STATE"] = ncG3BatteryVoltageState(ncG3.status[0] & 0x0f);
+  liveData["BATT_TEMP"] = ncG3.batteryTemperature / 100.f;
+  liveData["BATT_TEMP_STATE"] = ncG3BatteryTemperatureState((ncG3.status[0] >> 4) & 0x0f);
+  liveData["SYSTEM_V"] = ncG3.systemVoltage / 100.f;
+  liveData["LITHIUM_VOLTAGE_ID_ERROR"] = (ncG3.status[0] & 0x8000) != 0;
+
+  bool loadAvailable = profile == EpeverProfile::ItNcG3;
+  liveData["LOAD_AVAILABLE"] = loadAvailable;
+  if (loadAvailable)
+  {
+    liveData["LOAD_V"] = ncG3.loadVoltage / 100.f;
+    liveData["LOAD_A"] = ncG3.loadCurrent / 100.f;
+    liveData["LOAD_W"] = ncG3.loadPower / 100.f;
+    liveData["LOAD_STATE"] = loadState;
+    liveData["LOAD_SHORT_CIRCUIT"] = (ncG3.status[1] & 0x0800) != 0;
+    liveData["LOAD_OVERLOAD"] = (ncG3.status[1] >> 12) & 0x03;
+  }
+
+  charger_mode = (ncG3.status[2] >> 2) & 0x03;
+  charger_input = (ncG3.status[2] >> 14) & 0x03;
+  liveData["CHARGER_STATE"] = charger_input == 0 ? "Normal" : "Input overvoltage";
+  liveData["CHARGER_MODE"] = charger_charging_status[charger_mode];
+  liveData["DAYTIME"] = (ncG3.status[2] & 0x0002) != 0;
+  liveData["DEVICE_OVERHEAT"] = (ncG3.status[2] & 0x0020) != 0;
+  liveData["CHARGING_OVERHEAT"] = (ncG3.status[2] & 0x0080) != 0;
+  liveData["REMOTE_CHARGING_ENABLED"] = (ncG3.status[3] & 0x0100) != 0;
+  liveData["LOW_POWER"] = (ncG3.status[3] & 0x0200) != 0;
+  liveData["MPPT_ACTIVE"] = (ncG3.status[3] & 0x0020) != 0;
+  liveData["PV_MODE_ALARM"] = (ncG3.status[3] >> 10) & 0x03;
+  liveData["PV2_INPUT_STATUS"] = (ncG3.status[3] >> 14) & 0x03;
+
+  statsData["BATT_MAX"] = ncG3.batteryMaxToday / 100.f;
+  statsData["BATT_MIN"] = ncG3.batteryMinToday / 100.f;
+  statsData["CONSUMPTION_AVAILABLE"] = loadAvailable;
+  if (loadAvailable)
+  {
+    statsData["CONS_DAY"] = ncG3.consumedDay / 100.f;
+    statsData["CONS_MON"] = ncG3.consumedMonth / 100.f;
+    statsData["CONS_YEAR"] = ncG3.consumedYear / 100.f;
+    statsData["CONS_TOT"] = ncG3.consumedTotal / 100.f;
+  }
+  statsData["GEN_DAY"] = ncG3.generatedDay / 100.f;
+  statsData["GEN_MON"] = ncG3.generatedMonth / 100.f;
+  statsData["GEN_YEAR"] = ncG3.generatedYear / 100.f;
+  statsData["GEN_TOT"] = ncG3.generatedTotal / 100.f;
+
+  deviceData["DEVICE_PROFILE"] = profile == EpeverProfile::ItNcG3 ? "IT-NC G3" : "ET-NC G3";
+  deviceData["DEVICE_MODEL"] = ncG3.modelId < 24 ? nc_g3_models[ncG3.modelId] : "Unknown NC G3";
+  deviceData["MODEL_ID"] = ncG3.modelId;
+  deviceData["PV_INPUT_COUNT"] = ncG3.pvCount;
+  deviceData["PV_MAX_V"] = ncG3.pvMaxVoltage / 100.f;
+  deviceData["RATED_CHARGE_POWER"] = ncG3.ratedChargePower / 100.f;
+  deviceData["RATED_BATTERY_V"] = ncG3.ratedBatteryVoltage / 100.f;
+  deviceData["RATED_CHARGE_A"] = ncG3.ratedChargeCurrent / 100.f;
+  deviceData["RATED_LOAD_A"] = ncG3.ratedLoadCurrent / 100.f;
+  deviceData["DSP_FIRMWARE"] = ncG3.dspFirmware / 100.f;
+  deviceData["ARM_FIRMWARE"] = ncG3.armFirmware / 100.f;
+  deviceData["BATTERY_TYPE"] = ncG3.batteryType < 13 ? nc_g3_battery_types[ncG3.batteryType] : "Unknown";
+  deviceData["BATTERY_CAPACITY"] = ncG3.batteryCapacity;
+  deviceData["TEMPERATURE_COMPENSATION"] = ncG3.temperatureCompensation / -100.f;
+  deviceData["HIGH_VOLT_DISCONNECT"] = ncG3.highVoltageDisconnect / 100.f;
+  deviceData["CHARGING_LIMIT_VOLTS"] = ncG3.chargingLimitVoltage / 100.f;
+  deviceData["OVER_VOLTS_RECONNECT"] = ncG3.overVoltageReconnect / 100.f;
+  deviceData["EQUALIZATION_VOLTS"] = ncG3.equalizationVoltage / 100.f;
+  deviceData["BOOST_VOLTS"] = ncG3.boostVoltage / 100.f;
+  deviceData["FLOAT_VOLTS"] = ncG3.floatVoltage / 100.f;
+  deviceData["BOOST_RECONNECT_VOLTS"] = ncG3.boostReconnectVoltage / 100.f;
+  deviceData["LOW_VOLTS_RECONNECT"] = ncG3.lowVoltageReconnect / 100.f;
+  deviceData["UNDER_VOLTS_RECOVER"] = ncG3.underVoltageRecover / 100.f;
+  deviceData["UNDER_VOLTS_WARNING"] = ncG3.underVoltageWarning / 100.f;
+  deviceData["LOW_VOLTS_DISCONNECT"] = ncG3.lowVoltageDisconnect / 100.f;
+  deviceData["DISCHARGING_LIMIT_VOLTS"] = ncG3.dischargingLimitVoltage / 100.f;
+  deviceData["CHARGING_CURRENT_LIMIT"] = ncG3.chargingCurrentLimit / 100.f;
+  deviceData["EQUALIZATION_TIME"] = ncG3.equalizationTime;
+  deviceData["BOOST_TIME"] = ncG3.boostTime;
+  deviceData["LITHIUM_PROTECTION"] = ncG3.lithiumProtection == 3;
+  deviceData["LOW_TEMP_CHARGE_LIMIT"] = ncG3.lowTemperatureChargeLimit / 100.f;
+  deviceData["LOW_TEMP_DISCHARGE_LIMIT"] = ncG3.lowTemperatureDischargeLimit / 100.f;
+  deviceData["MAX_BATTERY_TEMP"] = ncG3.maximumBatteryTemperature / 100.f;
+  deviceData["MIN_BATTERY_TEMP"] = ncG3.minimumBatteryTemperature / 100.f;
+  deviceData["MAX_DEVICE_TEMP"] = ncG3.maximumDeviceTemperature / 100.f;
+  deviceData["DEVICE_TEMP_RECOVER"] = ncG3.deviceTemperatureRecover / 100.f;
+  deviceData["CHARGING_MODE_SETTING"] = ncG3.chargingMode == 0 ? "Voltage" : "SOC";
+  deviceData["FULL_SOC"] = ncG3.fullSoc;
+  deviceData["FULL_SOC_RECOVER"] = ncG3.fullSocRecover;
+  deviceData["DISCHARGE_RECOVER_SOC"] = ncG3.dischargeRecoverSoc;
+  deviceData["LOW_POWER_RECOVER_SOC"] = ncG3.lowPowerRecoverSoc;
+  deviceData["LOW_POWER_ALARM_SOC"] = ncG3.lowPowerAlarmSoc;
+  deviceData["DISCHARGE_SOC"] = ncG3.dischargeSoc;
+  deviceData["RECORD_PERIOD"] = ncG3.recordPeriod;
+  deviceData["BMS_PROTOCOL"] = ncG3.bmsProtocol;
+  deviceData["BMS_ENABLED"] = ncG3.bmsEnabled != 0;
+  deviceData["PV_INPUT_MODE"] = ncG3.pvInputMode == 0 ? "Independent" : "Centralized";
+  deviceData["MODBUS_ADDRESS"] = ncG3.modbusAddress;
+  deviceData["BAUD_RATE_CODE"] = ncG3.baudRateCode;
+  deviceData["PARALLEL_CHARGE_CURRENT_LIMIT"] = ncG3.parallelChargeCurrentLimit;
+
+  JsonObject bmsData = device["BmsData"].to<JsonObject>();
+  bmsData["ONLINE"] = (ncG3.status[5] & 0x0001) != 0;
+  bmsData["LOW_SOC"] = (ncG3.status[5] & 0x0002) != 0;
+  bmsData["DISCHARGE_PROTECTION"] = (ncG3.status[5] & 0x0014) != 0;
+  bmsData["CHARGE_PROTECTION"] = (ncG3.status[5] & 0x0408) != 0;
+  bmsData["SENSOR_FAULT"] = (ncG3.status[5] & 0x0020) != 0;
+  bmsData["CELL_LOW_TEMP"] = (ncG3.status[5] & 0x0040) != 0;
+  bmsData["CELL_OVER_TEMP"] = (ncG3.status[5] & 0x0080) != 0;
+  bmsData["CELL_LOW_VOLTAGE"] = (ncG3.status[5] & 0x0100) != 0;
+  bmsData["CELL_OVER_VOLTAGE"] = (ncG3.status[5] & 0x0200) != 0;
+  bmsData["FULL_SOC"] = (ncG3.status[5] & 0x2000) != 0;
+  bmsData["DSP_COMMUNICATION_FAULT"] = (ncG3.status[5] & 0x4000) != 0;
+  if (ncG3.bmsDataValid)
+  {
+    bmsData["CELL_COUNT"] = ncG3.bmsCellCount;
+    bmsData["PACK_V"] = ncG3.bmsPackVoltage / 100.f;
+    bmsData["PACK_A"] = ncG3.bmsCurrent / 100.f;
+    bmsData["FULL_CAPACITY"] = ncG3.bmsFullCapacity;
+    bmsData["REMAINING_CAPACITY"] = ncG3.bmsRemainingCapacity;
+    bmsData["REMAINING_MINUTES"] = ncG3.bmsRemainingMinutes;
+    bmsData["MAX_CELL_TEMP"] = ncG3.bmsMaximumCellTemperature / 100.f;
+    bmsData["MIN_CELL_TEMP"] = ncG3.bmsMinimumCellTemperature / 100.f;
+  }
+  return true;
+}
+
 bool getJsonData(int invNum)
 {
+  EpeverProfile profile = invNum <= MAX_DEVICES ? deviceProfiles[invNum] : EpeverProfile::Unknown;
+  if (profile == EpeverProfile::ItNcG3 || profile == EpeverProfile::EtNcG3)
+  {
+    getNcG3JsonData(invNum, profile);
+    goto common_json;
+  }
 
   //  for (size_t invNum = 1; invNum <= 3; invNum++) // for testing only{
+  liveJson["EP_" + String(invNum)].clear();
   liveJson["EP_" + String(invNum)]["LiveData"]["CONNECTION"] = errorcode;
 
   liveJson["EP_" + String(invNum)]["LiveData"]["DEVICE_NUM"] = String(invNum); // for testing
@@ -835,7 +1809,8 @@ bool getJsonData(int invNum)
   liveJson["EP_" + String(invNum)]["StatsData"]["GEN_TOT"] = stats.s.genEnerTotal / 100.f;
 //  liveJson["EP_" + String(invNum)]["StatsData"]["CO2_REDUCTION"] = stats.s.c02Reduction / 100.f;
   // device settings data
-  liveJson["EP_" + String(invNum)]["DeviceData"]["BATTERY_TYPE"] = batt_type[settingParam.s.bTyp];
+  liveJson["EP_" + String(invNum)]["DeviceData"]["BATTERY_TYPE"] =
+      settingParam.s.bTyp < (sizeof batt_type / sizeof batt_type[0]) ? batt_type[settingParam.s.bTyp] : "Unknown";
   liveJson["EP_" + String(invNum)]["DeviceData"]["BATTERY_CAPACITY"] = settingParam.s.bCapacity /*/ 100.f*/;
   liveJson["EP_" + String(invNum)]["DeviceData"]["TEMPERATURE_COMPENSATION"] = settingParam.s.tempCompensation / 100.f;
   liveJson["EP_" + String(invNum)]["DeviceData"]["HIGH_VOLT_DISCONNECT"] = settingParam.s.highVDisconnect / 100.f;
@@ -851,6 +1826,7 @@ bool getJsonData(int invNum)
   liveJson["EP_" + String(invNum)]["DeviceData"]["LOW_VOLTS_DISCONNECT"] = settingParam.s.lowVoltDiscon / 100.f;
   liveJson["EP_" + String(invNum)]["DeviceData"]["DISCHARGING_LIMIT_VOLTS"] = settingParam.s.dischLimitVolt / 100.f;
   // }
+common_json:
   liveJson["DEVICE_QUANTITY"] = _settings.data.deviceQuantity;
   liveJson["DEVICE_FREE_HEAP"] = ESP.getFreeHeap();
   // liveJson["DEVICE_FREE_JSON"] = (JSON_BUFFER - liveJson.memoryUsage());
@@ -889,6 +1865,7 @@ bool connectMQTT()
         for (size_t i = 1; i < ((size_t)_settings.data.deviceQuantity + 1); i++)
         {
           mqttclient.subscribe((topic + "/" + devicePrefix + i + "/DeviceControl/LOAD_STATE").c_str());
+          mqttclient.subscribe((topic + "/" + devicePrefix + i + "/DeviceControl/CHARGING_CURRENT_LIMIT").c_str());
         }
       else // subscribe json
         mqttclient.subscribe((topic + "/DATA").c_str());
@@ -959,58 +1936,6 @@ bool sendtoMQTT()
   return true;
 }
 
-/* void callback(char *top, byte *payload, unsigned int length)
-{
-  // updateProgress = true; // stop servicing data
-  if (!_settings.data.mqttJson)
-  {
-    String messageTemp;
-    for (unsigned int i = 0; i < length; i++)
-    {
-      messageTemp += (char)payload[i];
-    }
-
-    for (size_t k = 1; k <= ((size_t)_settings.data.deviceQuantity); k++)
-    {
-      if (strcmp(top, (topic + "/" + devicePrefix + k + "/DeviceControl/LOAD_STATE").c_str()) == 0)
-      {
-        epnode.setSlaveId(k);
-        mqtttimer = 0;
-        if (messageTemp == "true")
-          epnode.writeSingleCoil(0x0002, 1);
-        if (messageTemp == "false")
-          epnode.writeSingleCoil(0x0002, 0);
-      }
-    }
-  }
-  else
-  {
-    JsonDocument mqttJsonAnswer;
-    deserializeJson(mqttJsonAnswer, (const byte *)payload, length);
-
-    for (size_t k = 1; k < ((size_t)_settings.data.deviceQuantity + 1); k++)
-    {
-      // if (mqttJsonAnswer.containsKey(devicePrefix + k))
-      if (mqttJsonAnswer[devicePrefix + k].is<const char *>())
-      {
-        epnode.setSlaveId(k);
-        mqtttimer = 0;
-        if (mqttJsonAnswer[devicePrefix + k]["LiveData"]["LOAD_STATE"] == true)
-          epnode.writeSingleCoil(0x0002, 1);
-        if (mqttJsonAnswer[devicePrefix + k]["LiveData"]["LOAD_STATE"] == false)
-          epnode.writeSingleCoil(0x0002, 0);
-      }
-    }
-  }
-
-  if (strlen(_settings.data.mqttTriggerPath) > 0 && strcmp(top, _settings.data.mqttTriggerPath) == 0)
-  {
-    DEBUG_WEBLN("MQTT Data Trigger Firered Up");
-    mqtttimer = 0;
-  }
-  // updateProgress = false; // start data servicing again
-} */
-
 void callback(char *top, byte *payload, unsigned int length)
 {
   // updateProgress = true; // stop servicing data
@@ -1032,13 +1957,20 @@ void callback(char *top, byte *payload, unsigned int length)
       JsonVariant ep = mqttJsonAnswer[devicePrefix + k];
       if (!ep.isNull())
       {
-        JsonVariant liveData = ep["LiveData"];
-        if (!liveData.isNull() && !liveData["LOAD_STATE"].isNull())
+        JsonVariant control = ep["DeviceControl"];
+        if (!control.isNull() && !control["LOAD_STATE"].isNull())
         {
-          epnode.setSlaveId(k);
           mqtttimer = 0;
-          bool loadState = liveData["LOAD_STATE"].as<bool>();
-          epnode.writeSingleCoil(0x0002, loadState ? 1 : 0);
+          workerCanRun = false;
+          writeEpeverLoadState(k, control["LOAD_STATE"].as<bool>());
+          workerCanRun = true;
+        }
+        if (!control.isNull() && !control["CHARGING_CURRENT_LIMIT"].isNull())
+        {
+          mqtttimer = 0;
+          workerCanRun = false;
+          writeNcG3ChargeCurrentLimit(k, control["CHARGING_CURRENT_LIMIT"].as<float>());
+          workerCanRun = true;
         }
       }
     }
@@ -1055,12 +1987,25 @@ void callback(char *top, byte *payload, unsigned int length)
     {
       if (strcmp(top, (topic + "/" + devicePrefix + k + "/DeviceControl/LOAD_STATE").c_str()) == 0)
       {
-        epnode.setSlaveId(k);
         mqtttimer = 0;
+        workerCanRun = false;
         if (messageTemp == "true")
-          epnode.writeSingleCoil(0x0002, 1);
+          writeEpeverLoadState(k, true);
         else if (messageTemp == "false")
-          epnode.writeSingleCoil(0x0002, 0);
+          writeEpeverLoadState(k, false);
+        workerCanRun = true;
+      }
+      if (strcmp(top, (topic + "/" + devicePrefix + k + "/DeviceControl/CHARGING_CURRENT_LIMIT").c_str()) == 0)
+      {
+        char *end = nullptr;
+        float amps = strtof(messageTemp.c_str(), &end);
+        if (end != messageTemp.c_str() && *end == '\0')
+        {
+          mqtttimer = 0;
+          workerCanRun = false;
+          writeNcG3ChargeCurrentLimit(k, amps);
+          workerCanRun = true;
+        }
       }
     }
   }
@@ -1098,30 +2043,59 @@ bool sendHaDiscovery()
                                    "\"sw\":\"" + SOFTWARE_VERSION + "\"" +
                                    "}";
 
-      String haSwitchPayLoad = String("{") +
-                               "\"name\":\"LOAD_STATE\"," +
-                               "\"command_topic\":\"" + _settings.data.mqttTopic + "/" + jsonDev.key().c_str() + "/DeviceControl/LOAD_STATE\"," +
-                               "\"stat_t\":\"" + _settings.data.mqttTopic + "/" + jsonDev.key().c_str() + "/LiveData/LOAD_STATE\"," +
-                               "\"avty_t\":\"" + _settings.data.mqttTopic + "/Alive\"," +
-                               "\"pl_avail\": \"true\"," +
-                               "\"pl_not_avail\": \"false\"," +
-                               "\"uniq_id\":\"" + mqttClientId + ".LOAD_STATE_" + jsonDev.key().c_str() + "\"," +
-                               "\"ic\":\"mdi:toggle-switch-off\"," +
-                               "\"pl_on\":\"true\"," +
-                               "\"pl_off\":\"false\"," +
-                               "\"stat_on\":\"true\"," +
-                               "\"stat_off\":\"false\",";
-
-      haSwitchPayLoad += haDeviceDescription;
-      haSwitchPayLoad += "}";
-      sprintf(topBuff, "homeassistant/switch/%s_%s/LOAD_STATE/config", _settings.data.mqttTopic, jsonDev.key().c_str()); // build the topic
-
-      mqttclient.beginPublish(topBuff, haSwitchPayLoad.length(), true);
-      for (size_t i = 0; i < haSwitchPayLoad.length(); i++)
+      uint8_t deviceNumber = String(jsonDev.key().c_str()).substring(3).toInt();
+      EpeverProfile profile = deviceNumber <= MAX_DEVICES ? deviceProfiles[deviceNumber] : EpeverProfile::Unknown;
+      if (profile != EpeverProfile::EtNcG3)
       {
-        mqttclient.write(haSwitchPayLoad[i]);
+        String haSwitchPayLoad = String("{") +
+                                 "\"name\":\"LOAD_STATE\"," +
+                                 "\"command_topic\":\"" + _settings.data.mqttTopic + "/" + jsonDev.key().c_str() + "/DeviceControl/LOAD_STATE\"," +
+                                 "\"stat_t\":\"" + _settings.data.mqttTopic + "/" + jsonDev.key().c_str() + "/LiveData/LOAD_STATE\"," +
+                                 "\"avty_t\":\"" + _settings.data.mqttTopic + "/Alive\"," +
+                                 "\"pl_avail\": \"true\"," +
+                                 "\"pl_not_avail\": \"false\"," +
+                                 "\"uniq_id\":\"" + mqttClientId + ".LOAD_STATE_" + jsonDev.key().c_str() + "\"," +
+                                 "\"ic\":\"mdi:toggle-switch-off\"," +
+                                 "\"pl_on\":\"true\"," +
+                                 "\"pl_off\":\"false\"," +
+                                 "\"stat_on\":\"true\"," +
+                                 "\"stat_off\":\"false\",";
+
+        haSwitchPayLoad += haDeviceDescription;
+        haSwitchPayLoad += "}";
+        sprintf(topBuff, "homeassistant/switch/%s_%s/LOAD_STATE/config", _settings.data.mqttTopic, jsonDev.key().c_str());
+        mqttclient.beginPublish(topBuff, haSwitchPayLoad.length(), true);
+        for (size_t i = 0; i < haSwitchPayLoad.length(); i++)
+          mqttclient.write(haSwitchPayLoad[i]);
+        mqttclient.endPublish();
       }
-      mqttclient.endPublish();
+
+      if ((profile == EpeverProfile::ItNcG3 || profile == EpeverProfile::EtNcG3) &&
+          deviceRatedChargeCurrent[deviceNumber] > 0)
+      {
+        float maximum = deviceRatedChargeCurrent[deviceNumber] / 100.f;
+        String haNumberPayLoad = String("{") +
+                                    "\"name\":\"CHARGING_CURRENT_LIMIT\"," +
+                                    "\"command_topic\":\"" + _settings.data.mqttTopic + "/" + jsonDev.key().c_str() + "/DeviceControl/CHARGING_CURRENT_LIMIT\"," +
+                                    "\"stat_t\":\"" + _settings.data.mqttTopic + "/" + jsonDev.key().c_str() + "/DeviceData/CHARGING_CURRENT_LIMIT\"," +
+                                    "\"avty_t\":\"" + _settings.data.mqttTopic + "/Alive\"," +
+                                    "\"pl_avail\":\"true\"," +
+                                    "\"pl_not_avail\":\"false\"," +
+                                    "\"uniq_id\":\"" + mqttClientId + ".CHARGING_CURRENT_LIMIT_" + jsonDev.key().c_str() + "\"," +
+                                    "\"ic\":\"mdi:current-dc\"," +
+                                    "\"unit_of_meas\":\"A\"," +
+                                    "\"mode\":\"box\"," +
+                                    "\"min\":0.01," +
+                                    "\"max\":" + String(maximum, 2) + "," +
+                                    "\"step\":0.01,";
+        haNumberPayLoad += haDeviceDescription;
+        haNumberPayLoad += "}";
+        sprintf(topBuff, "homeassistant/number/%s_%s/CHARGING_CURRENT_LIMIT/config", _settings.data.mqttTopic, jsonDev.key().c_str());
+        mqttclient.beginPublish(topBuff, haNumberPayLoad.length(), true);
+        for (size_t i = 0; i < haNumberPayLoad.length(); i++)
+          mqttclient.write(haNumberPayLoad[i]);
+        mqttclient.endPublish();
+      }
       // wifi
       String haPayLoad = String("{") +
                          "\"name\":\"Wifi_RSSI\"," +

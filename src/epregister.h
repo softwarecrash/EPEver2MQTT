@@ -261,3 +261,133 @@ static const char *const charger_charging_status[] = {
     "Boost",
     "Equalization"};
 bool loadState;
+
+// IT/ET-NC G3 use a different register layout from the older Tracer/XTRA
+// protocol. The model id at input register 0x3000 identifies the layout:
+// 0..11 = IT-NC G3, 12..23 = ET-NC G3. Older devices return their rated PV
+// voltage at 0x3000 and therefore do not collide with these ids.
+enum class EpeverProfile : uint8_t
+{
+  Unknown,
+  Legacy,
+  ItNcG3,
+  EtNcG3
+};
+
+#define NC_G3_MODEL 0x3000
+#define NC_G3_PV_COUNT 0x300F
+#define NC_G3_RATED_CHARGE_CURRENT 0x3007
+#define NC_G3_LOAD_STATE 0x0003
+#define NC_G3_RTC_CLOCK 0x9019
+#define NC_G3_CHARGE_CURRENT_LIMIT 0x9013
+
+struct NcG3Data
+{
+  uint16_t modelId;
+  uint16_t pvCount;
+  uint16_t pvMaxVoltage;
+  uint32_t ratedChargePower;
+  uint16_t ratedBatteryVoltage;
+  uint16_t ratedChargeCurrent;
+  uint16_t ratedLoadCurrent;
+  uint16_t dspFirmware;
+  uint16_t armFirmware;
+
+  uint16_t pv1Voltage;
+  uint16_t pv1Current;
+  uint32_t pv1Power;
+  uint16_t pv2Voltage;
+  uint16_t pv2Current;
+  uint32_t pv2Power;
+  uint16_t loadVoltage;
+  uint16_t loadCurrent;
+  uint32_t loadPower;
+  uint16_t batteryVoltage;
+  int16_t batteryCurrent;
+  int16_t batteryTemperature;
+  uint16_t batterySoc;
+  int16_t deviceTemperature;
+  uint16_t systemVoltage;
+  uint16_t highestPvVoltage;
+  uint16_t totalPvCurrent;
+  uint32_t totalPvPower;
+
+  uint16_t status[6];
+  uint16_t batteryMaxToday;
+  uint16_t batteryMinToday;
+  uint32_t consumedDay;
+  uint32_t consumedMonth;
+  uint32_t consumedYear;
+  uint32_t consumedTotal;
+  uint32_t generatedDay;
+  uint32_t generatedMonth;
+  uint32_t generatedYear;
+  uint32_t generatedTotal;
+
+  uint16_t batteryType;
+  uint16_t batteryCapacity;
+  uint16_t temperatureCompensation;
+  uint16_t highVoltageDisconnect;
+  uint16_t chargingLimitVoltage;
+  uint16_t overVoltageReconnect;
+  uint16_t equalizationVoltage;
+  uint16_t boostVoltage;
+  uint16_t floatVoltage;
+  uint16_t boostReconnectVoltage;
+  uint16_t lowVoltageReconnect;
+  uint16_t underVoltageRecover;
+  uint16_t underVoltageWarning;
+  uint16_t lowVoltageDisconnect;
+  uint16_t dischargingLimitVoltage;
+  uint16_t chargingCurrentLimit;
+  uint16_t equalizationTime;
+  uint16_t boostTime;
+  uint16_t lithiumProtection;
+  int16_t lowTemperatureChargeLimit;
+  int16_t lowTemperatureDischargeLimit;
+  int16_t maximumBatteryTemperature;
+  int16_t minimumBatteryTemperature;
+  int16_t maximumDeviceTemperature;
+  int16_t deviceTemperatureRecover;
+  uint16_t chargingMode;
+  uint16_t fullSoc;
+  uint16_t fullSocRecover;
+  uint16_t dischargeRecoverSoc;
+  uint16_t lowPowerRecoverSoc;
+  uint16_t lowPowerAlarmSoc;
+  uint16_t dischargeSoc;
+  uint16_t recordPeriod;
+  uint16_t bmsProtocol;
+  uint16_t bmsEnabled;
+  uint16_t pvInputMode;
+  uint16_t modbusAddress;
+  uint16_t baudRateCode;
+  uint16_t parallelChargeCurrentLimit;
+
+  uint16_t bmsCellCount;
+  uint16_t bmsPackVoltage;
+  int16_t bmsCurrent;
+  uint16_t bmsFullCapacity;
+  uint16_t bmsRemainingCapacity;
+  uint16_t bmsRemainingMinutes;
+  int16_t bmsMaximumCellTemperature;
+  int16_t bmsMinimumCellTemperature;
+  bool bmsDataValid;
+};
+
+NcG3Data ncG3;
+EpeverProfile deviceProfiles[MAX_DEVICES + 1] = {};
+uint16_t deviceModelIds[MAX_DEVICES + 1] = {};
+uint16_t deviceRatedChargeCurrent[MAX_DEVICES + 1] = {};
+
+static const char *const nc_g3_models[] = {
+    "IT5215NC G3", "IT6215NC G3", "IT7215NC G3", "IT10215NC G3",
+    "IT5420NC G3", "IT6415NC G3", "IT6420NC G3", "IT7415NC G3",
+    "IT7420NC G3", "IT8420NC G3", "IT10415NC G3", "IT10420NC G3",
+    "ET5215NC G3", "ET6215NC G3", "ET7215NC G3", "ET10215NC G3",
+    "ET5420NC G3", "ET6415NC G3", "ET6420NC G3", "ET7415NC G3",
+    "ET7420NC G3", "ET8420NC G3", "ET10415NC G3", "ET10420NC G3"};
+
+static const char *const nc_g3_battery_types[] = {
+    "User", "SLA", "GEL", "Flooded", "LFP4S", "LFP8S", "LFP15S",
+    "LFP16S", "LNCM3S", "LNCM6S", "LNCM7S", "LNCM13S", "LNCM14S"};
