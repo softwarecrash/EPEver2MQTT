@@ -1,5 +1,7 @@
 #include "WebSocketController.h"
 
+#include "../app/DiagnosticLog.h"
+
 WebSocketController::WebSocketController(
     AsyncWebSocket &socket, JsonDocument &liveJson, bool &workerCanRun,
     unsigned long &mqttTimer, WriteLoadStateFn writeLoadState)
@@ -26,7 +28,10 @@ void WebSocketController::notify()
   if (buffer == nullptr)
     return;
 
-  serializeJson(_liveJson, reinterpret_cast<char *>(buffer->get()), length + 1);
+  // The websocket buffer contains exactly the payload bytes. Passing a
+  // capacity of length + 1 lets ArduinoJson append a null terminator beyond
+  // the allocated buffer and corrupts the heap.
+  serializeJson(_liveJson, reinterpret_cast<char *>(buffer->get()), length);
   _socket.textAll(buffer);
 }
 
@@ -42,11 +47,13 @@ void WebSocketController::onEvent(AsyncWebSocket *, AsyncWebSocketClient *client
   switch (type)
   {
   case WS_EVT_CONNECT:
-    Serial.printf("WebSocket client #%u connected from %s\n", client->id(),
-                  client->remoteIP().toString().c_str());
+    DiagnosticLog::println("WebSocket client #" + String(client->id()) +
+                           " connected from " +
+                           client->remoteIP().toString());
     break;
   case WS_EVT_DISCONNECT:
-    Serial.printf("WebSocket client #%u disconnected\n", client->id());
+    DiagnosticLog::println("WebSocket client #" + String(client->id()) +
+                           " disconnected");
     cleanup();
     break;
   case WS_EVT_DATA:

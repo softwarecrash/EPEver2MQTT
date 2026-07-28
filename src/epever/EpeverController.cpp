@@ -2,6 +2,9 @@
 
 #include <ESP8266WiFi.h>
 #include <math.h>
+#include <time.h>
+
+#include "../app/DiagnosticLog.h"
 
 #define MAX_DEVICES 6
 namespace
@@ -48,6 +51,42 @@ EpeverController::EpeverController(
 uint32_t EpeverController::wordsToUint32(uint16_t lowWord, uint16_t highWord)
 {
   return (uint32_t)lowWord | ((uint32_t)highWord << 16);
+}
+
+void EpeverController::synchronizeDeviceClock(uint8_t device)
+{
+  if (device == 0 || device > MaximumDevices || _unixTime.year < 2000)
+    return;
+
+  const uint32_t reportedTime = _unixTime.getUnix();
+  // Some controller firmwares return the same RTC value for several reads.
+  // Preserve the original synchronization point in that case so the exposed
+  // timestamp continues monotonically between actual RTC changes.
+  if (_deviceClockBase[device] == 0 ||
+      reportedTime != _deviceClockLastReported[device])
+  {
+    _deviceClockBase[device] = reportedTime;
+    _deviceClockLastReported[device] = reportedTime;
+    _deviceClockSyncMillis[device] = millis();
+  }
+}
+
+uint32_t EpeverController::currentDeviceTime(uint8_t device) const
+{
+  // Prefer the ESP system clock once NTP has supplied a plausible epoch. The
+  // value is copied into liveJson only after a successful controller poll, so
+  // a stationary UI timestamp still means that no fresh EPEver data arrived.
+  const time_t systemTime = time(nullptr);
+  constexpr time_t PlausibleEpoch = 1609459200; // 2021-01-01 UTC
+  if (systemTime >= PlausibleEpoch)
+    return static_cast<uint32_t>(systemTime);
+
+  if (device == 0 || device > MaximumDevices ||
+      _deviceClockBase[device] == 0)
+    return 0;
+
+  return _deviceClockBase[device] +
+         (millis() - _deviceClockSyncMillis[device]) / 1000UL;
 }
 
 bool EpeverController::readInputBlock(uint16_t address, uint8_t count, uint16_t *values)
@@ -303,12 +342,15 @@ bool EpeverController::readNcG3(uint8_t invNum, EpeverProfile profile)
   }
 
   _errorCode = 0;
-  Serial.println("[" + String(invNum) + "] NC G3 transmission OK.");
+  synchronizeDeviceClock(invNum);
+  DiagnosticLog::println("[" + String(invNum) +
+                         "] NC G3 transmission OK.");
   return true;
 
 read_failed:
   _errorCode = result;
-  Serial.println("[" + String(invNum) + "] " + String(result) + " NC G3 register read failed");
+  DiagnosticLog::println("[" + String(invNum) + "] " + String(result) +
+                         " NC G3 register read failed");
   return false;
 }
 
@@ -355,7 +397,8 @@ bool EpeverController::readLegacy(uint8_t invNum)
   }
   else
   {
-    Serial.println("[" + String(invNum) + "] " + result + " Read registers for clock Failed");
+    DiagnosticLog::println("[" + String(invNum) + "] " + String(result) +
+                           " Read registers for clock failed");
     _errorCode += result;
     return false;
   }
@@ -372,7 +415,8 @@ bool EpeverController::readLegacy(uint8_t invNum)
   }
   else
   {
-    Serial.println("[" + String(invNum) + "] " + result + " Read LIVE-Dat Failed");
+    DiagnosticLog::println("[" + String(invNum) + "] " + String(result) +
+                           " Read live data failed");
     _errorCode += result;
     return false;
   }
@@ -388,7 +432,8 @@ bool EpeverController::readLegacy(uint8_t invNum)
   }
   else
   {
-    Serial.println("[" + String(invNum) + "] " + result + " Read Statistical Data Failed");
+    DiagnosticLog::println("[" + String(invNum) + "] " + String(result) +
+                           " Read statistical data failed");
     _errorCode += result;
     return false;
   }
@@ -402,7 +447,8 @@ bool EpeverController::readLegacy(uint8_t invNum)
   }
   else
   {
-    Serial.println("[" + String(invNum) + "] " + result + " Read Battery SOC Failed");
+    DiagnosticLog::println("[" + String(invNum) + "] " + String(result) +
+                           " Read battery SOC failed");
     _errorCode += result;
     return false;
   }
@@ -417,7 +463,8 @@ bool EpeverController::readLegacy(uint8_t invNum)
   }
   else
   {
-    Serial.println("[" + String(invNum) + "] " + result + " Read Battery Net Current = Icharge - Iload Failed");
+    DiagnosticLog::println("[" + String(invNum) + "] " + String(result) +
+                           " Read battery net current failed");
     _errorCode += result;
     return false;
   }
@@ -431,7 +478,8 @@ bool EpeverController::readLegacy(uint8_t invNum)
   }
   else
   {
-    Serial.println("[" + String(invNum) + "] " + result + " Read State of the Load Switch Failed");
+    DiagnosticLog::println("[" + String(invNum) + "] " + String(result) +
+                           " Read load switch state failed");
     _errorCode += result;
     return false;
   }
@@ -456,7 +504,8 @@ bool EpeverController::readLegacy(uint8_t invNum)
   }
   else
   {
-    Serial.println("[" + String(invNum) + "] " + result + " Read Read Status Flags Failed");
+    DiagnosticLog::println("[" + String(invNum) + "] " + String(result) +
+                           " Read status flags failed");
     _errorCode += result;
     return false;
   }
@@ -470,7 +519,8 @@ bool EpeverController::readLegacy(uint8_t invNum)
   }
   else
   {
-    Serial.println("[" + String(invNum) + "] " + result + " Read Device Temperature Failed");
+    DiagnosticLog::println("[" + String(invNum) + "] " + String(result) +
+                           " Read device temperature failed");
     _errorCode += result;
     return false;
   }
@@ -484,7 +534,8 @@ bool EpeverController::readLegacy(uint8_t invNum)
   }
   else
   {
-    Serial.println("[" + String(invNum) + "] " + result + " Read Battery temperature Failed");
+    DiagnosticLog::println("[" + String(invNum) + "] " + String(result) +
+                           " Read battery temperature failed");
     _errorCode += result;
     return false;
   }
@@ -499,13 +550,15 @@ bool EpeverController::readLegacy(uint8_t invNum)
   }
   else
   {
-    Serial.println("[" + String(invNum) + "] " + result + " Read Settings Data Failed");
+    DiagnosticLog::println("[" + String(invNum) + "] " + String(result) +
+                           " Read settings data failed");
     _errorCode += result;
     return false;
   }
   if (_errorCode == 0)
   {
-    Serial.println("[" + String(invNum) + "] Transmission OK.");
+    synchronizeDeviceClock(invNum);
+    DiagnosticLog::println("[" + String(invNum) + "] Transmission OK.");
   }
   return true;
 }
@@ -608,7 +661,7 @@ bool EpeverController::updateNcG3Json(uint8_t invNum, EpeverProfile profile)
 
   liveData["CONNECTION"] = _errorCode;
   liveData["DEVICE_NUM"] = String(invNum);
-  liveData["DEVICE_TIME"] = _unixTime.getUnix();
+  liveData["DEVICE_TIME"] = currentDeviceTime(invNum);
   liveData["DEVICE_TEMP"] = ncG3.deviceTemperature / 100.f;
   liveData["SOLAR_V"] = ncG3.pv1Voltage / 100.f;
   liveData["SOLAR_A"] = ncG3.pv1Current / 100.f;
@@ -770,7 +823,8 @@ bool EpeverController::updateJson(uint8_t invNum)
 
   _liveJson["EP_" + String(invNum)]["LiveData"]["DEVICE_NUM"] = String(invNum); // for testing
   // device
-  _liveJson["EP_" + String(invNum)]["LiveData"]["DEVICE_TIME"] = _unixTime.getUnix();
+  _liveJson["EP_" + String(invNum)]["LiveData"]["DEVICE_TIME"] =
+      currentDeviceTime(invNum);
   _liveJson["EP_" + String(invNum)]["LiveData"]["DEVICE_TEMP"] = deviceTemperature / 100.f;
   // solar input
   _liveJson["EP_" + String(invNum)]["LiveData"]["SOLAR_V"] = live.l.pvV / 100.f;

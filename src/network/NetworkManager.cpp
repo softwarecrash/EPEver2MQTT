@@ -1,5 +1,7 @@
 #include "NetworkManager.h"
 
+#include "../app/DiagnosticLog.h"
+
 NetworkManager::NetworkManager(AsyncWebServer &server, DNSServer &dns,
                                Settings &settings, bool &saveRequested)
     : _server(server),
@@ -16,7 +18,7 @@ bool NetworkManager::connect()
       [this]()
       {
         _saveRequested = true;
-        Serial.println(F("Network configuration changed"));
+        DiagnosticLog::println(F("Network configuration changed"));
       });
 
   char mqttPort[7];

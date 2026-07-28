@@ -1,17 +1,23 @@
 #include "SystemActionRoutes.h"
 
+#include "../app/DiagnosticLog.h"
+
 #include <AsyncJson.h>
 #include <ModbusMaster.h>
 #include <Updater.h>
 
 SystemActionRoutes::SystemActionRoutes(
     AsyncWebServer &server, Settings &settings, bool &factoryResetRequested,
-    bool &discoveryRequested, HardwareSerial &serial,
+    bool &discoveryRequested, bool &workerCanRun, bool &restartRequested,
+    unsigned long &restartTimer, HardwareSerial &serial,
     uint8_t transceiverEnablePin)
     : _server(server),
       _settings(settings),
       _factoryResetRequested(factoryResetRequested),
       _discoveryRequested(discoveryRequested),
+      _workerCanRun(workerCanRun),
+      _restartRequested(restartRequested),
+      _restartTimer(restartTimer),
       _serial(serial),
       _transceiverEnablePin(transceiverEnablePin)
 {
@@ -64,10 +70,23 @@ void SystemActionRoutes::registerRoutes()
       {
         if (!authorize(request))
           return;
+        const bool success = !Update.hasError();
         AsyncWebServerResponse *response = request->beginResponse(
-            200, "text/plain", Update.hasError() ? "FAIL" : "OK");
+            success ? 200 : 500, "text/plain", success ? "OK" : "FAIL");
         response->addHeader("Connection", "close");
         request->send(response);
+        if (success)
+        {
+          DiagnosticLog::println("OTA update complete; reboot scheduled");
+          _restartTimer = millis();
+          _restartRequested = true;
+        }
+        else
+        {
+          DiagnosticLog::println("OTA update failed: " +
+                                 String(Update.getError()));
+          _workerCanRun = true;
+        }
       },
       [this](AsyncWebServerRequest *request, String filename, size_t index,
              uint8_t *data, size_t len, bool final)
@@ -76,16 +95,28 @@ void SystemActionRoutes::registerRoutes()
           return;
         if (index == 0)
         {
-          Serial.printf("UploadStart: %s\n", filename.c_str());
+          DiagnosticLog::println("UploadStart: " + filename);
+          _workerCanRun = false;
           const uint32_t maximumSketchSpace =
               (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
-          Update.begin(maximumSketchSpace);
+          if (!Update.begin(maximumSketchSpace))
+          {
+            DiagnosticLog::println("OTA begin failed: " +
+                                   String(Update.getError()));
+            _workerCanRun = true;
+            return;
+          }
           Update.runAsync(true);
         }
         if (Update.write(data, len) != len)
-          Update.printError(Serial);
+          DiagnosticLog::println("OTA write failed: " +
+                                 String(Update.getError()));
         if (final && !Update.end(true))
-          Update.printError(Serial);
+        {
+          DiagnosticLog::println("OTA finalize failed: " +
+                                 String(Update.getError()));
+          _workerCanRun = true;
+        }
       });
 }
 

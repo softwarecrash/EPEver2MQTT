@@ -55,6 +55,8 @@ private:
   bool readLegacy(uint8_t device);
   bool readNcG3(uint8_t device, EpeverProfile profile);
   bool updateNcG3Json(uint8_t device, EpeverProfile profile);
+  void synchronizeDeviceClock(uint8_t device);
+  uint32_t currentDeviceTime(uint8_t device) const;
   static const char *ncG3BatteryVoltageState(uint8_t value);
   static const char *ncG3BatteryTemperatureState(uint8_t value);
 
@@ -67,6 +69,9 @@ private:
   uint8_t *_temperatureAddress;
   int &_errorCode;
   const char *_softwareVersion;
+  uint32_t _deviceClockBase[MaximumDevices + 1] = {};
+  uint32_t _deviceClockLastReported[MaximumDevices + 1] = {};
+  unsigned long _deviceClockSyncMillis[MaximumDevices + 1] = {};
 #ifdef EPEVER_SIMULATION
   SimulationDataSource *_simulation = nullptr;
 #endif

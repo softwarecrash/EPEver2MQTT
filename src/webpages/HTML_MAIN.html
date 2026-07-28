@@ -90,6 +90,7 @@
 <script>
     var gateway = `ws://${window.location.hostname}/ws`;
     var websocket;
+    var websocketPingTimer;
     var deviceQuantity = 0;
     var shDevNum = 1;
     var devPrA = "EP_";
@@ -106,10 +107,13 @@
     }
     function onOpen(event) {
         console.log('Connection opened');
-        setInterval(checkWS, 5000);
+        clearInterval(websocketPingTimer);
+        websocketPingTimer = setInterval(checkWS, 5000);
     }
     function onClose(event) {
         console.log('Connection closed');
+        clearInterval(websocketPingTimer);
+        websocketPingTimer = undefined;
         setTimeout(initWebSocket, 3500);
     }
     function onError(event) {
@@ -140,7 +144,11 @@
                 document.getElementById('prevDev').style.display = 'none';
                 document.getElementById('nextDev').style.display = 'none';
             }
-            document.getElementById("devtime").innerHTML = unixTimetoDateTime(data[devPrA + shDevNum].LiveData.DEVICE_TIME);
+            // DEVICE_TIME is updated only after a successful EPEver poll. A
+            // stationary value therefore indicates that no fresh controller
+            // data has arrived since the displayed time.
+            document.getElementById("devtime").innerHTML =
+                unixTimetoDateTime(data[devPrA + shDevNum].LiveData.DEVICE_TIME);
 
             document.getElementById("SOCbar").innerHTML = formatNumber(data[devPrA + shDevNum].LiveData.BATT_SOC, 0) + '%';
             $('#SOCbar').width(data[devPrA + shDevNum].LiveData.BATT_SOC + "%").attr('aria-valuenow', data[devPrA + shDevNum].LiveData.BATT_SOC);
@@ -247,7 +255,7 @@
         return deviceDate.toLocaleString(navigator.language, { timeZone: 'UTC' });
     }
     function checkWS() {
-        if (websocket.readyState !== WebSocket.CLOSED) {
+        if (websocket && websocket.readyState === WebSocket.OPEN) {
             websocket.send(JSON.stringify({ type: 'ping' }));
         }
     }

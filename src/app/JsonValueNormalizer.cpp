@@ -20,6 +20,13 @@ void normalizeVariant(JsonVariant value, float factor)
     return;
   }
 
+  // ArduinoJson reports integer values as convertible to float as well.
+  // Preserve them before normalizing fractional measurements: converting a
+  // Unix timestamp around 1.8 billion to float loses roughly seven bits of
+  // second-level precision and makes DEVICE_TIME appear stationary.
+  if (value.is<int64_t>() || value.is<uint64_t>())
+    return;
+
   if (!value.is<float>())
     return;
 

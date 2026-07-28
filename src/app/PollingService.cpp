@@ -5,6 +5,7 @@
 #include <time.h>
 
 #include "JsonValueNormalizer.h"
+#include "DiagnosticLog.h"
 
 PollingService::PollingService(
     Settings &settings, JsonDocument &liveJson, EpeverController &controller,
@@ -42,6 +43,12 @@ bool PollingService::run()
   {
     _controller.updateJson(_requestedDevice);
     normalizeJsonNumbers(_liveJson, 2);
+#if defined(EPEVER_WEBSERIAL_DATA_LOG) && EPEVER_WEBSERIAL_DATA_LOG
+    const String deviceKey = "EP_" + String(_requestedDevice);
+    DiagnosticLog::json("[" + String(_requestedDevice) +
+                            "] Received EPEver data:",
+                        _liveJson[deviceKey].as<JsonVariantConst>());
+#endif
     _webSocket.notify();
   }
   else if (_errorCode == 0 || millis() > _notifyTimer + 1000)

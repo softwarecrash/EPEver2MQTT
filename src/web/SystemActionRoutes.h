@@ -17,7 +17,9 @@ class SystemActionRoutes
 public:
   SystemActionRoutes(AsyncWebServer &server, Settings &settings,
                      bool &factoryResetRequested,
-                     bool &discoveryRequested, HardwareSerial &serial,
+                     bool &discoveryRequested, bool &workerCanRun,
+                     bool &restartRequested, unsigned long &restartTimer,
+                     HardwareSerial &serial,
                      uint8_t transceiverEnablePin);
 
   void registerRoutes();
@@ -30,6 +32,9 @@ private:
   Settings &_settings;
   bool &_factoryResetRequested;
   bool &_discoveryRequested;
+  bool &_workerCanRun;
+  bool &_restartRequested;
+  unsigned long &_restartTimer;
   HardwareSerial &_serial;
   uint8_t _transceiverEnablePin;
 };

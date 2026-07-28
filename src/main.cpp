@@ -26,6 +26,7 @@
 #include "app/PollingService.h"
 #include "app/BootLoopGuard.h"
 #include "app/NotificationLed.h"
+#include "app/DiagnosticLog.h"
 #ifdef EPEVER_SIMULATION
 #include "simulation/SimulationDataSource.h"
 #endif
@@ -94,7 +95,8 @@ MqttService mqttService(
     detectEpeverProfile, getEpeverRatedChargeCurrent,
     writeEpeverLoadState, writeNcG3ChargeCurrentLimit, SOFTWARE_VERSION);
 SystemActionRoutes systemActionRoutes(
-    server, _settings, factoryResetRequested, haDiscTrigger,
+    server, _settings, factoryResetRequested, haDiscTrigger, workerCanRun,
+    restartNow, RestartTimer,
     EPEVER_SERIAL, EPEVER_DE_RE);
 NetworkManager networkManager(server, dns, _settings, shouldSaveConfig);
 PollingService pollingService(
@@ -150,40 +152,43 @@ void setup()
   }
 
   sprintf(mqttClientId, "%s-%06X", _settings.data.deviceName, ESP.getChipId());
-  bool res = networkManager.connect();
+  networkManager.connect();
 
   mqttService.begin(mqttClientId);
-  // check is WiFi connected
 
-  if (res)
+  // Register and start the web server even if the initial WiFi connection
+  // failed. The ESP8266 may reconnect later; tying server.begin() to the
+  // one-time result of autoConnect() otherwise leaves port 80 closed until
+  // the next reboot.
+  WiFi.hostname(_settings.data.deviceName);
+  liveJson["DEVICE_NAME"] = _settings.data.deviceName;
+
+  webUiRoutes.registerRoutes();
+  mpptSettingsRoutes.registerRoutes();
+  systemActionRoutes.registerRoutes();
+
+  server.onNotFound([](AsyncWebServerRequest *request)
+                    { request->send(418, "text/plain", "418 I'm a teapot"); });
+
+  webSocketController.begin();
+  server.addHandler(&ws);
+
+  // WebSerial is the diagnostic console. The hardware Serial port is reserved
+  // exclusively for Modbus RTU and must never receive debug text.
+  webSerial.setBuffer(256);
+  webSerial.begin(&server);
+  DiagnosticLog::begin(webSerial);
+  server.begin();
+  DiagnosticLog::println("EPEver2MQTT " SOFTWARE_VERSION " started");
+
+  if (WiFi.status() == WL_CONNECTED)
   {
-    // set the device name
     MDNS.begin(_settings.data.deviceName);
     MDNS.addService("http", "tcp", 80);
-
-    WiFi.hostname(_settings.data.deviceName);
-
-    liveJson["DEVICE_NAME"] = _settings.data.deviceName;
-
-    webUiRoutes.registerRoutes();
-    mpptSettingsRoutes.registerRoutes();
-    systemActionRoutes.registerRoutes();
-
-    server.onNotFound([](AsyncWebServerRequest *request)
-                      { request->send(418, "text/plain", "418 I'm a teapot"); });
-
-    webSocketController.begin();
-    server.addHandler(&ws);
-
-    // WebSerial is accessible at "<IP Address>/webserial" in browser
-    webSerial.begin(&server);
-    // webSerial.onMessage(recvMsg);
-
-    server.begin();
-
-    tempSens.begin();
-    numOfTempSens = tempSens.getDeviceCount();
   }
+
+  tempSens.begin();
+  numOfTempSens = tempSens.getDeviceCount();
   analogWrite(LED_PIN, 255);
   bootLoopGuard.markBootSuccessful();
 }
@@ -191,6 +196,7 @@ void setup()
 void loop()
 {
   MDNS.update();
+  webSocketController.cleanup();
   if (factoryResetRequested)
   {
     factoryResetRequested = false;
@@ -198,15 +204,9 @@ void loop()
     ESP.eraseConfig();
     ESP.restart();
   }
-  if (Update.isRunning())
-  {
-    workerCanRun = false;
-  }
   // Make sure wifi is in the right mode
   if (WiFi.status() == WL_CONNECTED && workerCanRun)
   { // No use going to next step unless WIFI is up and running.
-    // ws.cleanupClients(); // clean unused client connections
-
     mqttService.loop(); // Check if we have something to read from MQTT
     pollingService.run();
 
@@ -222,7 +222,7 @@ void loop()
 
   if (restartNow && millis() >= (RestartTimer + 500))
   {
-    Serial.println("Restart");
+    DiagnosticLog::println("Restart");
     ESP.reset();
   }
   if (workerCanRun)
