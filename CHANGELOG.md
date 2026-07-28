@@ -2,6 +2,17 @@
 
 ## 2.6.0-Pre0.3
 
+- Split controller polling into common, Legacy and IT/ET-NC register readers.
+- Add typed register structures and centralized register maps.
+- Add IT-NC and ET-NC/G3 device profiles, telemetry and settings decoding.
+- Integrate load switching, charging-current control and MPPT settings writes.
+- Move Web UI runtime data and actions to JSON GET/POST APIs and WebSocket.
+- Normalize decimal measurements to two decimal places for JSON, Web UI and MQTT.
+- Fix browser device-time submission and preserve local controller wall-clock time.
+- Split settings, polling, MQTT, temperature, requests and device commands into
+  components with explicit state ownership.
+- Add a register-level simulator build for Legacy, IT-NC and ET-NC devices.
+- Add simulator startup self-tests and architecture invariant checks.
 - Start the web server even when the initial Wi-Fi connection attempt fails.
 - Keep the Web UI available when Wi-Fi reconnects after boot.
 - Fix a WebSocket buffer overflow that could corrupt the ESP8266 heap.

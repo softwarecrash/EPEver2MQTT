@@ -1,26 +1,20 @@
 #pragma once
 
-#ifndef ARDUINOJSON_USE_DOUBLE
-#define ARDUINOJSON_USE_DOUBLE 0
-#endif
-#ifndef ARDUINOJSON_USE_LONG_LONG
-#define ARDUINOJSON_USE_LONG_LONG 1
-#endif
-
 #include <Arduino.h>
 #include <ESPAsyncWebServer.h>
 
 #include "../Settings.h"
+#include "../app/ApplicationRequests.h"
+#include "../app/PollingControl.h"
+#include "../epever/DeviceAddressService.h"
 
 class SystemActionRoutes
 {
 public:
   SystemActionRoutes(AsyncWebServer &server, Settings &settings,
-                     bool &factoryResetRequested,
-                     bool &discoveryRequested, bool &workerCanRun,
-                     bool &restartRequested, unsigned long &restartTimer,
-                     HardwareSerial &serial,
-                     uint8_t transceiverEnablePin);
+                     ApplicationRequests &applicationRequests,
+                     PollingControl &pollingControl,
+                     DeviceAddressService &deviceAddress);
 
   void registerRoutes();
 
@@ -30,11 +24,7 @@ private:
 
   AsyncWebServer &_server;
   Settings &_settings;
-  bool &_factoryResetRequested;
-  bool &_discoveryRequested;
-  bool &_workerCanRun;
-  bool &_restartRequested;
-  unsigned long &_restartTimer;
-  HardwareSerial &_serial;
-  uint8_t _transceiverEnablePin;
+  ApplicationRequests &_applicationRequests;
+  PollingControl &_pollingControl;
+  DeviceAddressService &_deviceAddress;
 };

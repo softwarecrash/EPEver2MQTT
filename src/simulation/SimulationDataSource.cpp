@@ -1,15 +1,29 @@
 #include "SimulationDataSource.h"
 
-#include <math.h>
 #include <UnixTime.h>
+#include <math.h>
+
+#include "../epever/LegacyRegisters.h"
+#include "../epever/NcG3Registers.h"
 
 namespace
 {
 constexpr float SimulatedDayMilliseconds = 180000.0f;
 constexpr uint32_t BaseUnixTime = 1785062400UL;
 
-const char *const Profiles[] = {"", "Tracer AN", "IT6415NC G3",
-                                "ET6415NC G3"};
+uint16_t toUnsignedRaw(float value)
+{
+  if (value <= 0)
+    return 0;
+  if (value >= 655.35f)
+    return UINT16_MAX;
+  return static_cast<uint16_t>(roundf(value * 100.0f));
+}
+
+int16_t toSignedRaw(float value)
+{
+  return static_cast<int16_t>(roundf(value * 100.0f));
+}
 }
 
 SimulationDataSource::SimulationDataSource()
@@ -17,7 +31,8 @@ SimulationDataSource::SimulationDataSource()
       _chargeCurrentLimit{0, 30, 60, 60},
       _generatedToday{},
       _consumedToday{},
-      _lastUpdate(0),
+      _batterySettings{},
+      _lastUpdate{},
       _clockOffset(0)
 {
   const uint16_t defaults[BatterySettingCount] = {
@@ -26,7 +41,8 @@ SimulationDataSource::SimulationDataSource()
   for (uint8_t device = 1; device <= DeviceCount; device++)
   {
     memcpy(_batterySettings[device], defaults, sizeof(defaults));
-    const uint8_t voltageMultiplier = device == 1 ? 1 : (device == 2 ? 2 : 4);
+    const uint8_t voltageMultiplier =
+        device == 1 ? 1 : (device == 2 ? 2 : 4);
     for (uint8_t index = 3; index < BatterySettingCount; index++)
       _batterySettings[device][index] *= voltageMultiplier;
   }
@@ -36,18 +52,63 @@ SimulationDataSource::SimulationDataSource()
 
 void SimulationDataSource::begin()
 {
-  _lastUpdate = millis();
+  const unsigned long now = millis();
+  for (uint8_t device = 1; device <= DeviceCount; device++)
+    _lastUpdate[device] = now;
 }
 
-void SimulationDataSource::update(JsonDocument &document)
+bool SimulationDataSource::selfTest()
 {
+  uint16_t values[20] = {};
+
+  if (!prepareDevice(1) ||
+      !readInputRegisters(1, NcG3Registers::Model, 1, values) ||
+      values[0] != 100 ||
+      !readInputRegisters(1, LegacyRegisters::LiveData, 16, values) ||
+      !readInputRegisters(1, LegacyRegisters::Statistics, 20, values) ||
+      !readHoldingRegisters(1, LegacyRegisters::RtcClock, 3, values) ||
+      !readCoils(1, LegacyRegisters::LoadState, 1, values))
+    return false;
+
+  if (!prepareDevice(2) ||
+      !readInputRegisters(2, NcG3Registers::Model, 1, values) ||
+      values[0] != 5 ||
+      !readInputRegisters(2, NcG3Registers::Pv1Live, 4, values) ||
+      !readInputRegisters(2, NcG3Registers::ItEnergyStatistics, 16,
+                          values) ||
+      !readInputRegisters(2, NcG3Registers::BmsTelemetry, 10, values) ||
+      !readHoldingRegisters(2, NcG3Registers::VoltageSettings, 13,
+                            values))
+    return false;
+
+  if (!prepareDevice(3) ||
+      !readInputRegisters(3, NcG3Registers::Model, 1, values) ||
+      values[0] != 17 ||
+      !readInputRegisters(3, NcG3Registers::Pv2Live, 4, values) ||
+      !readInputRegisters(3, NcG3Registers::EtEnergyStatistics, 8,
+                          values) ||
+      !readHoldingRegisters(
+          3, NcG3Registers::OptionalSettingsAndRtc, 9, values))
+    return false;
+
+  // Invalid addresses and device IDs must fail instead of returning
+  // plausible zero-filled data that could hide decoder errors.
+  return !prepareDevice(0) &&
+         !readInputRegisters(3, 0xFFFF, 1, values);
+}
+
+bool SimulationDataSource::prepareDevice(uint8_t device)
+{
+  if (device == 0 || device > DeviceCount)
+    return false;
+
   const unsigned long now = millis();
   const float elapsedHours =
-      (now - _lastUpdate) / SimulatedDayMilliseconds * 24.0f;
-  _lastUpdate = now;
+      (now - _lastUpdate[device]) / SimulatedDayMilliseconds * 24.0f;
+  _lastUpdate[device] = now;
 
-  const float dayProgress = fmodf(now, SimulatedDayMilliseconds) /
-                            SimulatedDayMilliseconds;
+  const float dayProgress =
+      fmodf(now, SimulatedDayMilliseconds) / SimulatedDayMilliseconds;
   const float hours = dayProgress * 24.0f;
   const float sunAngle = (hours - 6.0f) / 12.0f * PI;
   const float clearSky = hours > 6.0f && hours < 18.0f
@@ -58,167 +119,337 @@ void SimulationDataSource::update(JsonDocument &document)
       0.06f * sinf(now / 4100.0f);
   const float solarFactor = clamp(clearSky * cloud, 0.0f, 1.0f);
 
-  for (uint8_t device = 1; device <= DeviceCount; device++)
-    addDevice(document, device, solarFactor, hours, elapsedHours);
-
-  document["DEVICE_NAME"] = "EPEver2MQTT-Simulator";
-  document["DEVICE_QUANTITY"] = DeviceCount;
-  document["DEVICE_FREE_HEAP"] = ESP.getFreeHeap();
-  document["ESP_VCC"] = 3.31f;
-  document["Runtime"] = millis() / 1000;
-  document["Wifi_RSSI"] = -48 + static_cast<int>(4 * sinf(now / 9000.0f));
-  document["sw_version"] = SWVERSION;
-  document["SIMULATION"] = true;
-  document["SIMULATION_HOUR"] = roundf(hours * 100.0f) / 100.0f;
-}
-
-void SimulationDataSource::addDevice(JsonDocument &document, uint8_t device,
-                                     float solarFactor, float hours,
-                                     float elapsedHours)
-{
   const float ratedPower[] = {0, 520.0f, 1040.0f, 1040.0f};
   const float batteryNominal[] = {0, 12.8f, 25.6f, 48.0f};
   const float loadBase[] = {0, 36.0f, 92.0f, 140.0f};
-  const float pvVoltage[] = {0, 38.0f, 76.0f, 112.0f};
+  const float pvRatedVoltage[] = {0, 38.0f, 76.0f, 112.0f};
 
-  const float pvPower = ratedPower[device] * solarFactor *
-                        (0.96f + 0.03f * sinf(device + millis() / 6000.0f));
-  const float loadPower = _loadState[device]
-                              ? loadBase[device] *
-                                    (1.0f + 0.18f * sinf(hours * 0.8f + device))
-                              : 0.0f;
-  const float controllerLoss = pvPower * 0.035f;
-  const float batteryPower = pvPower - loadPower - controllerLoss;
-  const float socWave = 58.0f + 28.0f * sinf((hours - 10.0f) / 24.0f * 2 * PI);
+  const float pvPower =
+      ratedPower[device] * solarFactor *
+      (0.96f + 0.03f * sinf(device + now / 6000.0f));
+  const float loadPower =
+      _loadState[device]
+          ? loadBase[device] *
+                (1.0f + 0.18f * sinf(hours * 0.8f + device))
+          : 0.0f;
+  const float batteryPower = pvPower - loadPower - pvPower * 0.035f;
+  const float socWave =
+      58.0f + 28.0f * sinf((hours - 10.0f) / 24.0f * 2 * PI);
   const float soc = clamp(socWave - device * 3.0f, 18.0f, 98.0f);
   const float batteryVoltage =
       batteryNominal[device] *
-      (0.91f + 0.0017f * soc + (batteryPower > 0 ? 0.018f : -0.012f));
+      (0.91f + 0.0017f * soc +
+       (batteryPower > 0 ? 0.018f : -0.012f));
   const float batteryCurrent = batteryPower / batteryVoltage;
+  const float pvVoltage =
+      solarFactor > 0.01f ? pvRatedVoltage[device] : 0.0f;
+  const float pvCurrent = pvVoltage > 0 ? pvPower / pvVoltage : 0.0f;
 
   _generatedToday[device] +=
       fmaxf(0.0f, pvPower) * elapsedHours / 1000.0f;
   _consumedToday[device] += loadPower * elapsedHours / 1000.0f;
 
-  const String key = "EP_" + String(device);
-  JsonObject root = document[key].to<JsonObject>();
-  root.clear();
-  JsonObject live = root["LiveData"].to<JsonObject>();
-  JsonObject stats = root["StatsData"].to<JsonObject>();
-  JsonObject data = root["DeviceData"].to<JsonObject>();
-
-  live["CONNECTION"] = 0;
-  live["DEVICE_NUM"] = String(device);
-  const int64_t simulatedTime =
-      static_cast<int64_t>(BaseUnixTime) + _clockOffset +
-      static_cast<int64_t>(millis() / SimulatedDayMilliseconds * 86400.0f);
-  live["DEVICE_TIME"] = simulatedTime;
-  live["DEVICE_TEMP"] = 27.0f + solarFactor * 18.0f + device;
-  live["SOLAR_V"] = solarFactor > 0.01f ? pvVoltage[device] : 0.0f;
-  live["SOLAR_A"] = solarFactor > 0.01f ? pvPower / pvVoltage[device] : 0.0f;
-  live["SOLAR_W"] = pvPower;
+  _snapshot = {};
+  _snapshot.pvVoltage = toUnsignedRaw(pvVoltage);
+  _snapshot.pvCurrent = toUnsignedRaw(pvCurrent);
+  _snapshot.pvPower =
+      static_cast<uint32_t>(roundf(fmaxf(0.0f, pvPower) * 100.0f));
   if (device == 3)
   {
     const float pv2Power = pvPower * 0.47f;
-    live["SOLAR_2_V"] = live["SOLAR_V"].as<float>() * 0.98f;
-    live["SOLAR_2_A"] =
-        live["SOLAR_2_V"].as<float>() > 0
-            ? pv2Power / live["SOLAR_2_V"].as<float>()
-            : 0;
-    live["SOLAR_2_W"] = pv2Power;
+    const float pv2Voltage = pvVoltage * 0.98f;
+    _snapshot.pv2Voltage = toUnsignedRaw(pv2Voltage);
+    _snapshot.pv2Current =
+        toUnsignedRaw(pv2Voltage > 0 ? pv2Power / pv2Voltage : 0);
+    _snapshot.pv2Power =
+        static_cast<uint32_t>(roundf(pv2Power * 100.0f));
   }
-  live["SOLAR_TOTAL_A"] = live["SOLAR_A"];
-  live["SOLAR_TOTAL_W"] = pvPower;
-  live["PV_HIGHEST_V"] = pvVoltage[device] * 1.08f;
-  live["BATT_SOC"] = roundf(soc);
-  live["BATT_V"] = batteryVoltage;
-  live["BATT_A"] = batteryCurrent;
-  live["BATT_W"] = batteryPower;
-  live["BATT_STATE"] = "Normal";
-  live["BATT_TEMP"] = 23.5f + solarFactor * 5.0f;
-  live["BATT_TEMP_STATE"] = "Normal";
-  live["SYSTEM_V"] = batteryNominal[device];
-  live["LOAD_AVAILABLE"] = device != 3;
-  if (device != 3)
+  _snapshot.loadVoltage = toUnsignedRaw(batteryVoltage);
+  _snapshot.loadCurrent =
+      toUnsignedRaw(batteryVoltage > 0 ? loadPower / batteryVoltage : 0);
+  _snapshot.loadPower =
+      static_cast<uint32_t>(roundf(loadPower * 100.0f));
+  _snapshot.batteryVoltage = toUnsignedRaw(batteryVoltage);
+  _snapshot.batteryCurrent = toSignedRaw(batteryCurrent);
+  _snapshot.batterySoc = static_cast<uint16_t>(roundf(soc));
+  _snapshot.batteryTemperature =
+      toSignedRaw(23.5f + solarFactor * 5.0f);
+  _snapshot.deviceTemperature =
+      toSignedRaw(27.0f + solarFactor * 18.0f + device);
+  _snapshot.systemVoltage = toUnsignedRaw(batteryNominal[device]);
+  _snapshot.highestPvVoltage =
+      toUnsignedRaw(pvRatedVoltage[device] * 1.08f);
+  _snapshot.totalPvCurrent = _snapshot.pvCurrent;
+  _snapshot.totalPvPower = _snapshot.pvPower;
+  _snapshot.batteryMaximum =
+      toUnsignedRaw(batteryNominal[device] * 1.14f);
+  _snapshot.batteryMinimum =
+      toUnsignedRaw(batteryNominal[device] * 0.91f);
+  _snapshot.consumedDay =
+      static_cast<uint32_t>(roundf(_consumedToday[device] * 100.0f));
+  _snapshot.generatedDay =
+      static_cast<uint32_t>(roundf(_generatedToday[device] * 100.0f));
+  _snapshot.daytime = solarFactor > 0.0f;
+  _preparedDevice = device;
+  return true;
+}
+
+bool SimulationDataSource::readInputRegisters(
+    uint8_t device, uint16_t address, uint8_t count,
+    uint16_t *values) const
+{
+  if (device != _preparedDevice || values == nullptr)
+    return false;
+  memset(values, 0, count * sizeof(uint16_t));
+
+  const EpeverProfile deviceProfile = profile(device);
+  if (address == NcG3Registers::Model && count == 1)
   {
-    live["LOAD_V"] = batteryVoltage;
-    live["LOAD_A"] = batteryVoltage > 0 ? loadPower / batteryVoltage : 0;
-    live["LOAD_W"] = loadPower;
-    live["LOAD_STATE"] = _loadState[device];
+    values[0] = device == 1 ? 100 : (device == 2 ? 5 : 17);
+    return true;
   }
-  live["CHARGER_STATE"] = "Normal";
-  live["CHARGER_MODE"] =
-      solarFactor < 0.02f ? "Off" : (soc > 94 ? "Float" : "Boost");
-  live["DAYTIME"] = solarFactor > 0;
-  live["MPPT_ACTIVE"] = solarFactor > 0.03f;
 
-  stats["SOLAR_MAX"] = pvVoltage[device] * 1.08f;
-  stats["SOLAR_MIN"] = 0;
-  stats["BATT_MAX"] = batteryNominal[device] * 1.14f;
-  stats["BATT_MIN"] = batteryNominal[device] * 0.91f;
-  stats["CONSUMPTION_AVAILABLE"] = device != 3;
-  stats["CONS_DAY"] = _consumedToday[device];
-  stats["CONS_MON"] = 62.4f + _consumedToday[device];
-  stats["CONS_YEAR"] = 734.2f + _consumedToday[device];
-  stats["CONS_TOT"] = 2841.7f + _consumedToday[device];
-  stats["GEN_DAY"] = _generatedToday[device];
-  stats["GEN_MON"] = 91.8f + _generatedToday[device];
-  stats["GEN_YEAR"] = 1087.4f + _generatedToday[device];
-  stats["GEN_TOT"] = 4926.3f + _generatedToday[device];
-
-  data["DEVICE_PROFILE"] = Profiles[device];
-  data["DEVICE_MODEL"] = device == 1 ? "Tracer4210AN"
-                                      : (device == 2 ? "IT6415NC G3"
-                                                     : "ET6415NC G3");
-  data["MODEL_ID"] = device == 1 ? 100 : (device == 2 ? 5 : 17);
-  data["PV_INPUT_COUNT"] = device == 3 ? 2 : 1;
-  data["PV_MAX_V"] = pvVoltage[device] * 1.32f;
-  data["RATED_CHARGE_POWER"] = ratedPower[device];
-  data["RATED_BATTERY_V"] = batteryNominal[device];
-  data["RATED_CHARGE_A"] = device == 1 ? 40 : 60;
-  data["RATED_LOAD_A"] = device == 3 ? 0 : 30;
-  data["BATTERY_TYPE"] = device == 1 ? "User" : "LFP8S";
-  data["BATTERY_CAPACITY"] = device == 1 ? 200 : 280;
-  data["CHARGING_CURRENT_LIMIT"] = _chargeCurrentLimit[device];
-  data["HIGH_VOLT_DISCONNECT"] = _batterySettings[device][3] / 100.0f;
-  data["CHARGING_LIMIT_VOLTS"] = _batterySettings[device][4] / 100.0f;
-  data["OVER_VOLTS_RECONNECT"] = _batterySettings[device][5] / 100.0f;
-  data["EQUALIZATION_VOLTS"] = _batterySettings[device][6] / 100.0f;
-  data["BOOST_VOLTS"] = _batterySettings[device][7] / 100.0f;
-  data["FLOAT_VOLTS"] = _batterySettings[device][8] / 100.0f;
-  data["BOOST_RECONNECT_VOLTS"] = _batterySettings[device][9] / 100.0f;
-  data["LOW_VOLTS_RECONNECT"] = _batterySettings[device][10] / 100.0f;
-  data["UNDER_VOLTS_RECOVER"] = _batterySettings[device][11] / 100.0f;
-  data["UNDER_VOLTS_WARNING"] = _batterySettings[device][12] / 100.0f;
-  data["LOW_VOLTS_DISCONNECT"] = _batterySettings[device][13] / 100.0f;
-  data["DISCHARGING_LIMIT_VOLTS"] = _batterySettings[device][14] / 100.0f;
-
-  if (device == 2)
+  if (deviceProfile == EpeverProfile::Legacy)
   {
-    JsonObject bms = root["BmsData"].to<JsonObject>();
-    bms["ONLINE"] = true;
-    bms["LOW_SOC"] = soc < 20;
-    bms["DISCHARGE_PROTECTION"] = false;
-    bms["CHARGE_PROTECTION"] = false;
-    bms["SENSOR_FAULT"] = false;
-    bms["CELL_LOW_TEMP"] = false;
-    bms["CELL_OVER_TEMP"] = false;
-    bms["CELL_LOW_VOLTAGE"] = false;
-    bms["CELL_OVER_VOLTAGE"] = false;
-    bms["FULL_SOC"] = soc > 98;
-    bms["CELL_COUNT"] = 8;
-    bms["PACK_V"] = batteryVoltage;
-    bms["PACK_A"] = batteryCurrent;
-    bms["FULL_CAPACITY"] = 280;
-    bms["REMAINING_CAPACITY"] = roundf(280.0f * soc / 100.0f);
-    bms["REMAINING_MINUTES"] =
-        batteryCurrent < -0.1f
-            ? roundf(bms["REMAINING_CAPACITY"].as<float>() /
-                     -batteryCurrent * 60.0f)
-            : 0;
-    bms["MAX_CELL_TEMP"] = 27.1f + solarFactor * 2.0f;
-    bms["MIN_CELL_TEMP"] = 25.8f + solarFactor * 1.5f;
+    if (address == LegacyRegisters::LiveData && count == 16)
+    {
+      values[0] = _snapshot.pvVoltage;
+      values[1] = _snapshot.pvCurrent;
+      setUint32(values, 2, _snapshot.pvPower);
+      values[4] = _snapshot.batteryVoltage;
+      values[5] = static_cast<uint16_t>(_snapshot.batteryCurrent);
+      setUint32(values, 6,
+                static_cast<uint32_t>(
+                    static_cast<int32_t>(_snapshot.batteryVoltage) *
+                    _snapshot.batteryCurrent / 100));
+      values[12] = _snapshot.loadVoltage;
+      values[13] = _snapshot.loadCurrent;
+      setUint32(values, 14, _snapshot.loadPower);
+      return true;
+    }
+    if (address == LegacyRegisters::Statistics && count == 20)
+    {
+      values[0] = _snapshot.highestPvVoltage;
+      values[2] = _snapshot.batteryMaximum;
+      values[3] = _snapshot.batteryMinimum;
+      setUint32(values, 4, _snapshot.consumedDay);
+      setUint32(values, 12, _snapshot.generatedDay);
+      setUint32(values, 14, 9180 + _snapshot.generatedDay);
+      setUint32(values, 16, 108740 + _snapshot.generatedDay);
+      setUint32(values, 18, 492630 + _snapshot.generatedDay);
+      return true;
+    }
+    if (address == LegacyRegisters::BatterySoc && count == 1)
+      values[0] = _snapshot.batterySoc;
+    else if (address == LegacyRegisters::BatteryCurrent && count == 2)
+      setUint32(values, 0,
+                static_cast<uint32_t>(
+                    static_cast<int32_t>(_snapshot.batteryCurrent)));
+    else if (address == LegacyRegisters::StatusFlags && count == 2)
+      values[1] = _snapshot.daytime ? (2U << 2) : 0;
+    else if (address == LegacyRegisters::DeviceTemperature && count == 1)
+      values[0] = static_cast<uint16_t>(_snapshot.deviceTemperature);
+    else if (address == LegacyRegisters::BatteryTemperature && count == 1)
+      values[0] = static_cast<uint16_t>(_snapshot.batteryTemperature);
+    else
+      return false;
+    return true;
   }
+
+  if (address == NcG3Registers::PvMaximumVoltage && count == 1)
+    values[0] = toUnsignedRaw(device == 2 ? 100.0f : 150.0f);
+  else if (address == NcG3Registers::ChargeRatings && count == 4)
+  {
+    setUint32(values, 0, 104000);
+    values[2] = _snapshot.systemVoltage;
+    values[3] = 6000;
+  }
+  else if (address == NcG3Registers::RatedLoadCurrent && count == 1)
+    values[0] = 3000;
+  else if (address == NcG3Registers::DspFirmwareAndPvCount && count == 2)
+  {
+    values[0] = 102;
+    values[1] = device == 3 ? 2 : 1;
+  }
+  else if (address == NcG3Registers::ArmFirmware && count == 1)
+    values[0] = 105;
+  else if (address == NcG3Registers::Pv1Live && count == 4)
+  {
+    values[0] = _snapshot.pvVoltage;
+    values[1] = _snapshot.pvCurrent;
+    setUint32(values, 2, _snapshot.pvPower);
+  }
+  else if (address == NcG3Registers::Pv2Live && count == 4)
+  {
+    values[0] = _snapshot.pv2Voltage;
+    values[1] = _snapshot.pv2Current;
+    setUint32(values, 2, _snapshot.pv2Power);
+  }
+  else if (address == NcG3Registers::LoadLive && count == 4)
+  {
+    values[0] = _snapshot.loadVoltage;
+    values[1] = _snapshot.loadCurrent;
+    setUint32(values, 2, _snapshot.loadPower);
+  }
+  else if (address == NcG3Registers::BatteryVoltage && count == 1)
+    values[0] = _snapshot.batteryVoltage;
+  else if (address == NcG3Registers::BatteryLive && count == 4)
+  {
+    values[0] = static_cast<uint16_t>(_snapshot.batteryCurrent);
+    values[1] = static_cast<uint16_t>(_snapshot.batteryTemperature);
+    values[2] = _snapshot.batterySoc;
+    values[3] = static_cast<uint16_t>(_snapshot.deviceTemperature);
+  }
+  else if (address == NcG3Registers::PvTotals && count == 5)
+  {
+    values[0] = _snapshot.systemVoltage;
+    values[1] = _snapshot.highestPvVoltage;
+    values[2] = _snapshot.totalPvCurrent;
+    setUint32(values, 3, _snapshot.totalPvPower);
+  }
+  else if (address == NcG3Registers::Status && count == 4)
+  {
+    values[2] = (_snapshot.daytime ? 0x0002 : 0) |
+                (_snapshot.daytime ? (2U << 2) : 0);
+    values[3] = _snapshot.daytime ? 0x0020 : 0;
+  }
+  else if (address == NcG3Registers::BmsStatus && count == 1)
+    values[0] = device == 2 ? 0x0001 : 0;
+  else if (address == NcG3Registers::BatteryStatistics && count == 2)
+  {
+    values[0] = _snapshot.batteryMaximum;
+    values[1] = _snapshot.batteryMinimum;
+  }
+  else if (address == NcG3Registers::ItEnergyStatistics && count == 16)
+  {
+    setUint32(values, 0, _snapshot.consumedDay);
+    setUint32(values, 2, 6240 + _snapshot.consumedDay);
+    setUint32(values, 4, 73420 + _snapshot.consumedDay);
+    setUint32(values, 6, 284170 + _snapshot.consumedDay);
+    setUint32(values, 8, _snapshot.generatedDay);
+    setUint32(values, 10, 9180 + _snapshot.generatedDay);
+    setUint32(values, 12, 108740 + _snapshot.generatedDay);
+    setUint32(values, 14, 492630 + _snapshot.generatedDay);
+  }
+  else if (address == NcG3Registers::EtEnergyStatistics && count == 8)
+  {
+    setUint32(values, 0, _snapshot.generatedDay);
+    setUint32(values, 2, 9180 + _snapshot.generatedDay);
+    setUint32(values, 4, 108740 + _snapshot.generatedDay);
+    setUint32(values, 6, 492630 + _snapshot.generatedDay);
+  }
+  else if (address == NcG3Registers::BmsTelemetry && count == 10 &&
+           device == 2)
+  {
+    values[0] = 8;
+    values[1] = _snapshot.batteryVoltage;
+    values[2] = static_cast<uint16_t>(_snapshot.batteryCurrent);
+    values[5] = 280;
+    values[6] = static_cast<uint16_t>(
+        280UL * _snapshot.batterySoc / 100UL);
+    values[8] = toUnsignedRaw(28.0f);
+    values[9] = toUnsignedRaw(26.0f);
+  }
+  else
+    return false;
+  return true;
+}
+
+bool SimulationDataSource::readHoldingRegisters(
+    uint8_t device, uint16_t address, uint8_t count,
+    uint16_t *values) const
+{
+  if (device != _preparedDevice || values == nullptr)
+    return false;
+  memset(values, 0, count * sizeof(uint16_t));
+
+  if (profile(device) == EpeverProfile::Legacy)
+  {
+    if (address == LegacyRegisters::DeviceSettings && count == 15)
+    {
+      memcpy(values, _batterySettings[device],
+             BatterySettingCount * sizeof(uint16_t));
+      return true;
+    }
+    if (address != LegacyRegisters::RtcClock || count != 3)
+      return false;
+  }
+  else
+  {
+    if (address == NcG3Registers::BatterySettings && count == 3)
+    {
+      memcpy(values, _batterySettings[device], 3 * sizeof(uint16_t));
+      return true;
+    }
+    if (address == NcG3Registers::VoltageSettings && count == 13)
+    {
+      memcpy(values, _batterySettings[device] + 3,
+             12 * sizeof(uint16_t));
+      values[12] = toUnsignedRaw(_chargeCurrentLimit[device]);
+      return true;
+    }
+    if (address == NcG3Registers::OptionalSettingsAndRtc && count == 9)
+    {
+      values[0] = 120;
+      values[1] = 120;
+      values[2] = 3;
+      UnixTime dateTime(0);
+      dateTime.getDateTime(simulatedTime());
+      values[5] = (static_cast<uint16_t>(dateTime.minute) << 8) |
+                  dateTime.second;
+      values[6] = (static_cast<uint16_t>(dateTime.day) << 8) |
+                  dateTime.hour;
+      values[7] =
+          (static_cast<uint16_t>(dateTime.year - 2000) << 8) |
+          dateTime.month;
+      values[8] = toUnsignedRaw(60.0f);
+      return true;
+    }
+    if (address == NcG3Registers::TemperatureLimits && count == 3)
+    {
+      values[0] = static_cast<uint16_t>(toSignedRaw(-20.0f));
+      values[1] = toUnsignedRaw(85.0f);
+      values[2] = toUnsignedRaw(75.0f);
+      return true;
+    }
+    if (address == NcG3Registers::OperatingSettings && count == 16)
+    {
+      values[1] = 100;
+      values[2] = 95;
+      values[13] = device;
+      values[14] = 4;
+      values[15] = 6000;
+      return true;
+    }
+    return false;
+  }
+
+  UnixTime dateTime(0);
+  dateTime.getDateTime(simulatedTime());
+  values[0] = (static_cast<uint16_t>(dateTime.minute) << 8) |
+              dateTime.second;
+  values[1] = (static_cast<uint16_t>(dateTime.day) << 8) |
+              dateTime.hour;
+  values[2] =
+      (static_cast<uint16_t>(dateTime.year - 2000) << 8) |
+      dateTime.month;
+  return true;
+}
+
+bool SimulationDataSource::readCoils(uint8_t device, uint16_t address,
+                                     uint8_t count,
+                                     uint16_t *values) const
+{
+  if (device != _preparedDevice || values == nullptr || count != 1)
+    return false;
+  const uint16_t expectedAddress =
+      profile(device) == EpeverProfile::Legacy
+          ? LegacyRegisters::LoadState
+          : NcG3Registers::LoadState;
+  if (address != expectedAddress || device == 3)
+    return false;
+  values[0] = _loadState[device] ? 1 : 0;
+  return true;
 }
 
 EpeverProfile SimulationDataSource::profile(uint8_t device) const
@@ -275,7 +506,8 @@ bool SimulationDataSource::setClock(const char *dateTime)
   uint8_t parts[6];
   for (uint8_t index = 0; index < 6; index++)
   {
-    if (!isDigit(dateTime[index * 2]) || !isDigit(dateTime[index * 2 + 1]))
+    if (!isDigit(dateTime[index * 2]) ||
+        !isDigit(dateTime[index * 2 + 1]))
       return false;
     parts[index] = (dateTime[index * 2] - '0') * 10 +
                    dateTime[index * 2 + 1] - '0';
@@ -283,15 +515,30 @@ bool SimulationDataSource::setClock(const char *dateTime)
   UnixTime targetTime(0);
   targetTime.setDateTime(2000 + parts[0], parts[1], parts[2],
                          parts[3], parts[4], parts[5]);
-  const int64_t currentSimulatedTime =
-      BaseUnixTime +
-      static_cast<uint32_t>(millis() / SimulatedDayMilliseconds * 86400);
   _clockOffset = static_cast<int32_t>(
-      static_cast<int64_t>(targetTime.getUnix()) - currentSimulatedTime);
+      static_cast<int64_t>(targetTime.getUnix()) -
+      static_cast<int64_t>(BaseUnixTime) -
+      static_cast<int64_t>(
+          millis() / SimulatedDayMilliseconds * 86400.0f));
   return true;
 }
 
-float SimulationDataSource::clamp(float value, float minimum, float maximum)
+void SimulationDataSource::setUint32(uint16_t *values, uint8_t index,
+                                     uint32_t value)
+{
+  values[index] = static_cast<uint16_t>(value);
+  values[index + 1] = static_cast<uint16_t>(value >> 16);
+}
+
+uint32_t SimulationDataSource::simulatedTime() const
+{
+  return BaseUnixTime + _clockOffset +
+         static_cast<uint32_t>(
+             millis() / SimulatedDayMilliseconds * 86400.0f);
+}
+
+float SimulationDataSource::clamp(float value, float minimum,
+                                  float maximum)
 {
   return fmaxf(minimum, fminf(maximum, value));
 }

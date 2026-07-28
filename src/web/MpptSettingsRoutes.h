@@ -1,29 +1,24 @@
 #pragma once
 
-#ifndef ARDUINOJSON_USE_DOUBLE
-#define ARDUINOJSON_USE_DOUBLE 0
-#endif
-#ifndef ARDUINOJSON_USE_LONG_LONG
-#define ARDUINOJSON_USE_LONG_LONG 1
-#endif
-
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <ESPAsyncWebServer.h>
 
 #include "../Settings.h"
+#include "../app/PollingControl.h"
 #include "../epever/BatterySettingsService.h"
+#include "../epever/EpeverController.h"
+
+class MqttService;
 
 class MpptSettingsRoutes
 {
 public:
-  using DetectProfileFn = EpeverProfile (*)(uint8_t device, bool force);
-
   MpptSettingsRoutes(AsyncWebServer &server, Settings &settings,
                      BatterySettingsService &batterySettings,
-                     JsonDocument &liveJson, bool &workerCanRun,
-                     unsigned long &mqttTimer, uint8_t maximumDevices,
-                     DetectProfileFn detectProfile);
+                     EpeverController &controller,
+                     PollingControl &pollingControl, MqttService &mqtt,
+                     uint8_t maximumDevices);
 
   void registerRoutes();
 
@@ -38,20 +33,18 @@ private:
 
   bool parseSetting(JsonObjectConst json, uint8_t index,
                     uint16_t scale, uint16_t maximum, uint16_t &value);
-  void updateJson(uint8_t device, EpeverProfile profile,
-                  const uint16_t *values);
   void sendResponse(AsyncWebServerRequest *request, uint16_t statusCode,
                     uint8_t device, EpeverProfile profile,
-                    const uint16_t *values, const String &message);
+                    const BatterySettingRegisters *settings,
+                    const String &message);
   static const char *validationMessage(
       BatterySettingsService::ValidationError error);
 
   AsyncWebServer &_server;
   Settings &_settings;
   BatterySettingsService &_batterySettings;
-  JsonDocument &_liveJson;
-  bool &_workerCanRun;
-  unsigned long &_mqttTimer;
+  EpeverController &_controller;
+  PollingControl &_pollingControl;
+  MqttService &_mqtt;
   uint8_t _maximumDevices;
-  DetectProfileFn _detectProfile;
 };

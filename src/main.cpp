@@ -17,6 +17,7 @@
 #include "epever/BatterySettingsService.h"
 #include "epever/DeviceClockService.h"
 #include "epever/EpeverController.h"
+#include "epever/DeviceAddressService.h"
 #include "web/MpptSettingsRoutes.h"
 #include "web/WebUiRoutes.h"
 #include "web/WebSocketController.h"
@@ -27,29 +28,19 @@
 #include "app/BootLoopGuard.h"
 #include "app/NotificationLed.h"
 #include "app/DiagnosticLog.h"
+#include "app/ApplicationRequests.h"
+#include "app/PollingControl.h"
+#include "app/TemperatureSensorService.h"
 #ifdef EPEVER_SIMULATION
 #include "simulation/SimulationDataSource.h"
 #endif
 #include <time.h>
 #include <coredecls.h>
 
-// flag for saving data and other things
-bool shouldSaveConfig = false;
-bool restartNow = false;
-bool workerCanRun = true;
-bool haDiscTrigger = false;
 bool setNTPTimeToDevice = false;
-bool factoryResetRequested = false;
 unsigned int jsonSize = 0;
-unsigned long mqtttimer = 0;
-unsigned long RestartTimer = 0;
-unsigned long notifyTimer = 0;
-unsigned long slowDownTimer = 0;
-byte ReqDevAddr = 1;
-char mqttClientId[80];
-int errorcode;
-uint8_t numOfTempSens;
-DeviceAddress tempDeviceAddress;
+char mqttClientId[ProjectConfig::MqttClientIdSize];
+bool mdnsStarted = false;
 
 WebSerial webSerial;
 WiFiClient client;
@@ -62,68 +53,124 @@ ModbusMaster epnode; // instantiate ModbusMaster object
 // Controller RTC values are local wall-clock values. GMT 0 creates a stable
 // transport timestamp without applying a hard-coded timezone offset.
 UnixTime uTime(0);
-OneWire oneWire(TEMPSENS_PIN);
+OneWire oneWire(ProjectConfig::TemperatureSensorPin);
 DallasTemperature tempSens(&oneWire);
+TemperatureSensorService temperatureSensorService(tempSens);
 
 JsonDocument liveJson;
+PollingControl pollingControl;
+ApplicationRequests applicationRequests;
 #ifdef EPEVER_SIMULATION
 SimulationDataSource simulationDataSource;
 EpeverController epeverController(
-    epnode, liveJson, _settings, uTime, tempSens, numOfTempSens,
-    tempDeviceAddress, errorcode, SOFTWARE_VERSION, simulationDataSource);
+    epnode, liveJson, _settings, uTime, SOFTWARE_VERSION,
+    simulationDataSource);
 BatterySettingsService batterySettingsService(epnode, simulationDataSource);
 DeviceClockService deviceClockService(
-    epnode, workerCanRun, detectEpeverProfile, simulationDataSource);
+    epnode, pollingControl, epeverController, simulationDataSource);
 #else
 EpeverController epeverController(
-    epnode, liveJson, _settings, uTime, tempSens, numOfTempSens,
-    tempDeviceAddress, errorcode, SOFTWARE_VERSION);
+    epnode, liveJson, _settings, uTime, SOFTWARE_VERSION);
 BatterySettingsService batterySettingsService(epnode);
 DeviceClockService deviceClockService(
-    epnode, workerCanRun, detectEpeverProfile);
+    epnode, pollingControl, epeverController);
 #endif
-MpptSettingsRoutes mpptSettingsRoutes(
-    server, _settings, batterySettingsService, liveJson, workerCanRun,
-    mqtttimer, MAX_DEVICES, detectEpeverProfile);
-WebUiRoutes webUiRoutes(
-    server, _settings, liveJson, deviceClockService, restartNow, RestartTimer,
-    MAX_DEVICES, SOFTWARE_VERSION);
-WebSocketController webSocketController(
-    ws, liveJson, workerCanRun, mqtttimer, writeEpeverLoadState);
+DeviceAddressService deviceAddressService(
+    EPEVER_SERIAL, ProjectConfig::ModbusTransceiverEnablePin);
 MqttService mqttService(
-    mqttclient, _settings, liveJson, workerCanRun, mqtttimer,
-    detectEpeverProfile, getEpeverRatedChargeCurrent,
-    writeEpeverLoadState, writeNcG3ChargeCurrentLimit, SOFTWARE_VERSION);
+    mqttclient, _settings, liveJson, pollingControl, epeverController,
+    SOFTWARE_VERSION);
+MpptSettingsRoutes mpptSettingsRoutes(
+    server, _settings, batterySettingsService, epeverController,
+    pollingControl, mqttService, ProjectConfig::MaximumDevices);
+WebUiRoutes webUiRoutes(
+    server, _settings, liveJson, deviceClockService, applicationRequests,
+    ProjectConfig::MaximumDevices, SOFTWARE_VERSION);
+WebSocketController webSocketController(
+    ws, liveJson, pollingControl, epeverController, mqttService);
 SystemActionRoutes systemActionRoutes(
-    server, _settings, factoryResetRequested, haDiscTrigger, workerCanRun,
-    restartNow, RestartTimer,
-    EPEVER_SERIAL, EPEVER_DE_RE);
-NetworkManager networkManager(server, dns, _settings, shouldSaveConfig);
+    server, _settings, applicationRequests, pollingControl,
+    deviceAddressService);
+NetworkManager networkManager(server, dns, _settings);
 PollingService pollingService(
     _settings, liveJson, epeverController, deviceClockService,
-    webSocketController, mqttService, tempSens, setNTPTimeToDevice,
-    errorcode, ReqDevAddr, mqtttimer, notifyTimer, slowDownTimer);
+    webSocketController, mqttService, temperatureSensorService,
+    setNTPTimeToDevice);
 BootLoopGuard bootLoopGuard(_settings);
-NotificationLed notificationLed(LED_PIN, _settings, mqttclient, errorcode);
+NotificationLed notificationLed(
+    ProjectConfig::StatusLedPin, _settings, mqttclient, epeverController);
 
 ADC_MODE(ADC_VCC);
 
 //----------------------------------------------------------------------
-void NTPTimeSetCB()
+void onNtpTimeSet()
 {
   setNTPTimeToDevice = true;
 }
 
 void preTransmission()
 {
-  digitalWrite(EPEVER_DE_RE, 1);
+  digitalWrite(ProjectConfig::ModbusTransceiverEnablePin, HIGH);
 }
 
 void postTransmission()
 {
-  digitalWrite(EPEVER_DE_RE, 0);
+  digitalWrite(ProjectConfig::ModbusTransceiverEnablePin, LOW);
 }
 
+void initializeModbus()
+{
+  pinMode(ProjectConfig::ModbusTransceiverEnablePin, OUTPUT);
+  EPEVER_SERIAL.begin(ProjectConfig::ModbusBaud);
+  epnode.setResponseTimeout(ProjectConfig::ModbusResponseTimeoutMs);
+  epnode.begin(1, EPEVER_SERIAL);
+  epnode.preTransmission(preTransmission);
+  epnode.postTransmission(postTransmission);
+}
+
+void initializeTimeSynchronization()
+{
+  if (strlen(_settings.data.NTPTimezone) == 0 ||
+      strlen(_settings.data.NTPServer) == 0)
+    return;
+
+  configTime(_settings.data.NTPTimezone, _settings.data.NTPServer);
+  settimeofday_cb(onNtpTimeSet);
+}
+
+void initializeWebServer()
+{
+  WiFi.hostname(_settings.data.deviceName);
+  liveJson["DEVICE_NAME"] = _settings.data.deviceName;
+
+  webUiRoutes.registerRoutes();
+  mpptSettingsRoutes.registerRoutes();
+  systemActionRoutes.registerRoutes();
+  server.onNotFound([](AsyncWebServerRequest *request)
+                    { request->send(418, "text/plain",
+                                    "418 I'm a teapot"); });
+
+  webSocketController.begin();
+  server.addHandler(&ws);
+
+  // The hardware UART is reserved exclusively for Modbus RTU.
+  webSerial.setBuffer(ProjectConfig::WebSerialBufferSize);
+  webSerial.begin(&server);
+  DiagnosticLog::begin(webSerial);
+  server.begin();
+}
+
+void updateMdns()
+{
+  if (!mdnsStarted && WiFi.status() == WL_CONNECTED)
+  {
+    mdnsStarted = MDNS.begin(_settings.data.deviceName);
+    if (mdnsStarted)
+      MDNS.addService("http", "tcp", 80);
+  }
+  if (mdnsStarted)
+    MDNS.update();
+}
 
 void setup()
 {
@@ -134,119 +181,70 @@ void setup()
           sizeof(_settings.data.deviceName));
   simulationDataSource.begin();
 #endif
-  pinMode(EPEVER_DE_RE, OUTPUT);
   notificationLed.begin();
   bootLoopGuard.recordBoot();
-  WiFi.persistent(true);              // fix wifi save bug
+  WiFi.persistent(true);
+  initializeModbus();
+  initializeTimeSynchronization();
 
-  EPEVER_SERIAL.begin(EPEVER_BAUD);
-  epnode.setResponseTimeout(100);
-  epnode.begin(1, EPEVER_SERIAL);
-  epnode.preTransmission(preTransmission);
-  epnode.postTransmission(postTransmission);
-  // https://werner.rothschopf.net/202011_arduino_esp8266_ntp_en.htm
-  if (strlen(_settings.data.NTPTimezone) != 0 && strlen(_settings.data.NTPServer) != 0)
-  {
-    configTime(_settings.data.NTPTimezone, _settings.data.NTPServer);
-    settimeofday_cb(NTPTimeSetCB);
-  }
-
-  sprintf(mqttClientId, "%s-%06X", _settings.data.deviceName, ESP.getChipId());
+  snprintf(mqttClientId, sizeof(mqttClientId), "%s-%06X",
+           _settings.data.deviceName, ESP.getChipId());
   networkManager.connect();
-
   mqttService.begin(mqttClientId);
+  initializeWebServer();
+  updateMdns();
+  DiagnosticLog::println(
+      F("[APP] EPEver2MQTT " SOFTWARE_VERSION " started"));
+#ifdef EPEVER_SIMULATION
+  const bool simulationSelfTestPassed = simulationDataSource.selfTest();
+  liveJson["SIMULATION"] = true;
+  liveJson["SIMULATION_SELF_TEST"] =
+      simulationSelfTestPassed ? "passed" : "failed";
+  DiagnosticLog::printf("[SIM] Register self-test %s",
+                        simulationSelfTestPassed ? "passed" : "failed");
+#endif
 
-  // Register and start the web server even if the initial WiFi connection
-  // failed. The ESP8266 may reconnect later; tying server.begin() to the
-  // one-time result of autoConnect() otherwise leaves port 80 closed until
-  // the next reboot.
-  WiFi.hostname(_settings.data.deviceName);
-  liveJson["DEVICE_NAME"] = _settings.data.deviceName;
-
-  webUiRoutes.registerRoutes();
-  mpptSettingsRoutes.registerRoutes();
-  systemActionRoutes.registerRoutes();
-
-  server.onNotFound([](AsyncWebServerRequest *request)
-                    { request->send(418, "text/plain", "418 I'm a teapot"); });
-
-  webSocketController.begin();
-  server.addHandler(&ws);
-
-  // WebSerial is the diagnostic console. The hardware Serial port is reserved
-  // exclusively for Modbus RTU and must never receive debug text.
-  webSerial.setBuffer(256);
-  webSerial.begin(&server);
-  DiagnosticLog::begin(webSerial);
-  server.begin();
-  DiagnosticLog::println("EPEver2MQTT " SOFTWARE_VERSION " started");
-
-  if (WiFi.status() == WL_CONNECTED)
-  {
-    MDNS.begin(_settings.data.deviceName);
-    MDNS.addService("http", "tcp", 80);
-  }
-
-  tempSens.begin();
-  numOfTempSens = tempSens.getDeviceCount();
-  analogWrite(LED_PIN, 255);
+  temperatureSensorService.begin();
+  analogWrite(ProjectConfig::StatusLedPin, 255);
   bootLoopGuard.markBootSuccessful();
 }
 
 void loop()
 {
-  MDNS.update();
+  updateMdns();
   webSocketController.cleanup();
-  if (factoryResetRequested)
+  if (applicationRequests.consumeFactoryReset())
   {
-    factoryResetRequested = false;
     _settings.reset();
     ESP.eraseConfig();
     ESP.restart();
   }
   // Make sure wifi is in the right mode
-  if (WiFi.status() == WL_CONNECTED && workerCanRun)
+  if (WiFi.status() == WL_CONNECTED && pollingControl.canRun())
   { // No use going to next step unless WIFI is up and running.
     mqttService.loop(); // Check if we have something to read from MQTT
     pollingService.run();
 
-    if ((haDiscTrigger || _settings.data.haDiscovery) && measureJson(liveJson) > jsonSize)
+    if ((applicationRequests.discoveryRequested() ||
+         _settings.data.haDiscovery) &&
+        measureJson(liveJson) > jsonSize)
     {
       if (mqttService.publishDiscovery())
       {
-        haDiscTrigger = false;
+        applicationRequests.clearDiscoveryRequest();
         jsonSize = measureJson(liveJson);
       }
     }
   }
 
-  if (restartNow && millis() >= (RestartTimer + 500))
+  if (applicationRequests.restartDue(
+          millis(), ProjectConfig::RestartDelayMs))
   {
     DiagnosticLog::println("Restart");
     ESP.reset();
   }
-  if (workerCanRun)
+  if (pollingControl.canRun())
   {
     notificationLed.update();
   }
-}
-
-EpeverProfile detectEpeverProfile(uint8_t device, bool force)
-{
-  return epeverController.detectProfile(device, force);
-}
-
-bool writeEpeverLoadState(uint8_t device, bool state)
-{
-  return epeverController.writeLoadState(device, state);
-}
-
-bool writeNcG3ChargeCurrentLimit(uint8_t device, float amps)
-{
-  return epeverController.writeChargeCurrentLimit(device, amps);
-}
-
-uint16_t getEpeverRatedChargeCurrent(uint8_t device)
-{
-  return epeverController.ratedChargeCurrent(device);
 }

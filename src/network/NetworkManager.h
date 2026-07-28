@@ -10,7 +10,7 @@ class NetworkManager
 {
 public:
   NetworkManager(AsyncWebServer &server, DNSServer &dns,
-                 Settings &settings, bool &saveRequested);
+                 Settings &settings);
 
   bool connect();
 
@@ -20,5 +20,5 @@ private:
   AsyncWebServer &_server;
   DNSServer &_dns;
   Settings &_settings;
-  bool &_saveRequested;
+  bool _saveRequested = false;
 };

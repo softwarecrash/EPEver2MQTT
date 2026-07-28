@@ -3,7 +3,8 @@
 #include <Arduino.h>
 #include <ModbusMaster.h>
 
-#include "ControllerTypes.h"
+#include "../app/PollingControl.h"
+#include "EpeverController.h"
 
 #ifdef EPEVER_SIMULATION
 class SimulationDataSource;
@@ -12,13 +13,11 @@ class SimulationDataSource;
 class DeviceClockService
 {
 public:
-  using DetectProfileFn = EpeverProfile (*)(uint8_t device, bool force);
-
-  DeviceClockService(ModbusMaster &modbus, bool &workerCanRun,
-                     DetectProfileFn detectProfile);
+  DeviceClockService(ModbusMaster &modbus, PollingControl &pollingControl,
+                     EpeverController &controller);
 #ifdef EPEVER_SIMULATION
-  DeviceClockService(ModbusMaster &modbus, bool &workerCanRun,
-                     DetectProfileFn detectProfile,
+  DeviceClockService(ModbusMaster &modbus, PollingControl &pollingControl,
+                     EpeverController &controller,
                      SimulationDataSource &simulation);
 #endif
 
@@ -28,8 +27,8 @@ private:
   static bool parseDateTime(const char *dateTime, uint8_t *parts);
 
   ModbusMaster &_modbus;
-  bool &_workerCanRun;
-  DetectProfileFn _detectProfile;
+  PollingControl &_pollingControl;
+  EpeverController &_controller;
 #ifdef EPEVER_SIMULATION
   SimulationDataSource *_simulation = nullptr;
 #endif

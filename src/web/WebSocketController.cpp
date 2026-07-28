@@ -1,15 +1,17 @@
 #include "WebSocketController.h"
 
 #include "../app/DiagnosticLog.h"
+#include "../mqtt/MqttService.h"
 
 WebSocketController::WebSocketController(
-    AsyncWebSocket &socket, JsonDocument &liveJson, bool &workerCanRun,
-    unsigned long &mqttTimer, WriteLoadStateFn writeLoadState)
+    AsyncWebSocket &socket, const JsonDocument &liveJson,
+    PollingControl &pollingControl, EpeverController &controller,
+    MqttService &mqtt)
     : _socket(socket),
       _liveJson(liveJson),
-      _workerCanRun(workerCanRun),
-      _mqttTimer(mqttTimer),
-      _writeLoadState(writeLoadState)
+      _pollingControl(pollingControl),
+      _controller(controller),
+      _mqtt(mqtt)
 {
 }
 
@@ -47,13 +49,13 @@ void WebSocketController::onEvent(AsyncWebSocket *, AsyncWebSocketClient *client
   switch (type)
   {
   case WS_EVT_CONNECT:
-    DiagnosticLog::println("WebSocket client #" + String(client->id()) +
-                           " connected from " +
-                           client->remoteIP().toString());
+    DiagnosticLog::printf(
+        "[WEB] WebSocket client #%u connected from %s", client->id(),
+        client->remoteIP().toString().c_str());
     break;
   case WS_EVT_DISCONNECT:
-    DiagnosticLog::println("WebSocket client #" + String(client->id()) +
-                           " disconnected");
+    DiagnosticLog::printf(
+        "[WEB] WebSocket client #%u disconnected", client->id());
     cleanup();
     break;
   case WS_EVT_DATA:
@@ -90,9 +92,7 @@ void WebSocketController::handleMessage(void *arg, uint8_t *data, size_t len)
   if (device == 0)
     return;
 
-  const bool previousWorkerState = _workerCanRun;
-  _workerCanRun = false;
-  _writeLoadState(device, command["state"].as<bool>());
-  _workerCanRun = previousWorkerState;
-  _mqttTimer = 0;
+  ScopedPollingPause pause(_pollingControl);
+  _controller.writeLoadState(device, command["state"].as<bool>());
+  _mqtt.requestPublish();
 }

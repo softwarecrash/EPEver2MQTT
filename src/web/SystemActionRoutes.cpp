@@ -3,23 +3,17 @@
 #include "../app/DiagnosticLog.h"
 
 #include <AsyncJson.h>
-#include <ModbusMaster.h>
 #include <Updater.h>
 
 SystemActionRoutes::SystemActionRoutes(
-    AsyncWebServer &server, Settings &settings, bool &factoryResetRequested,
-    bool &discoveryRequested, bool &workerCanRun, bool &restartRequested,
-    unsigned long &restartTimer, HardwareSerial &serial,
-    uint8_t transceiverEnablePin)
+    AsyncWebServer &server, Settings &settings,
+    ApplicationRequests &applicationRequests,
+    PollingControl &pollingControl, DeviceAddressService &deviceAddress)
     : _server(server),
       _settings(settings),
-      _factoryResetRequested(factoryResetRequested),
-      _discoveryRequested(discoveryRequested),
-      _workerCanRun(workerCanRun),
-      _restartRequested(restartRequested),
-      _restartTimer(restartTimer),
-      _serial(serial),
-      _transceiverEnablePin(transceiverEnablePin)
+      _applicationRequests(applicationRequests),
+      _pollingControl(pollingControl),
+      _deviceAddress(deviceAddress)
 {
 }
 
@@ -30,7 +24,7 @@ void SystemActionRoutes::registerRoutes()
              {
                if (!authorize(request))
                  return;
-               _factoryResetRequested = true;
+               _applicationRequests.requestFactoryReset();
                request->send(202, "application/json",
                              "{\"ok\":true,\"message\":\"Reset scheduled\"}");
              });
@@ -40,7 +34,7 @@ void SystemActionRoutes::registerRoutes()
              {
                if (!authorize(request))
                  return;
-               _discoveryRequested = true;
+               _applicationRequests.requestDiscovery();
                request->send(202, "application/json",
                              "{\"ok\":true,\"message\":\"Discovery scheduled\"}");
              });
@@ -78,14 +72,13 @@ void SystemActionRoutes::registerRoutes()
         if (success)
         {
           DiagnosticLog::println("OTA update complete; reboot scheduled");
-          _restartTimer = millis();
-          _restartRequested = true;
+          _applicationRequests.requestRestart();
         }
         else
         {
           DiagnosticLog::println("OTA update failed: " +
                                  String(Update.getError()));
-          _workerCanRun = true;
+          _pollingControl.resume(PollingPauseReason::OtaUpdate);
         }
       },
       [this](AsyncWebServerRequest *request, String filename, size_t index,
@@ -96,14 +89,14 @@ void SystemActionRoutes::registerRoutes()
         if (index == 0)
         {
           DiagnosticLog::println("UploadStart: " + filename);
-          _workerCanRun = false;
+          _pollingControl.pause(PollingPauseReason::OtaUpdate);
           const uint32_t maximumSketchSpace =
               (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
           if (!Update.begin(maximumSketchSpace))
           {
             DiagnosticLog::println("OTA begin failed: " +
                                    String(Update.getError()));
-            _workerCanRun = true;
+            _pollingControl.resume(PollingPauseReason::OtaUpdate);
             return;
           }
           Update.runAsync(true);
@@ -115,7 +108,7 @@ void SystemActionRoutes::registerRoutes()
         {
           DiagnosticLog::println("OTA finalize failed: " +
                                  String(Update.getError()));
-          _workerCanRun = true;
+          _pollingControl.resume(PollingPauseReason::OtaUpdate);
         }
       });
 }
@@ -132,30 +125,11 @@ bool SystemActionRoutes::authorize(AsyncWebServerRequest *request) const
 void SystemActionRoutes::setDeviceAddress(AsyncWebServerRequest *request,
                                           uint8_t address)
 {
-#ifdef EPEVER_SIMULATION
-  request->send(200, "application/json",
-                "{\"ok\":true,\"message\":\"Simulated address updated\"}");
-  return;
-#else
-  digitalWrite(_transceiverEnablePin, HIGH);
-  delay(50);
-  uint8_t frame[8] = {0xF8, 0x45, 0x00, 0x01, 0x01, address, 0, 0};
-  uint16_t crc = 0xFFFF;
-  for (uint8_t index = 0; index < 6; index++)
-    crc = crc16_update(crc, frame[index]);
-  frame[6] = lowByte(crc);
-  frame[7] = highByte(crc);
-  _serial.write(frame, sizeof(frame));
-  delay(10);
-  digitalWrite(_transceiverEnablePin, LOW);
-
-  uint8_t response[4] = {};
-  const size_t received = _serial.readBytes(response, sizeof(response));
-  if (received == sizeof(response) && response[2] == address)
+  ScopedPollingPause pause(_pollingControl);
+  if (_deviceAddress.setAddress(address))
     request->send(200, "application/json",
                   "{\"ok\":true,\"message\":\"Address updated\"}");
   else
     request->send(502, "application/json",
                   "{\"ok\":false,\"message\":\"Controller did not confirm address\"}");
-#endif
 }

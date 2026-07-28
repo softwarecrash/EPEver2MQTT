@@ -1,5 +1,7 @@
 #include "DiagnosticLog.h"
 
+#include <stdarg.h>
+
 namespace
 {
 Print *diagnosticOutput = nullptr;
@@ -18,7 +20,20 @@ void println(const String &message)
     diagnosticOutput->println(message);
 }
 
-void json(const String &label, JsonVariantConst value)
+void printf(const char *format, ...)
+{
+  if (diagnosticOutput == nullptr)
+    return;
+
+  char message[192];
+  va_list arguments;
+  va_start(arguments, format);
+  vsnprintf(message, sizeof(message), format, arguments);
+  va_end(arguments);
+  diagnosticOutput->println(message);
+}
+
+void json(const char *label, JsonVariantConst value)
 {
   if (diagnosticOutput == nullptr)
     return;

@@ -1,13 +1,13 @@
 #include "NetworkManager.h"
 
 #include "../app/DiagnosticLog.h"
+#include "../ProjectConfig.h"
 
 NetworkManager::NetworkManager(AsyncWebServer &server, DNSServer &dns,
-                               Settings &settings, bool &saveRequested)
+                               Settings &settings)
     : _server(server),
       _dns(dns),
-      _settings(settings),
-      _saveRequested(saveRequested)
+      _settings(settings)
 {
 }
 
@@ -18,7 +18,7 @@ bool NetworkManager::connect()
       [this]()
       {
         _saveRequested = true;
-        DiagnosticLog::println(F("Network configuration changed"));
+        DiagnosticLog::println(F("[WIFI] Configuration changed"));
       });
 
   char mqttPort[7];
@@ -111,7 +111,8 @@ bool NetworkManager::connect()
   _settings.data.mqttRefresh =
       max(1, atoi(mqttRefreshParameter.getValue()));
   _settings.data.deviceQuantity =
-      constrain(atoi(quantity.getValue()), 1, 6);
+      constrain(atoi(quantity.getValue()), 1,
+                ProjectConfig::MaximumDevices);
   _settings.save();
   ESP.restart();
   return connected;

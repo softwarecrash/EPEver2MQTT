@@ -4,12 +4,13 @@
 
 class PubSubClient;
 class Settings;
+class EpeverController;
 
 class NotificationLed
 {
 public:
   NotificationLed(uint8_t pin, Settings &settings, PubSubClient &mqttClient,
-                  int &deviceErrorCode);
+                  EpeverController &controller);
 
   void begin();
   void update();
@@ -21,7 +22,7 @@ private:
   uint8_t _pin;
   Settings &_settings;
   PubSubClient &_mqttClient;
-  int &_deviceErrorCode;
+  EpeverController &_controller;
   bool _ledOn;
   uint8_t _remainingPulses;
   unsigned long _repeatTimer;

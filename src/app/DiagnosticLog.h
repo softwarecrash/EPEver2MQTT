@@ -7,5 +7,6 @@ namespace DiagnosticLog
 {
 void begin(Print &output);
 void println(const String &message);
-void json(const String &label, JsonVariantConst value);
+void printf(const char *format, ...);
+void json(const char *label, JsonVariantConst value);
 }

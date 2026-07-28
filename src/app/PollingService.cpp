@@ -6,14 +6,13 @@
 
 #include "JsonValueNormalizer.h"
 #include "DiagnosticLog.h"
+#include "../ProjectConfig.h"
 
 PollingService::PollingService(
     Settings &settings, JsonDocument &liveJson, EpeverController &controller,
     DeviceClockService &deviceClock, WebSocketController &webSocket,
-    MqttService &mqtt, DallasTemperature &temperatureSensors,
-    bool &setNtpTimeToDevice, int &errorCode, uint8_t &requestedDevice,
-    unsigned long &mqttTimer, unsigned long &notifyTimer,
-    unsigned long &pollTimer)
+    MqttService &mqtt, TemperatureSensorService &temperatureSensors,
+    bool &setNtpTimeToDevice)
     : _settings(settings),
       _liveJson(liveJson),
       _controller(controller),
@@ -21,18 +20,14 @@ PollingService::PollingService(
       _webSocket(webSocket),
       _mqtt(mqtt),
       _temperatureSensors(temperatureSensors),
-      _setNtpTimeToDevice(setNtpTimeToDevice),
-      _errorCode(errorCode),
-      _requestedDevice(requestedDevice),
-      _mqttTimer(mqttTimer),
-      _notifyTimer(notifyTimer),
-      _pollTimer(pollTimer)
+      _setNtpTimeToDevice(setNtpTimeToDevice)
 {
 }
 
 bool PollingService::run()
 {
-  if (millis() < _pollTimer + 500)
+  const unsigned long now = millis();
+  if (now - _pollTimer < ProjectConfig::PollIntervalMs)
     return true;
 
   _liveJson["Wifi_RSSI"] = WiFi.RSSI();
@@ -42,29 +37,31 @@ bool PollingService::run()
   if (_controller.read(_requestedDevice))
   {
     _controller.updateJson(_requestedDevice);
+    _temperatureSensors.updateJson(_liveJson);
     normalizeJsonNumbers(_liveJson, 2);
 #if defined(EPEVER_WEBSERIAL_DATA_LOG) && EPEVER_WEBSERIAL_DATA_LOG
-    const String deviceKey = "EP_" + String(_requestedDevice);
-    DiagnosticLog::json("[" + String(_requestedDevice) +
-                            "] Received EPEver data:",
-                        _liveJson[deviceKey].as<JsonVariantConst>());
+    char deviceKey[8];
+    char logLabel[48];
+    snprintf(deviceKey, sizeof(deviceKey), "EP_%u", _requestedDevice);
+    snprintf(logLabel, sizeof(logLabel),
+             "[EPEVER:%u] Received data:", _requestedDevice);
+    DiagnosticLog::json(
+        logLabel, _liveJson[deviceKey].as<JsonVariantConst>());
 #endif
     _webSocket.notify();
   }
-  else if (_errorCode == 0 || millis() > _notifyTimer + 1000)
+  else if (_controller.errorCode() == 0 ||
+           now - _notifyTimer >=
+               ProjectConfig::ErrorNotificationIntervalMs)
   {
     _webSocket.notify();
     _notifyTimer = millis();
   }
 
-  const unsigned long interval =
-      static_cast<unsigned long>(_settings.data.mqttRefresh) * 1000UL;
-  if ((_mqttTimer == 0 || millis() > _mqttTimer + interval) &&
-      !Update.isRunning())
+  if (_mqtt.publishDue(now) && !Update.isRunning())
   {
     _temperatureSensors.requestTemperatures();
     _mqtt.publish();
-    _mqttTimer = millis();
   }
 
   _requestedDevice =

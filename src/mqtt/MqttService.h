@@ -1,36 +1,25 @@
 #pragma once
 
-#ifndef ARDUINOJSON_USE_DOUBLE
-#define ARDUINOJSON_USE_DOUBLE 0
-#endif
-#ifndef ARDUINOJSON_USE_LONG_LONG
-#define ARDUINOJSON_USE_LONG_LONG 1
-#endif
-
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <PubSubClient.h>
 
 #include "../Settings.h"
-#include "../epever/ControllerTypes.h"
+#include "../app/PollingControl.h"
+#include "../epever/EpeverController.h"
 
 class MqttService
 {
 public:
-  using DetectProfileFn = EpeverProfile (*)(uint8_t device, bool force);
-  using RatedCurrentFn = uint16_t (*)(uint8_t device);
-  using WriteLoadStateFn = bool (*)(uint8_t device, bool state);
-  using WriteChargeCurrentFn = bool (*)(uint8_t device, float amps);
-
   MqttService(PubSubClient &client, Settings &settings,
-              JsonDocument &liveJson, bool &workerCanRun,
-              unsigned long &publishTimer, DetectProfileFn detectProfile,
-              RatedCurrentFn ratedCurrent, WriteLoadStateFn writeLoadState,
-              WriteChargeCurrentFn writeChargeCurrent,
+              const JsonDocument &liveJson, PollingControl &pollingControl,
+              EpeverController &controller,
               const char *softwareVersion);
 
   void begin(const char *clientId);
   void loop();
+  bool publishDue(unsigned long now) const;
+  void requestPublish();
   bool publish();
   bool publishDiscovery();
 
@@ -47,13 +36,11 @@ private:
 
   PubSubClient &_client;
   Settings &_settings;
-  JsonDocument &_liveJson;
-  bool &_workerCanRun;
-  unsigned long &_publishTimer;
-  DetectProfileFn _detectProfile;
-  RatedCurrentFn _ratedCurrent;
-  WriteLoadStateFn _writeLoadState;
-  WriteChargeCurrentFn _writeChargeCurrent;
+  const JsonDocument &_liveJson;
+  PollingControl &_pollingControl;
+  EpeverController &_controller;
   const char *_softwareVersion;
   char _clientId[80] = {};
+  bool _publishRequested = true;
+  unsigned long _lastPublishAttempt = 0;
 };

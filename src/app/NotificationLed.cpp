@@ -4,14 +4,15 @@
 #include <PubSubClient.h>
 
 #include "../Settings.h"
+#include "../epever/EpeverController.h"
 
 NotificationLed::NotificationLed(uint8_t pin, Settings &settings,
                                  PubSubClient &mqttClient,
-                                 int &deviceErrorCode)
+                                 EpeverController &controller)
     : _pin(pin),
       _settings(settings),
       _mqttClient(mqttClient),
-      _deviceErrorCode(deviceErrorCode),
+      _controller(controller),
       _ledOn(false),
       _remainingPulses(0),
       _repeatTimer(0),
@@ -35,7 +36,7 @@ void NotificationLed::update()
     else if (!_mqttClient.connected() &&
              strlen(_settings.data.mqttServer) > 0)
       _remainingPulses = 3;
-    else if (_deviceErrorCode != 0)
+    else if (_controller.errorCode() != 0)
       _remainingPulses = 2;
     else
       _remainingPulses = 1;

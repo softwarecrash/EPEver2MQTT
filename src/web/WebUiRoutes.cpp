@@ -56,16 +56,16 @@ void sendHtml(AsyncWebServerRequest *request, const char *content)
 }
 
 WebUiRoutes::WebUiRoutes(AsyncWebServer &server, Settings &settings,
-                         JsonDocument &liveJson, DeviceClockService &deviceClock,
-                         bool &restartNow,
-                         unsigned long &restartTimer, uint8_t maximumDevices,
+                         const JsonDocument &liveJson,
+                         DeviceClockService &deviceClock,
+                         ApplicationRequests &applicationRequests,
+                         uint8_t maximumDevices,
                          const char *softwareVersion)
     : _server(server),
       _settings(settings),
       _liveJson(liveJson),
       _deviceClock(deviceClock),
-      _restartNow(restartNow),
-      _restartTimer(restartTimer),
+      _applicationRequests(applicationRequests),
       _maximumDevices(maximumDevices),
       _softwareVersion(softwareVersion)
 {
@@ -113,8 +113,7 @@ void WebUiRoutes::registerRoutes()
              {
                if (!authorize(request))
                  return;
-               _restartNow = true;
-               _restartTimer = millis();
+               _applicationRequests.requestRestart();
                request->send(202, "application/json",
                              "{\"ok\":true,\"message\":\"Reboot scheduled\"}");
              });
@@ -269,17 +268,18 @@ void WebUiRoutes::saveSettingsJson(AsyncWebServerRequest *request,
 
   _settings.data = updated;
   _settings.save();
-  sendJsonStatus(request, 200, true, "Settings saved");
+  sendJsonStatus(request, 200, true, "Settings saved", true);
 }
 
 void WebUiRoutes::sendJsonStatus(AsyncWebServerRequest *request,
                                  uint16_t statusCode, bool ok,
-                                 const char *message) const
+                                 const char *message,
+                                 bool rebootRequired) const
 {
   JsonDocument document;
   document["ok"] = ok;
   document["message"] = message;
-  document["rebootRequired"] = ok;
+  document["rebootRequired"] = rebootRequired;
   String payload;
   serializeJson(document, payload);
   request->send(statusCode, "application/json", payload);

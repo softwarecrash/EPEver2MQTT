@@ -9,29 +9,45 @@ namespace
 {
 constexpr uint16_t MqttBufferSize = 512;
 
-String mqttValue(JsonVariantConst value)
+void mqttValue(JsonVariantConst value, char *buffer, size_t bufferSize)
 {
   if (value.is<float>())
-    return String(value.as<float>(), 2);
-  return value.as<String>();
+  {
+    snprintf(buffer, bufferSize, "%.2f", value.as<float>());
+    return;
+  }
+  if (value.is<bool>())
+  {
+    strlcpy(buffer, value.as<bool>() ? "true" : "false", bufferSize);
+    return;
+  }
+  if (value.is<int64_t>())
+  {
+    snprintf(buffer, bufferSize, "%lld",
+             static_cast<long long>(value.as<int64_t>()));
+    return;
+  }
+  if (value.is<uint64_t>())
+  {
+    snprintf(buffer, bufferSize, "%llu",
+             static_cast<unsigned long long>(value.as<uint64_t>()));
+    return;
+  }
+  const char *text = value.as<const char *>();
+  strlcpy(buffer, text == nullptr ? "" : text, bufferSize);
 }
 }
 
 MqttService::MqttService(
-    PubSubClient &client, Settings &settings, JsonDocument &liveJson,
-    bool &workerCanRun, unsigned long &publishTimer,
-    DetectProfileFn detectProfile, RatedCurrentFn ratedCurrent,
-    WriteLoadStateFn writeLoadState, WriteChargeCurrentFn writeChargeCurrent,
+    PubSubClient &client, Settings &settings,
+    const JsonDocument &liveJson,
+    PollingControl &pollingControl, EpeverController &controller,
     const char *softwareVersion)
     : _client(client),
       _settings(settings),
       _liveJson(liveJson),
-      _workerCanRun(workerCanRun),
-      _publishTimer(publishTimer),
-      _detectProfile(detectProfile),
-      _ratedCurrent(ratedCurrent),
-      _writeLoadState(writeLoadState),
-      _writeChargeCurrent(writeChargeCurrent),
+      _pollingControl(pollingControl),
+      _controller(controller),
       _softwareVersion(softwareVersion)
 {
 }
@@ -51,6 +67,19 @@ void MqttService::loop()
   _client.loop();
 }
 
+bool MqttService::publishDue(unsigned long now) const
+{
+  const unsigned long interval =
+      static_cast<unsigned long>(_settings.data.mqttRefresh) * 1000UL;
+  return _publishRequested || _lastPublishAttempt == 0 ||
+         now - _lastPublishAttempt >= interval;
+}
+
+void MqttService::requestPublish()
+{
+  _publishRequested = true;
+}
+
 bool MqttService::connect()
 {
   if (_client.connected())
@@ -59,55 +88,70 @@ bool MqttService::connect()
       _settings.data.mqttPort == 0)
     return false;
 
-  const String root = _settings.data.mqttTopic;
+  char aliveTopic[64];
+  snprintf(aliveTopic, sizeof(aliveTopic), "%s/Alive",
+           _settings.data.mqttTopic);
   if (!_client.connect(_clientId, _settings.data.mqttUser,
                        _settings.data.mqttPassword,
-                       (root + "/Alive").c_str(), 0, true, "false", true))
+                       aliveTopic, 0, true, "false", true))
     return false;
 
-  _client.publish((root + "/IP").c_str(),
-                  WiFi.localIP().toString().c_str(), true);
-  _client.publish((root + "/Alive").c_str(), "true", true);
+  char topic[64];
+  snprintf(topic, sizeof(topic), "%s/IP", _settings.data.mqttTopic);
+  _client.publish(topic, WiFi.localIP().toString().c_str(), true);
+  _client.publish(aliveTopic, "true", true);
   subscribeControlTopics();
   return true;
 }
 
 void MqttService::subscribeControlTopics()
 {
-  const String root = _settings.data.mqttTopic;
   if (strlen(_settings.data.mqttTriggerPath) > 0)
     _client.subscribe(_settings.data.mqttTriggerPath);
 
   if (_settings.data.mqttJson)
   {
-    _client.subscribe((root + "/DATA").c_str());
+    char dataTopic[64];
+    snprintf(dataTopic, sizeof(dataTopic), "%s/DATA",
+             _settings.data.mqttTopic);
+    _client.subscribe(dataTopic);
     return;
   }
 
   for (uint8_t device = 1;
        device <= _settings.data.deviceQuantity; device++)
   {
-    const String prefix =
-        root + "/EP_" + String(device) + "/DeviceControl/";
-    _client.subscribe((prefix + "LOAD_STATE").c_str());
-    _client.subscribe((prefix + "CHARGING_CURRENT_LIMIT").c_str());
+    char topic[128];
+    snprintf(topic, sizeof(topic), "%s/EP_%u/DeviceControl/LOAD_STATE",
+             _settings.data.mqttTopic, device);
+    _client.subscribe(topic);
+    snprintf(topic, sizeof(topic),
+             "%s/EP_%u/DeviceControl/CHARGING_CURRENT_LIMIT",
+             _settings.data.mqttTopic, device);
+    _client.subscribe(topic);
   }
 }
 
 bool MqttService::publish()
 {
+  _lastPublishAttempt = millis();
+  _publishRequested = false;
   if (!connect())
     return false;
 
-  const String root = _settings.data.mqttTopic;
-  _client.publish((root + "/Alive").c_str(), "true", true);
-  _client.publish((root + "/Wifi_RSSI").c_str(),
-                  String(WiFi.RSSI()).c_str());
+  char topic[160];
+  char payload[48];
+  snprintf(topic, sizeof(topic), "%s/Alive", _settings.data.mqttTopic);
+  _client.publish(topic, "true", true);
+  snprintf(topic, sizeof(topic), "%s/Wifi_RSSI",
+           _settings.data.mqttTopic);
+  snprintf(payload, sizeof(payload), "%d", WiFi.RSSI());
+  _client.publish(topic, payload);
 
   if (_settings.data.mqttJson)
   {
-    const String dataTopic = root + "/DATA";
-    if (!_client.beginPublish(dataTopic.c_str(), measureJson(_liveJson), false))
+    snprintf(topic, sizeof(topic), "%s/DATA", _settings.data.mqttTopic);
+    if (!_client.beginPublish(topic, measureJson(_liveJson), false))
       return false;
     BufferingPrint bufferedClient(_client, 32);
     serializeJson(_liveJson, bufferedClient);
@@ -122,11 +166,11 @@ bool MqttService::publish()
     for (JsonPairConst group : device.value().as<JsonObjectConst>())
       for (JsonPairConst value : group.value().as<JsonObjectConst>())
       {
-        const String valueTopic =
-            root + "/" + device.key().c_str() + "/" +
-            group.key().c_str() + "/" + value.key().c_str();
-        const String payload = mqttValue(value.value());
-        _client.publish(valueTopic.c_str(), payload.c_str());
+        snprintf(topic, sizeof(topic), "%s/%s/%s/%s",
+                 _settings.data.mqttTopic, device.key().c_str(),
+                 group.key().c_str(), value.key().c_str());
+        mqttValue(value.value(), payload, sizeof(payload));
+        _client.publish(topic, payload);
       }
   }
 
@@ -134,9 +178,10 @@ bool MqttService::publish()
   {
     if (strncmp(value.key().c_str(), "DS18B20_", 8) == 0)
     {
-      const String payload = mqttValue(value.value());
-      _client.publish((root + "/" + value.key().c_str()).c_str(),
-                      payload.c_str());
+      snprintf(topic, sizeof(topic), "%s/%s", _settings.data.mqttTopic,
+               value.key().c_str());
+      mqttValue(value.value(), payload, sizeof(payload));
+      _client.publish(topic, payload);
     }
   }
   return true;
@@ -153,40 +198,48 @@ void MqttService::onMessage(char *receivedTopic, uint8_t *payload,
     for (uint8_t device = 1;
          device <= _settings.data.deviceQuantity; device++)
     {
-      JsonVariantConst control =
-          document["EP_" + String(device)]["DeviceControl"];
+      char deviceKey[8];
+      snprintf(deviceKey, sizeof(deviceKey), "EP_%u", device);
+      JsonVariantConst control = document[deviceKey]["DeviceControl"];
       if (!control.isNull())
         handleControl(device, control);
     }
   }
   else
   {
-    String message;
-    message.reserve(length);
-    for (unsigned int index = 0; index < length; index++)
-      message += static_cast<char>(payload[index]);
+    if (length >= 48)
+      return;
+    char message[48];
+    memcpy(message, payload, length);
+    message[length] = '\0';
 
-    const String root = _settings.data.mqttTopic;
     for (uint8_t device = 1;
          device <= _settings.data.deviceQuantity; device++)
     {
-      const String prefix =
-          root + "/EP_" + String(device) + "/DeviceControl/";
-      if (strcmp(receivedTopic, (prefix + "LOAD_STATE").c_str()) == 0)
+      char controlTopic[128];
+      snprintf(controlTopic, sizeof(controlTopic),
+               "%s/EP_%u/DeviceControl/LOAD_STATE",
+               _settings.data.mqttTopic, device);
+      if (strcmp(receivedTopic, controlTopic) == 0)
       {
         JsonDocument control;
-        if (message == "true" || message == "false")
+        if (strcmp(message, "true") == 0 ||
+            strcmp(message, "false") == 0)
         {
-          control["LOAD_STATE"] = message == "true";
+          control["LOAD_STATE"] = strcmp(message, "true") == 0;
           handleControl(device, control.as<JsonVariantConst>());
         }
       }
-      else if (strcmp(receivedTopic,
-                      (prefix + "CHARGING_CURRENT_LIMIT").c_str()) == 0)
+      else
       {
+        snprintf(controlTopic, sizeof(controlTopic),
+                 "%s/EP_%u/DeviceControl/CHARGING_CURRENT_LIMIT",
+                 _settings.data.mqttTopic, device);
+        if (strcmp(receivedTopic, controlTopic) != 0)
+          continue;
         char *end = nullptr;
-        const float amps = strtof(message.c_str(), &end);
-        if (end != message.c_str() && *end == '\0')
+        const float amps = strtof(message, &end);
+        if (end != message && *end == '\0')
         {
           JsonDocument control;
           control["CHARGING_CURRENT_LIMIT"] = amps;
@@ -198,21 +251,19 @@ void MqttService::onMessage(char *receivedTopic, uint8_t *payload,
 
   if (strlen(_settings.data.mqttTriggerPath) > 0 &&
       strcmp(receivedTopic, _settings.data.mqttTriggerPath) == 0)
-    _publishTimer = 0;
+    requestPublish();
 }
 
 void MqttService::handleControl(uint8_t device,
                                 JsonVariantConst control)
 {
-  const bool previousWorkerState = _workerCanRun;
-  _workerCanRun = false;
+  ScopedPollingPause pause(_pollingControl);
   if (!control["LOAD_STATE"].isNull())
-    _writeLoadState(device, control["LOAD_STATE"].as<bool>());
+    _controller.writeLoadState(device, control["LOAD_STATE"].as<bool>());
   if (!control["CHARGING_CURRENT_LIMIT"].isNull())
-    _writeChargeCurrent(
+    _controller.writeChargeCurrentLimit(
         device, control["CHARGING_CURRENT_LIMIT"].as<float>());
-  _workerCanRun = previousWorkerState;
-  _publishTimer = 0;
+  requestPublish();
 }
 
 bool MqttService::publishText(const String &topic, const String &payload,
@@ -263,7 +314,7 @@ bool MqttService::publishDiscovery()
     const String description = deviceDescription(deviceKey);
     const uint8_t deviceNumber = atoi(deviceKey + 3);
     const EpeverProfile profile =
-        _detectProfile(deviceNumber, false);
+        _controller.detectProfile(deviceNumber, false);
 
     if (profile != EpeverProfile::EtNcG3)
     {
@@ -284,7 +335,8 @@ bool MqttService::publishDiscovery()
                                         payload);
     }
 
-    const uint16_t ratedCurrent = _ratedCurrent(deviceNumber);
+    const uint16_t ratedCurrent =
+        _controller.ratedChargeCurrent(deviceNumber);
     if (isNcG3Profile(profile) && ratedCurrent > 0)
     {
       const String payload =

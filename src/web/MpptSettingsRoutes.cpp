@@ -3,51 +3,21 @@
 #include <AsyncJson.h>
 #include <math.h>
 
-#include "../app/JsonValueNormalizer.h"
 #include "../html.h"
-
-namespace
-{
-const char *const LegacyBatteryTypes[] = {
-    "User", "Sealed", "GEL", "Flooded"};
-
-const char *const NcG3BatteryTypes[] = {
-    "User", "SLA", "GEL", "Flooded", "LFP4S", "LFP8S", "LFP15S",
-    "LFP16S", "LNCM3S", "LNCM6S", "LNCM7S", "LNCM13S", "LNCM14S"};
-
-class WorkerPause
-{
-public:
-  explicit WorkerPause(bool &workerCanRun)
-      : _workerCanRun(workerCanRun), _previousValue(workerCanRun)
-  {
-    _workerCanRun = false;
-  }
-
-  ~WorkerPause()
-  {
-    _workerCanRun = _previousValue;
-  }
-
-private:
-  bool &_workerCanRun;
-  bool _previousValue;
-};
-}
+#include "../mqtt/MqttService.h"
 
 MpptSettingsRoutes::MpptSettingsRoutes(
     AsyncWebServer &server, Settings &settings,
-    BatterySettingsService &batterySettings, JsonDocument &liveJson,
-    bool &workerCanRun, unsigned long &mqttTimer, uint8_t maximumDevices,
-    DetectProfileFn detectProfile)
+    BatterySettingsService &batterySettings, EpeverController &controller,
+    PollingControl &pollingControl, MqttService &mqtt,
+    uint8_t maximumDevices)
     : _server(server),
       _settings(settings),
       _batterySettings(batterySettings),
-      _liveJson(liveJson),
-      _workerCanRun(workerCanRun),
-      _mqttTimer(mqttTimer),
-      _maximumDevices(maximumDevices),
-      _detectProfile(detectProfile)
+      _controller(controller),
+      _pollingControl(pollingControl),
+      _mqtt(mqtt),
+      _maximumDevices(maximumDevices)
 {
 }
 
@@ -131,13 +101,13 @@ void MpptSettingsRoutes::handleRead(AsyncWebServerRequest *request)
     return;
   }
 
-  uint16_t values[BatterySettingsService::ValueCount];
+  BatterySettingRegisters settings = {};
   EpeverProfile profile;
   uint8_t status;
   {
-    WorkerPause pause(_workerCanRun);
-    profile = _detectProfile(device, false);
-    status = _batterySettings.read(device, profile, values);
+    ScopedPollingPause pause(_pollingControl);
+    profile = _controller.detectProfile(device, false);
+    status = _batterySettings.read(device, profile, settings);
   }
 
   if (status != ModbusMaster::ku8MBSuccess)
@@ -147,8 +117,7 @@ void MpptSettingsRoutes::handleRead(AsyncWebServerRequest *request)
     return;
   }
 
-  updateJson(device, profile, values);
-  sendResponse(request, 200, device, profile, values,
+  sendResponse(request, 200, device, profile, &settings,
                "Settings read successfully");
 }
 
@@ -172,8 +141,8 @@ void MpptSettingsRoutes::handleApply(AsyncWebServerRequest *request,
 
   EpeverProfile profile;
   {
-    WorkerPause pause(_workerCanRun);
-    profile = _detectProfile(device, false);
+    ScopedPollingPause pause(_pollingControl);
+    profile = _controller.detectProfile(device, false);
   }
   if (profile == EpeverProfile::Unknown)
   {
@@ -182,11 +151,11 @@ void MpptSettingsRoutes::handleApply(AsyncWebServerRequest *request,
     return;
   }
 
-  uint16_t values[BatterySettingsService::ValueCount];
+  BatterySettingRegisters settings = {};
   uint16_t maximumBatteryType = isNcG3Profile(profile) ? 12 : 3;
-  if (!parseSetting(body, 0, 1, maximumBatteryType, values[0]) ||
-      !parseSetting(body, 1, 1, UINT16_MAX, values[1]) ||
-      !parseSetting(body, 2, 100, 900, values[2]))
+  if (!parseSetting(body, 0, 1, maximumBatteryType, settings.words[0]) ||
+      !parseSetting(body, 1, 1, UINT16_MAX, settings.words[1]) ||
+      !parseSetting(body, 2, 100, 900, settings.words[2]))
   {
     sendResponse(
         request, 400, device, profile, nullptr,
@@ -197,7 +166,8 @@ void MpptSettingsRoutes::handleApply(AsyncWebServerRequest *request,
   for (uint8_t index = 3;
        index < BatterySettingsService::ValueCount; index++)
   {
-    if (!parseSetting(body, index, 100, UINT16_MAX, values[index]))
+    if (!parseSetting(body, index, 100, UINT16_MAX,
+                      settings.words[index]))
     {
       sendResponse(request, 400, device, profile, nullptr,
                    "E" + String(index + 1) + " contains an invalid value");
@@ -206,7 +176,7 @@ void MpptSettingsRoutes::handleApply(AsyncWebServerRequest *request,
   }
 
   BatterySettingsService::ValidationError validation =
-      BatterySettingsService::validate(values);
+      BatterySettingsService::validate(settings);
   if (validation != BatterySettingsService::ValidationError::None)
   {
     sendResponse(request, 400, device, profile, nullptr,
@@ -214,14 +184,14 @@ void MpptSettingsRoutes::handleApply(AsyncWebServerRequest *request,
     return;
   }
 
-  uint16_t readBack[BatterySettingsService::ValueCount];
+  BatterySettingRegisters readBack = {};
   uint8_t writeStatus;
   uint8_t readStatus;
   BatterySettingsService::VerifyResult verifyResult;
   {
-    WorkerPause pause(_workerCanRun);
+    ScopedPollingPause pause(_pollingControl);
     verifyResult = _batterySettings.writeAndVerify(
-        device, profile, values, readBack, writeStatus, readStatus);
+        device, profile, settings, readBack, writeStatus, readStatus);
   }
 
   if (verifyResult ==
@@ -233,18 +203,17 @@ void MpptSettingsRoutes::handleApply(AsyncWebServerRequest *request,
     return;
   }
 
-  updateJson(device, profile, readBack);
   if (verifyResult == BatterySettingsService::VerifyResult::ValueMismatch)
   {
     sendResponse(
-        request, 409, device, profile, readBack,
+        request, 409, device, profile, &readBack,
         "Controller rejected or changed values; actual values were reloaded");
     return;
   }
 
-  _mqttTimer = 0;
+  _mqtt.requestPublish();
   sendResponse(
-      request, 200, device, profile, readBack,
+      request, 200, device, profile, &readBack,
       writeStatus == ModbusMaster::ku8MBSuccess
           ? "MPPT settings applied and verified"
           : "Settings verified despite write acknowledgement code " +
@@ -301,14 +270,14 @@ void MpptSettingsRoutes::handleClone(AsyncWebServerRequest *request,
   JsonArray results = document["results"].to<JsonArray>();
   uint8_t successCount = 0;
   EpeverProfile sourceProfile;
-  uint16_t sourceValues[BatterySettingsService::ValueCount];
+  BatterySettingRegisters sourceSettings = {};
   uint8_t sourceStatus;
 
   {
-    WorkerPause pause(_workerCanRun);
-    sourceProfile = _detectProfile(source, false);
+    ScopedPollingPause pause(_pollingControl);
+    sourceProfile = _controller.detectProfile(source, false);
     sourceStatus =
-        _batterySettings.read(source, sourceProfile, sourceValues);
+        _batterySettings.read(source, sourceProfile, sourceSettings);
     if (sourceStatus == ModbusMaster::ku8MBSuccess)
     {
       for (uint8_t target = 1; target <= deviceQuantity(); target++)
@@ -318,7 +287,8 @@ void MpptSettingsRoutes::handleClone(AsyncWebServerRequest *request,
 
         JsonObject targetResult = results.add<JsonObject>();
         targetResult["device"] = target;
-        EpeverProfile targetProfile = _detectProfile(target, false);
+        EpeverProfile targetProfile =
+            _controller.detectProfile(target, false);
         targetResult["profile"] = epeverProfileName(targetProfile);
         if (!BatterySettingsService::compatible(sourceProfile,
                                                 targetProfile))
@@ -329,12 +299,12 @@ void MpptSettingsRoutes::handleClone(AsyncWebServerRequest *request,
           continue;
         }
 
-        uint16_t readBack[BatterySettingsService::ValueCount];
+        BatterySettingRegisters readBack = {};
         uint8_t writeStatus;
         uint8_t readStatus;
         BatterySettingsService::VerifyResult verifyResult =
             _batterySettings.writeAndVerify(
-                target, targetProfile, sourceValues, readBack,
+                target, targetProfile, sourceSettings, readBack,
                 writeStatus, readStatus);
         targetResult["writeCode"] = writeStatus;
         targetResult["readCode"] = readStatus;
@@ -345,7 +315,6 @@ void MpptSettingsRoutes::handleClone(AsyncWebServerRequest *request,
             BatterySettingsService::VerifyResult::Verified)
         {
           successCount++;
-          updateJson(target, targetProfile, readBack);
           targetResult["message"] = "Cloned and verified";
         }
         else if (verifyResult ==
@@ -355,7 +324,6 @@ void MpptSettingsRoutes::handleClone(AsyncWebServerRequest *request,
         }
         else
         {
-          updateJson(target, targetProfile, readBack);
           targetResult["message"] =
               "Controller rejected or changed values";
         }
@@ -373,8 +341,7 @@ void MpptSettingsRoutes::handleClone(AsyncWebServerRequest *request,
     return;
   }
 
-  updateJson(source, sourceProfile, sourceValues);
-  _mqttTimer = 0;
+  _mqtt.requestPublish();
   document["source"] = source;
   document["sourceProfile"] = epeverProfileName(sourceProfile);
   document["deviceQuantity"] = deviceQuantity();
@@ -412,43 +379,10 @@ bool MpptSettingsRoutes::parseSetting(
   return true;
 }
 
-void MpptSettingsRoutes::updateJson(
-    uint8_t device, EpeverProfile profile, const uint16_t *values)
-{
-  JsonObject deviceData =
-      _liveJson["EP_" + String(device)]["DeviceData"];
-  if (isNcG3Profile(profile))
-  {
-    deviceData["BATTERY_TYPE"] =
-        values[0] < 13 ? NcG3BatteryTypes[values[0]] : "Unknown";
-  }
-  else
-  {
-    deviceData["BATTERY_TYPE"] =
-        values[0] < 4 ? LegacyBatteryTypes[values[0]] : "Unknown";
-  }
-
-  deviceData["BATTERY_CAPACITY"] = values[1];
-  deviceData["TEMPERATURE_COMPENSATION"] =
-      values[2] / (isNcG3Profile(profile) ? -100.f : 100.f);
-  deviceData["HIGH_VOLT_DISCONNECT"] = values[3] / 100.f;
-  deviceData["CHARGING_LIMIT_VOLTS"] = values[4] / 100.f;
-  deviceData["OVER_VOLTS_RECONNECT"] = values[5] / 100.f;
-  deviceData["EQUALIZATION_VOLTS"] = values[6] / 100.f;
-  deviceData["BOOST_VOLTS"] = values[7] / 100.f;
-  deviceData["FLOAT_VOLTS"] = values[8] / 100.f;
-  deviceData["BOOST_RECONNECT_VOLTS"] = values[9] / 100.f;
-  deviceData["LOW_VOLTS_RECONNECT"] = values[10] / 100.f;
-  deviceData["UNDER_VOLTS_RECOVER"] = values[11] / 100.f;
-  deviceData["UNDER_VOLTS_WARNING"] = values[12] / 100.f;
-  deviceData["LOW_VOLTS_DISCONNECT"] = values[13] / 100.f;
-  deviceData["DISCHARGING_LIMIT_VOLTS"] = values[14] / 100.f;
-  normalizeJsonNumbers(_liveJson, 2);
-}
-
 void MpptSettingsRoutes::sendResponse(
     AsyncWebServerRequest *request, uint16_t statusCode, uint8_t device,
-    EpeverProfile profile, const uint16_t *values, const String &message)
+    EpeverProfile profile, const BatterySettingRegisters *settings,
+    const String &message)
 {
   JsonDocument document;
   document["ok"] = statusCode == 200;
@@ -457,12 +391,12 @@ void MpptSettingsRoutes::sendResponse(
   document["profile"] = epeverProfileName(profile);
   document["maxBatteryType"] = isNcG3Profile(profile) ? 12 : 3;
   document["message"] = message;
-  if (values != nullptr)
+  if (settings != nullptr)
   {
     JsonArray registerValues = document["values"].to<JsonArray>();
     for (uint8_t index = 0;
          index < BatterySettingsService::ValueCount; index++)
-      registerValues.add(values[index]);
+      registerValues.add(settings->words[index]);
   }
 
   String body;

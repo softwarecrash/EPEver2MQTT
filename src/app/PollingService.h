@@ -2,13 +2,13 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
-#include <DallasTemperature.h>
 
 #include "../Settings.h"
 #include "../epever/DeviceClockService.h"
 #include "../epever/EpeverController.h"
 #include "../mqtt/MqttService.h"
 #include "../web/WebSocketController.h"
+#include "TemperatureSensorService.h"
 
 class PollingService
 {
@@ -17,10 +17,8 @@ public:
                  EpeverController &controller,
                  DeviceClockService &deviceClock,
                  WebSocketController &webSocket, MqttService &mqtt,
-                 DallasTemperature &temperatureSensors,
-                 bool &setNtpTimeToDevice, int &errorCode,
-                 uint8_t &requestedDevice, unsigned long &mqttTimer,
-                 unsigned long &notifyTimer, unsigned long &pollTimer);
+                 TemperatureSensorService &temperatureSensors,
+                 bool &setNtpTimeToDevice);
 
   bool run();
 
@@ -33,11 +31,9 @@ private:
   DeviceClockService &_deviceClock;
   WebSocketController &_webSocket;
   MqttService &_mqtt;
-  DallasTemperature &_temperatureSensors;
+  TemperatureSensorService &_temperatureSensors;
   bool &_setNtpTimeToDevice;
-  int &_errorCode;
-  uint8_t &_requestedDevice;
-  unsigned long &_mqttTimer;
-  unsigned long &_notifyTimer;
-  unsigned long &_pollTimer;
+  uint8_t _requestedDevice = 1;
+  unsigned long _notifyTimer = 0;
+  unsigned long _pollTimer = 0;
 };
