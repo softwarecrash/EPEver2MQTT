@@ -13,6 +13,7 @@
   components with explicit state ownership.
 - Add a register-level simulator build for Legacy, IT-NC and ET-NC devices.
 - Add simulator startup self-tests and architecture invariant checks.
+- Add icon-only copy-to-clipboard and text-download actions to WebSerial.
 - Start the web server even when the initial Wi-Fi connection attempt fails.
 - Keep the Web UI available when Wi-Fi reconnects after boot.
 - Fix a WebSocket buffer overflow that could corrupt the ESP8266 heap.

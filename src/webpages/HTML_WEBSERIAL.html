@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta content="IE=edge" http-equiv="X-UA-Compatible">
+  <meta content="width=device-width,initial-scale=1" name="viewport">
+  <title>Web Console</title>
+  <style>
+    *, ::after, ::before { box-sizing: inherit; }
+    body {
+      box-sizing: border-box;
+      overscroll-behavior: none;
+      height: 100%;
+      width: 100%;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI",
+        Roboto, "Helvetica Neue", sans-serif;
+    }
+    .main {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: center;
+      min-height: 100dvh;
+      background-color: #f8f9fa;
+      text-align: center;
+    }
+    .panel {
+      position: relative;
+      display: grid;
+      gap: .5rem;
+      width: calc(100% - 1rem);
+      margin-top: 2.5rem;
+      border: .5rem solid #fff;
+      border-radius: 1rem;
+      background-color: #fff;
+      font-size: medium;
+      filter: drop-shadow(0 4px 3px rgb(0 0 0 / .07))
+        drop-shadow(0 2px 2px rgb(0 0 0 / .06));
+    }
+    .panel button {
+      cursor: pointer;
+      padding: 8px 10px;
+      border: 0;
+      border-radius: .5rem;
+      outline: 0;
+      color: #fff;
+      background-color: #0067f4;
+      font-size: medium;
+      filter: drop-shadow(0 2px 2px rgb(0 0 0 / .12));
+    }
+    .panel button:disabled { background-color: #5a6169; }
+    #record {
+      width: 100%;
+      min-height: 3.25rem;
+      padding: .5rem;
+      resize: vertical;
+      overscroll-behavior: none;
+      border-radius: .5rem;
+    }
+    #controls {
+      position: absolute;
+      top: .5rem;
+      right: .5rem;
+      display: flex;
+      gap: .25rem;
+    }
+    #controls button { background-color: #5a6169; }
+    #terminal {
+      display: flex;
+      width: 100%;
+      gap: .5rem;
+    }
+    #command-text {
+      flex-grow: 1;
+      border-radius: .5rem;
+    }
+    .active { background-color: #0067f4 !important; }
+  </style>
+</head>
+<body>
+  <main class="main">
+    <h1>Web Console</h1>
+    <section class="panel">
+      <div id="controls">
+        <button type="button" aria-label="Clear console" title="Clear console"
+                onclick="clearTerminal()">
+          <svg aria-hidden="true" fill="currentColor" height="1em"
+               viewBox="64 64 896 896" width="1em">
+            <path d="M864 256H736v-80c0-35.3-28.7-64-64-64H352c-35.3 0-64 28.7-64 64v80H160c-17.7 0-32 14.3-32 32v32c0 4.4 3.6 8 8 8h60.4l24.7 523c1.6 34.1 29.8 61 63.9 61h454c34.2 0 62.3-26.8 63.9-61l24.7-523H888c4.4 0 8-3.6 8-8v-32c0-17.7-14.3-32-32-32zm-200 0H360v-72h304v72z"/>
+          </svg>
+        </button>
+        <button type="button" aria-label="Lock automatic scrolling"
+                title="Lock automatic scrolling" id="flow-lock"
+                onclick="toggleFlowLock()">
+          <svg aria-hidden="true" fill="currentColor" height="1em"
+               viewBox="64 64 896 896" width="1em">
+            <path d="M832 464h-68V240c0-70.7-57.3-128-128-128H388c-70.7 0-128 57.3-128 128v224h-68c-17.7 0-32 14.3-32 32v384c0 17.7 14.3 32 32 32h640c17.7 0 32-14.3 32-32V496c0-17.7-14.3-32-32-32zM332 240c0-30.9 25.1-56 56-56h248c30.9 0 56 25.1 56 56v224H332V240zm460 600H232V536h560v304zM484 701v53c0 4.4 3.6 8 8 8h40c4.4 0 8-3.6 8-8v-53a48.01 48.01 0 10-56 0z"/>
+          </svg>
+        </button>
+        <button type="button" aria-label="Toggle timestamps"
+                title="Toggle timestamps" id="timestamps"
+                onclick="toggleTimestamps()">
+          <svg aria-hidden="true" fill="currentColor" height="1em"
+               viewBox="64 64 896 896" width="1em">
+            <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"/>
+            <path d="M686.7 638.6L544.1 535.5V288c0-4.4-3.6-8-8-8H488c-4.4 0-8 3.6-8 8v275.4c0 2.6 1.2 5 3.3 6.5l165.4 120.6c3.6 2.6 8.6 1.8 11.2-1.7l28.6-39c2.6-3.7 1.8-8.7-1.8-11.2z"/>
+          </svg>
+        </button>
+        <button type="button" aria-label="Copy console to clipboard"
+                title="Copy console to clipboard" onclick="copyTerminal()">
+          <svg aria-hidden="true" fill="currentColor" height="1em"
+               viewBox="64 64 896 896" width="1em">
+            <path d="M768 832H384c-35.3 0-64-28.7-64-64V384c0-35.3 28.7-64 64-64h384c35.3 0 64 28.7 64 64v384c0 35.3-28.7 64-64 64zm-376-72h368V392H392v368z"/>
+            <path d="M640 248H264c-8.8 0-16 7.2-16 16v376c0 19.9-16.1 36-36 36s-36-16.1-36-36V240c0-35.3 28.7-64 64-64h400c19.9 0 36 16.1 36 36s-16.1 36-36 36z"/>
+          </svg>
+        </button>
+        <button type="button" aria-label="Download console as text file"
+                title="Download console as text file"
+                onclick="downloadTerminal()">
+          <svg aria-hidden="true" fill="currentColor" height="1em"
+               viewBox="64 64 896 896" width="1em">
+            <path d="M505.7 661a32 32 0 0044.6 0l191.5-184.2a32 32 0 10-44.4-46.1L560 562.8V176a32 32 0 10-64 0v386.8L358.6 430.7a32 32 0 10-44.4 46.1L505.7 661z"/>
+            <path d="M816 608a32 32 0 00-32 32v144H240V640a32 32 0 10-64 0v176c0 17.7 14.3 32 32 32h608c17.7 0 32-14.3 32-32V640a32 32 0 00-32-32z"/>
+          </svg>
+        </button>
+      </div>
+      <textarea id="record" cols="30" disabled rows="40"
+                title="WebSerial output"></textarea>
+      <div id="terminal">
+        <input id="command-text" name="cmd" aria-label="WebSerial command">
+        <button id="command-button" type="button">SEND</button>
+      </div>
+    </section>
+  </main>
+  <script>
+    const textArea = document.getElementById('record');
+    const socketProtocol = location.protocol === 'https:' ? 'wss://' : 'ws://';
+    const gateway = socketProtocol + location.host + '/webserial-dataws';
+    let websocket;
+    let pingTimeout;
+    let connectTimeout;
+    let reconnectTimeout;
+    let flowLocked = false;
+    let timestampsEnabled = false;
+    let commandHistory = [];
+    let commandHistoryIndex = 0;
+
+    function initialize() {
+      document.getElementById('command-button').disabled = true;
+      document.getElementById('command-text').disabled = true;
+      const savedHistory = localStorage.getItem('webSerialHistory');
+      commandHistory = savedHistory ? JSON.parse(savedHistory) : [];
+      commandHistoryIndex = commandHistory.length;
+      document.getElementById('command-button')
+        .addEventListener('click', sendCommand);
+      document.getElementById('command-text')
+        .addEventListener('keypress', event => {
+          if (event.code === 'Enter') {
+            event.preventDefault();
+            sendCommand();
+          }
+        });
+      document.addEventListener('keydown', navigateHistory);
+      connect();
+    }
+
+    function connect() {
+      clearTimeout(connectTimeout);
+      clearTimeout(pingTimeout);
+      clearTimeout(reconnectTimeout);
+      pingTimeout = undefined;
+      writeTerminal('[WebSerial] Connecting...');
+      websocket = new WebSocket(gateway);
+      websocket.onopen = onOpen;
+      websocket.onclose = onClose;
+      websocket.onmessage = onMessage;
+      websocket.onerror = () => websocket.close();
+      connectTimeout = setTimeout(() => {
+        writeTerminal('[WebSerial] Connect timeout.');
+        websocket.close();
+      }, 3000);
+    }
+
+    function onOpen() {
+      clearTimeout(connectTimeout);
+      writeTerminal('[WebSerial] Connected.');
+      document.getElementById('command-button').disabled = false;
+      document.getElementById('command-text').disabled = false;
+    }
+
+    function onClose() {
+      clearTimeout(connectTimeout);
+      clearTimeout(pingTimeout);
+      pingTimeout = undefined;
+      document.getElementById('command-button').disabled = true;
+      document.getElementById('command-text').disabled = true;
+      reconnectTimeout = setTimeout(connect, 3000);
+    }
+
+    function onMessage(event) {
+      if (event.data === 'pong') {
+        clearTimeout(pingTimeout);
+        pingTimeout = undefined;
+        return;
+      }
+      writeTerminal(event.data);
+    }
+
+    function writeTerminal(message) {
+      if (timestampsEnabled)
+        message = '[' + new Date().toLocaleTimeString() + '] ' + message;
+      textArea.value += message + '\n';
+      if (!flowLocked)
+        textArea.scrollTop = textArea.scrollHeight;
+    }
+
+    function clearTerminal() {
+      textArea.value = '';
+      textArea.scrollTop = 0;
+    }
+
+    function toggleFlowLock() {
+      flowLocked = !flowLocked;
+      document.getElementById('flow-lock').classList.toggle('active', flowLocked);
+    }
+
+    function toggleTimestamps() {
+      timestampsEnabled = !timestampsEnabled;
+      document.getElementById('timestamps')
+        .classList.toggle('active', timestampsEnabled);
+    }
+
+    function fallbackCopy(text) {
+      const copyArea = document.createElement('textarea');
+      copyArea.value = text;
+      copyArea.style.position = 'fixed';
+      copyArea.style.opacity = '0';
+      document.body.appendChild(copyArea);
+      copyArea.focus();
+      copyArea.select();
+      document.execCommand('copy');
+      copyArea.remove();
+    }
+
+    function copyTerminal() {
+      const text = textArea.value;
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+        return;
+      }
+      fallbackCopy(text);
+    }
+
+    function downloadTerminal() {
+      const blob = new Blob([textArea.value],
+        { type: 'text/plain;charset=utf-8' });
+      const link = document.createElement('a');
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'epever2mqtt-webserial-' + timestamp + '.txt';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(link.href), 0);
+    }
+
+    function sendCommand() {
+      const input = document.getElementById('command-text');
+      const command = input.value;
+      if (!websocket || websocket.readyState !== WebSocket.OPEN)
+        return;
+      websocket.send(command);
+      commandHistory.push(command);
+      if (commandHistory.length > 20)
+        commandHistory.splice(0, commandHistory.length - 20);
+      commandHistoryIndex = commandHistory.length;
+      input.value = '';
+      localStorage.setItem('webSerialHistory',
+        JSON.stringify(commandHistory));
+    }
+
+    function navigateHistory(event) {
+      const input = document.getElementById('command-text');
+      if (document.activeElement !== input || commandHistory.length === 0)
+        return;
+      if (event.code === 'ArrowUp') {
+        event.preventDefault();
+        commandHistoryIndex =
+          Math.max(0, commandHistoryIndex - 1);
+        input.value = commandHistory[commandHistoryIndex];
+      } else if (event.code === 'ArrowDown') {
+        event.preventDefault();
+        commandHistoryIndex =
+          Math.min(commandHistory.length, commandHistoryIndex + 1);
+        input.value = commandHistoryIndex < commandHistory.length
+          ? commandHistory[commandHistoryIndex] : '';
+      }
+    }
+
+    setInterval(() => {
+      if (pingTimeout || !websocket ||
+          websocket.readyState !== WebSocket.OPEN)
+        return;
+      pingTimeout = setTimeout(() => {
+        writeTerminal('[WebSerial] Ping timeout.');
+        websocket.close();
+      }, 3000);
+      websocket.send('ping');
+    }, 2000);
+
+    window.addEventListener('DOMContentLoaded', initialize);
+  </script>
+</body>
+</html>

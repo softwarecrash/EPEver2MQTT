@@ -108,6 +108,14 @@ void WebUiRoutes::registerRoutes()
                sendHtml(request, HTML_REBOOT);
              });
 
+  _server.on("/webserial", HTTP_GET,
+             [this](AsyncWebServerRequest *request)
+             {
+               if (!authorize(request))
+                 return;
+               sendHtml(request, HTML_WEBSERIAL);
+             });
+
   _server.on("/api/reboot", HTTP_POST,
              [this](AsyncWebServerRequest *request)
              {

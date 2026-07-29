@@ -155,7 +155,7 @@ void initializeWebServer()
 
   // The hardware UART is reserved exclusively for Modbus RTU.
   webSerial.setBuffer(ProjectConfig::WebSerialBufferSize);
-  webSerial.begin(&server);
+  webSerial.begin(&server, "/webserial-data");
   DiagnosticLog::begin(webSerial);
   server.begin();
 }
