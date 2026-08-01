@@ -90,6 +90,7 @@
 <script>
     var gateway = `ws://${window.location.hostname}/ws`;
     var websocket;
+    var websocketPingTimer;
     var deviceQuantity = 0;
     var shDevNum = 1;
     var devPrA = "EP_";
@@ -106,10 +107,13 @@
     }
     function onOpen(event) {
         console.log('Connection opened');
-        setInterval(checkWS, 5000);
+        clearInterval(websocketPingTimer);
+        websocketPingTimer = setInterval(checkWS, 5000);
     }
     function onClose(event) {
         console.log('Connection closed');
+        clearInterval(websocketPingTimer);
+        websocketPingTimer = undefined;
         setTimeout(initWebSocket, 3500);
     }
     function onError(event) {
@@ -140,45 +144,49 @@
                 document.getElementById('prevDev').style.display = 'none';
                 document.getElementById('nextDev').style.display = 'none';
             }
-            document.getElementById("devtime").innerHTML = unixTimetoDateTime(data[devPrA + shDevNum].LiveData.DEVICE_TIME);
+            // DEVICE_TIME is updated only after a successful EPEver poll. A
+            // stationary value therefore indicates that no fresh controller
+            // data has arrived since the displayed time.
+            document.getElementById("devtime").innerHTML =
+                unixTimetoDateTime(data[devPrA + shDevNum].LiveData.DEVICE_TIME);
 
-            document.getElementById("SOCbar").innerHTML = data[devPrA + shDevNum].LiveData.BATT_SOC + '%%';
+            document.getElementById("SOCbar").innerHTML = formatNumber(data[devPrA + shDevNum].LiveData.BATT_SOC, 0) + '%';
             $('#SOCbar').width(data[devPrA + shDevNum].LiveData.BATT_SOC + "%").attr('aria-valuenow', data[devPrA + shDevNum].LiveData.BATT_SOC);
 
-            document.getElementById("solarV").innerHTML = data[devPrA + shDevNum].LiveData.SOLAR_V + 'V ';
-            document.getElementById("solarA").innerHTML = data[devPrA + shDevNum].LiveData.SOLAR_A + 'A  ';
-            document.getElementById("solarW").innerHTML = data[devPrA + shDevNum].LiveData.SOLAR_W + 'W  ';
+            document.getElementById("solarV").innerHTML = formatNumber(data[devPrA + shDevNum].LiveData.SOLAR_V) + 'V ';
+            document.getElementById("solarA").innerHTML = formatNumber(data[devPrA + shDevNum].LiveData.SOLAR_A) + 'A  ';
+            document.getElementById("solarW").innerHTML = formatNumber(data[devPrA + shDevNum].LiveData.SOLAR_W) + 'W  ';
 
-            document.getElementById("battV").innerHTML = data[devPrA + shDevNum].LiveData.BATT_V + 'V ';
-            document.getElementById("battA").innerHTML = data[devPrA + shDevNum].LiveData.BATT_A + 'A  ';
-            document.getElementById("battW").innerHTML = data[devPrA + shDevNum].LiveData.BATT_W + 'W  ';
+            document.getElementById("battV").innerHTML = formatNumber(data[devPrA + shDevNum].LiveData.BATT_V) + 'V ';
+            document.getElementById("battA").innerHTML = formatNumber(data[devPrA + shDevNum].LiveData.BATT_A) + 'A  ';
+            document.getElementById("battW").innerHTML = formatNumber(data[devPrA + shDevNum].LiveData.BATT_W) + 'W  ';
 
             var loadAvailable = data[devPrA + shDevNum].LiveData.LOAD_AVAILABLE !== false;
             document.getElementById("loadDataRow").style.display = loadAvailable ? '' : 'none';
             document.getElementById("loadStateRow").style.display = loadAvailable ? '' : 'none';
             if (loadAvailable) {
-                document.getElementById("loadV").innerHTML = data[devPrA + shDevNum].LiveData.LOAD_V + 'V ';
-                document.getElementById("loadA").innerHTML = data[devPrA + shDevNum].LiveData.LOAD_A + 'A  ';
-                document.getElementById("loadW").innerHTML = data[devPrA + shDevNum].LiveData.LOAD_W + 'W  ';
+                document.getElementById("loadV").innerHTML = formatNumber(data[devPrA + shDevNum].LiveData.LOAD_V) + 'V ';
+                document.getElementById("loadA").innerHTML = formatNumber(data[devPrA + shDevNum].LiveData.LOAD_A) + 'A  ';
+                document.getElementById("loadW").innerHTML = formatNumber(data[devPrA + shDevNum].LiveData.LOAD_W) + 'W  ';
             }
 
-            document.getElementById("deviceTemp").innerHTML = data[devPrA + shDevNum].LiveData.DEVICE_TEMP + '°C  ';
+            document.getElementById("deviceTemp").innerHTML = formatNumber(data[devPrA + shDevNum].LiveData.DEVICE_TEMP) + '°C  ';
             if (data[devPrA + shDevNum].LiveData.BATT_TEMP != 25) {
-                document.getElementById("battTemp").innerHTML = ' | ' + data[devPrA + shDevNum].LiveData.BATT_TEMP + '°C  ';
+                document.getElementById("battTemp").innerHTML = ' | ' + formatNumber(data[devPrA + shDevNum].LiveData.BATT_TEMP) + '°C  ';
             }
             var consumptionAvailable = data[devPrA + shDevNum].StatsData.CONSUMPTION_AVAILABLE !== false;
             document.getElementById("consumptionRow").style.display = consumptionAvailable ? '' : 'none';
             if (consumptionAvailable) {
-                document.getElementById("consD").innerHTML = 'D:' + data[devPrA + shDevNum].StatsData.CONS_DAY + '  ';
-                document.getElementById("consM").innerHTML = 'M:' + data[devPrA + shDevNum].StatsData.CONS_MON + '  ';
-                document.getElementById("consY").innerHTML = 'Y:' + data[devPrA + shDevNum].StatsData.CONS_YEAR + '  ';
-                document.getElementById("consT").innerHTML = 'T:' + data[devPrA + shDevNum].StatsData.CONS_TOT;
+                document.getElementById("consD").innerHTML = 'D:' + formatNumber(data[devPrA + shDevNum].StatsData.CONS_DAY) + '  ';
+                document.getElementById("consM").innerHTML = 'M:' + formatNumber(data[devPrA + shDevNum].StatsData.CONS_MON) + '  ';
+                document.getElementById("consY").innerHTML = 'Y:' + formatNumber(data[devPrA + shDevNum].StatsData.CONS_YEAR) + '  ';
+                document.getElementById("consT").innerHTML = 'T:' + formatNumber(data[devPrA + shDevNum].StatsData.CONS_TOT);
             }
 
-            document.getElementById("genD").innerHTML = 'D:' + data[devPrA + shDevNum].StatsData.GEN_DAY + '  ';
-            document.getElementById("genM").innerHTML = 'M:' + data[devPrA + shDevNum].StatsData.GEN_MON + '  ';
-            document.getElementById("genY").innerHTML = 'Y:' + data[devPrA + shDevNum].StatsData.GEN_YEAR + '  ';
-            document.getElementById("genT").innerHTML = 'T:' + data[devPrA + shDevNum].StatsData.GEN_TOT;
+            document.getElementById("genD").innerHTML = 'D:' + formatNumber(data[devPrA + shDevNum].StatsData.GEN_DAY) + '  ';
+            document.getElementById("genM").innerHTML = 'M:' + formatNumber(data[devPrA + shDevNum].StatsData.GEN_MON) + '  ';
+            document.getElementById("genY").innerHTML = 'Y:' + formatNumber(data[devPrA + shDevNum].StatsData.GEN_YEAR) + '  ';
+            document.getElementById("genT").innerHTML = 'T:' + formatNumber(data[devPrA + shDevNum].StatsData.GEN_TOT);
 
             document.getElementById("inputstate").innerHTML = data[devPrA + shDevNum].LiveData.CHARGER_STATE;
             document.getElementById("chrgmode").innerHTML = data[devPrA + shDevNum].LiveData.CHARGER_MODE;
@@ -196,6 +204,11 @@
         setWiFiSignal(data.Wifi_RSSI);
     }
 
+    function formatNumber(value, decimalPlaces = 2) {
+        const number = Number(value);
+        return Number.isFinite(number) ? number.toFixed(decimalPlaces) : '--';
+    }
+
     function onLoad(event) {
         initWebSocket();
         initButton();
@@ -211,7 +224,11 @@
         let loadSwitch;
         if (document.getElementById('loadState').checked) { loadSwitch = 1 }
         else { loadSwitch = 0 }
-        websocket.send('loadSwitch_' + shDevNum + '_' + loadSwitch);
+        websocket.send(JSON.stringify({
+            type: 'setLoad',
+            device: shDevNum,
+            state: loadSwitch === 1
+        }));
     }
 
     function selDev(dir) {
@@ -234,15 +251,12 @@
         }
     }
     function unixTimetoDateTime(unixTime) {
-        var deviceDate = new Date(unixTime * 1000);
-        deviceDate.toUTCString();
-        deviceDate.setHours(deviceDate.getUTCHours());
-        var formatedTime = deviceDate.toLocaleDateString(navigator.language) + " " + deviceDate.toLocaleTimeString(navigator.language);
-        return formatedTime;
+        const deviceDate = new Date(unixTime * 1000);
+        return deviceDate.toLocaleString(navigator.language, { timeZone: 'UTC' });
     }
     function checkWS() {
-        if (websocket.readyState !== WebSocket.CLOSED) {
-            websocket.send("A9");
+        if (websocket && websocket.readyState === WebSocket.OPEN) {
+            websocket.send(JSON.stringify({ type: 'ping' }));
         }
     }
     const minRSSI = -85, maxRSSI = -60;
@@ -256,7 +270,7 @@
     const svg = document.querySelector(".wifi-symbol");
     if (svg) {
       const title = svg.querySelector("title");
-      if (title) title.textContent = p + "%% Strength";
+      if (title) title.textContent = p + "% Strength";
     }
 
     lv.forEach((id, i) => {

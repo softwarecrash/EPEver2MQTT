@@ -2,125 +2,126 @@
 <figure class="text-center">
     <h1>Edit Configuration</h1>
 </figure>
-<form method="POST" action="/settingssave" enctype="multipart/form-data" novalidate>
+<div id="configStatus" class="alert alert-info">Loading configuration...</div>
+<form id="configForm" novalidate>
     <div class="input-group mb-2">
         <span class="input-group-text w-50" id="devicenamedesc">Device Name</span>
         <input type="text" class="form-control no-percent" aria-describedby="devicenamedesc" id="devicename"
-            name="post_deviceName" maxlength="35" value="%pre_device_name%"
+            name="post_deviceName" maxlength="35"
             onkeyup="this.value=this.value.replace(/\s+/g,'_');">
     </div>
     <div class="input-group mb-2">
         <span class="input-group-text w-50" id="staticipdesc">Static IP (leave empty for DHCP)</span>
         <input type="text" class="form-control" aria-describedby="staticipdesc" id="staticip" name="post_staticIP"
-            maxlength="15" value="%pre_static_ip%">
+            maxlength="15">
     </div>
     <div class="input-group mb-2">
         <span class="input-group-text w-50" id="staticgwdesc">Static Gateway (leave empty for DHCP)</span>
         <input type="text" class="form-control" aria-describedby="staticgwdesc" id="staticgw" name="post_staticGW"
-            maxlength="15" value="%pre_static_gw%">
+            maxlength="15">
     </div>
     <div class="input-group mb-2">
         <span class="input-group-text w-50" id="staticsndesc">Static Subnet (leave empty for DHCP)</span>
         <input type="text" class="form-control" aria-describedby="staticsndesc" id="staticsn" name="post_staticSN"
-            maxlength="15" value="%pre_static_sn%">
+            maxlength="15">
     </div>
     <div class="input-group mb-2">
         <span class="input-group-text w-50" id="staticdnsdesc">Static DNS (leave empty for DHCP)</span>
         <input type="text" class="form-control" aria-describedby="staticdnsdesc" id="staticdns" name="post_staticDNS"
-            maxlength="15" value="%pre_static_dns%">
+            maxlength="15">
     </div>
     <div class="input-group mb-2">
         <span class="input-group-text w-50" id="devicequantitydesc">Device Quantity</span>
         <input type="text" class="form-control no-percent" aria-describedby="devicequantitydesc" id="devicequantity"
-            name="post_deviceQuanttity" maxlength="2" value="%pre_device_quantity%">
+            name="post_deviceQuanttity" maxlength="2">
     </div>
     <div class="input-group mb-2">
         <span class="input-group-text w-50" id="mqttserverdesc">MQTT Server</span>
         <input type="text" class="form-control no-percent" aria-describedby="mqttserverdesc" id="mqttserver"
-            name="post_mqttServer" maxlength="40" value="%pre_mqtt_server%">
+            name="post_mqttServer" maxlength="40">
     </div>
     <div class="input-group mb-2">
         <span class="input-group-text w-50" id="mqttportdesc">MQTT Port</span>
         <input type="text" class="form-control no-percent" aria-describedby="mqttportdesc" id="mqttport"
-            name="post_mqttPort" maxlength="5" value="%pre_mqtt_port%">
+            name="post_mqttPort" maxlength="5">
     </div>
     <div class="input-group mb-2">
         <span class="input-group-text w-50" id="mqttuserdesc">MQTT User</span>
         <input type="text" class="form-control no-percent" aria-describedby="mqttuserdesc" id="mqttuser"
-            name="post_mqttUser" maxlength="35" value="%pre_mqtt_user%">
+            name="post_mqttUser" maxlength="35">
     </div>
     <div class="input-group mb-2">
         <span class="input-group-text w-50" id="mqttpassworddesc">MQTT Password</span>
         <input type="password" class="form-control no-percent" aria-describedby="mqttpassworddesc" id="mqttpassword"
-            maxlength="35" name="post_mqttPassword" value="%pre_mqtt_pass%">
+            maxlength="35" name="post_mqttPassword">
     </div>
     <div class="input-group mb-2">
         <span class="input-group-text w-50" id="mqtttopicdesc">MQTT Topic</span>
         <input type="text" class="form-control no-percent" aria-describedby="mqtttopicdesc" id="mqtttopic"
-            name="post_mqttTopic" maxlength="35" value="%pre_mqtt_topic%"
+            name="post_mqttTopic" maxlength="35"
             onkeyup="this.value=this.value.replace(/\s+/g,'_');">
     </div>
     <div class="input-group mb-2">
         <span class="input-group-text w-50" id="mqttrefreshdesc">MQTT Refresh (sec)</span>
         <input type="text" class="form-control no-percent" aria-describedby="mqttrefreshdesc" id="mqttrefresh"
-            maxlength="5" name="post_mqttRefresh" value="%pre_mqtt_refresh%">
+            maxlength="5" name="post_mqttRefresh">
     </div>
     <div class="input-group mb-2">
         <span class="input-group-text w-50" id="mqtttriggerdesc">MQTT Data Trigger Path</span>
         <input type="text" class="form-control no-percent" aria-describedby="mqtttrigerdesc" id="mqtttrigger"
-            maxlength="80" name="post_mqtttrigger" value="%pre_mqtt_mqtttrigger%"
+            maxlength="80" name="post_mqtttrigger"
             onkeyup="this.value=this.value.replace(/\s+/g,'_');">
     </div>
     <div class="input-group mb-2">
         <span class="input-group-text w-50" id="mqttjsondesc">MQTT Json Style</span>
-        <div class="form-switch form-control mqtt-settings-switch" style="width:50%%; text-align: center;">
+        <div class="form-switch form-control mqtt-settings-switch" style="width:50%; text-align: center;">
             <input type="checkbox" class="form-check-input form control" aria-describedby="mqttjsondesc" role="switch"
-                id="mqttjson" name="post_mqttjson" value="true" %pre_mqtt_json%>
+                id="mqttjson" name="post_mqttjson" value="true">
         </div>
     </div>
     <div class="input-group mb-2">
         <span class="input-group-text w-50" id="mqtthadisc">HA Discovery</span>
-        <div class="form-switch form-control mqtt-settings-switch" style="width:50%%; text-align: center;">
+        <div class="form-switch form-control mqtt-settings-switch" style="width:50%; text-align: center;">
             <input type="checkbox" class="form-check-input form control" aria-describedby="mqtthadisc" role="switch"
-                id="post_hadiscovery" name="post_hadiscovery" value="true" %pre_hadiscovery% onclick='haSwitch()'>
+                id="post_hadiscovery" name="post_hadiscovery" value="true" onclick='haSwitch()'>
         </div>
     </div>
     <div class="input-group mb-2">
         <span class="input-group-text w-50" id="webuicolormode">WebUI Dark Mode</span>
-        <div class="form-switch form-control" style="width:50%%; text-align: center;">
+        <div class="form-switch form-control" style="width:50%; text-align: center;">
             <input type="checkbox" class="form-check-input form control" aria-describedby="webuicolormode" role="switch"
-                id="post_webuicolormode" name="post_webuicolormode" value="true" %pre_webuidarkmode%>
+                id="post_webuicolormode" name="post_webuicolormode" value="true">
         </div>
     </div>
     <div class="input-group mb-2">
         <span class="input-group-text w-50" id="led">LED brightness</span>
-        <div class="form-switch form-control" style="width:50%%; text-align: center;">
+        <div class="form-switch form-control" style="width:50%; text-align: center;">
             <input type="range" class="form-range" aria-describedby="led"
-                id="post_led" name="post_led" value="%pre_led%" min="0" max="255">
+                id="post_led" name="post_led" value="127" min="0" max="255">
         </div>
     </div>
     <div class="input-group mb-2">
         <span class="input-group-text w-50" id="httpUserdesc">HTTP Username</span>
         <input type="text" class="form-control no-percent" aria-describedby="httpUserdesc" id="httpUser"
-            name="post_httpUser" maxlength="40" value="%pre_http_user%">
+            name="post_httpUser" maxlength="40">
     </div>
     <div class="input-group mb-2">
         <span class="input-group-text w-50" id="httpPassdesc">HTTP Password</span>
         <input type="password" class="form-control no-percent" aria-describedby="httpPassdesc" id="httpPass"
-            name="post_httpPass" maxlength="40" value="%pre_http_pass%">
+            name="post_httpPass" maxlength="40">
     </div>
     <div class="input-group mb-2">
         <span class="input-group-text w-50" id="ntptimezonedesc"><a
                 href="https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv" target="_blank">NTP
                 Timezone</a></span>
         <input type="text" class="form-control no-percent" aria-describedby="ntptimezonedesc" id="ntptimezone"
-            name="post_ntptimezone" maxlength="40" value="%pre_ntptimezone%"
+            name="post_ntptimezone" maxlength="40"
             placeholder="e.g GMT0 - empty to disable Sync">
     </div>
     <div class="input-group mb-2">
         <span class="input-group-text w-50" id="ntptimeservdesc">NTP Server</span>
         <input type="text" class="form-control no-percent" aria-describedby="ntptimeservdesc" id="ntptimeserv"
-            name="post_ntptimeserv" maxlength="40" value="%pre_ntptimeserv%" placeholder="pool.ntp.org">
+            name="post_ntptimeserv" maxlength="40" placeholder="pool.ntp.org">
     </div>
 
     <div class="d-grid gap-2">
@@ -203,6 +204,92 @@
         }
         document.getElementById('mqttjson').disabled = document.getElementById('post_hadiscovery').checked;
     }
+
+    const fieldMap = {
+        devicename: 'deviceName',
+        staticip: 'staticIp',
+        staticgw: 'staticGateway',
+        staticsn: 'staticSubnet',
+        staticdns: 'staticDns',
+        devicequantity: 'deviceQuantity',
+        mqttserver: 'mqttServer',
+        mqttport: 'mqttPort',
+        mqttuser: 'mqttUser',
+        mqttpassword: 'mqttPassword',
+        mqtttopic: 'mqttTopic',
+        mqttrefresh: 'mqttRefresh',
+        mqtttrigger: 'mqttTriggerPath',
+        post_led: 'ledBrightness',
+        httpUser: 'httpUser',
+        httpPass: 'httpPassword',
+        ntptimezone: 'ntpTimezone',
+        ntptimeserv: 'ntpServer'
+    };
+
+    function showStatus(message, kind) {
+        const status = document.getElementById('configStatus');
+        status.textContent = message;
+        status.className = 'alert alert-' + kind;
+    }
+
+    function getFormData() {
+        const data = {};
+        Object.entries(fieldMap).forEach(([id, key]) => data[key] = document.getElementById(id).value);
+        ['deviceQuantity', 'mqttPort', 'mqttRefresh', 'ledBrightness']
+            .forEach(key => data[key] = Number(data[key]));
+        data.mqttJson = document.getElementById('mqttjson').checked;
+        data.haDiscovery = document.getElementById('post_hadiscovery').checked;
+        data.webUiDarkMode = document.getElementById('post_webuicolormode').checked;
+        return data;
+    }
+
+    fetch('/api/settings', { cache: 'no-store' })
+        .then(response => {
+            if (!response.ok) throw new Error('Configuration could not be loaded');
+            return response.json();
+        })
+        .then(data => {
+            Object.entries(fieldMap).forEach(([id, key]) => {
+                const field = document.getElementById(id);
+                field.value = data[key] ?? '';
+                field.dataset.default = field.value;
+            });
+            document.getElementById('mqttjson').checked = data.mqttJson;
+            document.getElementById('post_hadiscovery').checked = data.haDiscovery;
+            document.getElementById('post_webuicolormode').checked = data.webUiDarkMode;
+            haSwitch();
+            showStatus('Configuration loaded.', 'success');
+        })
+        .catch(error => showStatus(error.message, 'danger'));
+
+    document.getElementById('configForm').addEventListener('submit', event => {
+        event.preventDefault();
+        if ([...document.querySelectorAll('.no-percent')].some(field => field.value.includes('%'))) {
+            showStatus('The percent sign is not allowed.', 'danger');
+            return;
+        }
+
+        document.getElementById('submitButton').disabled = true;
+        showStatus('Saving configuration...', 'info');
+        fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(getFormData())
+        })
+            .then(async response => {
+                const result = await response.json();
+                if (!response.ok || !result.ok) throw new Error(result.message || 'Save failed');
+                return fetch('/api/reboot', { method: 'POST' });
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('Reboot could not be scheduled');
+                window.location.href = '/reboot';
+            })
+            .catch(error => {
+                document.getElementById('submitButton').disabled = false;
+                showStatus(error.message, 'danger');
+            });
+    });
 </script>
 %pre_foot_template%
 <p hidden></p>

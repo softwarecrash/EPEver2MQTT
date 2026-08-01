@@ -3,8 +3,18 @@
     <h1>Erase all Data?</h1>
 </figure>
 <div class="d-grid gap-2">
-    <a class="btn btn-danger" href="/reset" role="button">Yes</a>
+    <button class="btn btn-danger" type="button" onclick="resetDevice()">Yes</button>
     <a class="btn btn-primary" href="/settings" role="button">No</a>
 </div>
+<script>
+    function resetDevice() {
+        fetch('/api/reset', { method: 'POST' })
+            .then(response => {
+                if (!response.ok) throw new Error('Reset could not be scheduled');
+                window.location.href = '/reboot';
+            })
+            .catch(error => alert(error.message));
+    }
+</script>
 %pre_foot_template%
 <p hidden></p>

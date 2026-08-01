@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" xml:lang="en" data-bs-theme="%pre_darkmode%">
+<html lang="en" xml:lang="en" data-bs-theme="light">
 
 <head>
     <meta http-equiv="content-type" content="text/html;charset=UTF-8">
@@ -14,7 +14,28 @@
         integrity="sha384-HwwvtgBNo3bZJJLYd8oVXjrBZt8cqVSpeBNS5n7C8IVInixGAoxmnlMuBnhbgrkm"
         crossorigin="anonymous"></script>
 
-    <title>%pre_device_name%</title>
+    <title>EPEver2MQTT</title>
+    <script>
+        window.webUiConfig = fetch('/api/system', { cache: 'no-store' })
+            .then(response => {
+                if (!response.ok) throw new Error('System information unavailable');
+                return response.json();
+            })
+            .then(system => {
+                document.documentElement.dataset.bsTheme = system.darkMode ? 'dark' : 'light';
+                document.title = system.deviceName || 'EPEver2MQTT';
+                return system;
+            })
+            .catch(error => {
+                console.error(error);
+                return {
+                    deviceName: 'EPEver2MQTT',
+                    softwareVersion: '',
+                    flashSize: 0,
+                    darkMode: false
+                };
+            });
+    </script>
 
 <body>
     <noscript>

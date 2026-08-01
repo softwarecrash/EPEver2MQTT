@@ -178,7 +178,7 @@
     showStatus('Reading settings from device ' + deviceSelect.value + '...', 'info');
     try {
       const response = await fetch(
-        '/mpptsettingsjson?device=' + encodeURIComponent(deviceSelect.value),
+        '/api/mppt/settings?device=' + encodeURIComponent(deviceSelect.value),
         { cache: 'no-store' }
       );
       const data = await response.json();
@@ -213,11 +213,18 @@
       ' (' + currentProfile + ')?'
     )) return;
 
-    const formData = new FormData(form);
+    const payload = { device: Number(deviceSelect.value) };
+    for (let index = 1; index <= definitions.length; index++) {
+      payload['e' + index] = Number(document.getElementById('e' + index).value);
+    }
     setBusy(true);
     showStatus('Writing and verifying MPPT settings...', 'warning');
     try {
-      const response = await fetch('/mpptsettingsapply', { method: 'POST', body: formData });
+      const response = await fetch('/api/mppt/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
       const data = await response.json();
       if (data.values) populateValues(data.values);
       if (!response.ok) throw new Error(data.message || 'Unable to apply MPPT settings');
@@ -239,13 +246,17 @@
       ' to device(s) ' + targets.join(', ') + '?'
     )) return;
 
-    const formData = new FormData();
-    formData.append('source', source);
-    formData.append('targets', targets.join(','));
     setBusy(true);
     showStatus('Cloning settings from device ' + source + '...', 'warning');
     try {
-      const response = await fetch('/mpptsettingsclone', { method: 'POST', body: formData });
+      const response = await fetch('/api/mppt/clone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source: Number(source),
+          targets: targets.map(Number)
+        })
+      });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Unable to clone MPPT settings');
       const details = (data.results || []).map(result =>
